@@ -14,6 +14,7 @@ export default function Nav() {
     { href: "/labor", label: "🕒 労働枠" },
     { href: "/report", label: "📊 用途別" },
     { href: "/zeirishi", label: "🧑‍💼 税理士" },
+    { href: "/menu", label: "🍽️ メニュー" },
     { href: "/soudan", label: "💬 相談" },
   ];
   return (
