@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveReceipt, getReceipts, deleteReceipt, findDuplicate, updateReceiptItems, type RLine } from "@/lib/receipts";
 import { applyAssetThreshold } from "@/lib/receipt";
+import { updateCostsFromReceipt } from "@/lib/menu";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -112,6 +113,18 @@ export async function POST(req: NextRequest) {
       },
       body.image,
     );
+    // 原価系の領収書ならメニューの仕入値を自動更新
+    try {
+      await updateCostsFromReceipt({
+        summary: body.summary ?? "",
+        total,
+        category: lines[0]?.category ?? body.category ?? "不明",
+        lines: lines.length ? lines : undefined,
+      });
+    } catch {
+      // メニュー原価更新の失敗は領収書保存に影響させない
+    }
+
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "保存に失敗";

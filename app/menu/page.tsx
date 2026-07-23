@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment, useCallback } from "react";
 import Nav from "@/components/Nav";
 
-// ─── データ型 ───
+// ─── 型 ───
 
 type Ingredient = {
   name: string;
@@ -15,260 +15,15 @@ type Ingredient = {
 };
 
 type MenuItem = {
+  id: string;
   name: string;
+  category: string;
   cost: number;
   price: number | null;
   ingredients: Ingredient[];
   note?: string;
+  updatedAt?: string;
 };
-
-type MenuCategory = {
-  category: string;
-  items: MenuItem[];
-};
-
-// ─── スプレッドシートから抽出したメニューデータ ───
-
-const menuData: MenuCategory[] = [
-  {
-    category: "☕ Drinks (Cafe)",
-    items: [
-      {
-        name: "カフェラテ",
-        cost: 71,
-        price: 500,
-        ingredients: [
-          { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 200, cost: 30 },
-          { name: "水", unit: "ml", capacity: 600000, purchasePrice: 4000, usage: 40, cost: 0 },
-        ],
-      },
-      {
-        name: "エスプレッソ",
-        cost: 41,
-        price: 400,
-        ingredients: [
-          { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-          { name: "水", unit: "ml", capacity: 600000, purchasePrice: 4000, usage: 40, cost: 0 },
-        ],
-      },
-      {
-        name: "ブレンドコーヒー (Hot/Ice)",
-        cost: 41,
-        price: 450,
-        ingredients: [
-          { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-          { name: "水", unit: "ml", capacity: 600000, purchasePrice: 4000, usage: 40, cost: 0 },
-        ],
-      },
-    ],
-  },
-  {
-    category: "🥤 Smoothie / Protein",
-    items: [
-      {
-        name: "バナナプロテイン",
-        cost: 148,
-        price: 500,
-        ingredients: [
-          { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
-          { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 130, cost: 20 },
-        ],
-      },
-      {
-        name: "ココアバナナプロテイン",
-        cost: 160,
-        price: 550,
-        ingredients: [
-          { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
-          { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 130, cost: 20 },
-          { name: "ココアパウダー", unit: "g", capacity: 1000, purchasePrice: 3980, usage: 3, cost: 12 },
-        ],
-      },
-      {
-        name: "ベリーバナナプロテイン",
-        cost: 289,
-        price: 650,
-        ingredients: [
-          { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
-          { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
-          { name: "牛乳(オーツ)", unit: "ml", capacity: 1000, purchasePrice: 1000, usage: 130, cost: 130 },
-          { name: "ミックスベリー", unit: "g", capacity: 1500, purchasePrice: 2998, usage: 15, cost: 30 },
-        ],
-      },
-    ],
-  },
-  {
-    category: "🥪 Hot Sandwich",
-    items: [
-      {
-        name: "ハム＆クリームチーズ",
-        cost: 130,
-        price: 500,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 91, usage: 2, cost: 30 },
-          { name: "切り落としハム", unit: "g", capacity: 800, purchasePrice: 905, usage: 40, cost: 45 },
-          { name: "クリームチーズ", unit: "g", capacity: 227, purchasePrice: 387, usage: 15, cost: 26 },
-          { name: "マスタード", unit: "g", capacity: 160, purchasePrice: 308, usage: 10, cost: 19 },
-          { name: "ケチャップ", unit: "g", capacity: 500, purchasePrice: 198, usage: 10, cost: 4 },
-          { name: "マーガリン", unit: "g", capacity: 900, purchasePrice: 478, usage: 10, cost: 5 },
-        ],
-      },
-      {
-        name: "ツナブロッコリー",
-        cost: 165,
-        price: 500,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 91, usage: 2, cost: 30 },
-          { name: "ツナ", unit: "缶", capacity: 1, purchasePrice: 181, usage: 0.3, cost: 54 },
-          { name: "冷凍ブロッコリー", unit: "g", capacity: 500, purchasePrice: 192, usage: 30, cost: 12 },
-          { name: "マヨネーズ", unit: "g", capacity: 1000, purchasePrice: 528, usage: 15, cost: 8 },
-          { name: "シュレッダーチーズ", unit: "g", capacity: 1000, purchasePrice: 1242, usage: 30, cost: 37 },
-          { name: "ペストロ", unit: "g", capacity: 185, purchasePrice: 321, usage: 5, cost: 9 },
-          { name: "マスタード", unit: "g", capacity: 160, purchasePrice: 308, usage: 5, cost: 10 },
-          { name: "マーガリン", unit: "g", capacity: 900, purchasePrice: 478, usage: 10, cost: 5 },
-        ],
-      },
-      {
-        name: "スパムおにぎり風",
-        cost: 270,
-        price: 550,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-          { name: "スパム(缶)", unit: "缶", capacity: 1, purchasePrice: 800, usage: 0.25, cost: 200 },
-          { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-        ],
-      },
-      {
-        name: "定番ハムチーズ",
-        cost: 170,
-        price: 500,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-          { name: "ハム", unit: "枚", capacity: 10, purchasePrice: 400, usage: 2, cost: 80 },
-          { name: "チーズ", unit: "g", capacity: 1000, purchasePrice: 1000, usage: 50, cost: 50 },
-        ],
-      },
-      {
-        name: "健康的ツナマヨブロッコリー",
-        cost: 140,
-        price: 480,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-          { name: "ツナ(缶)", unit: "缶", capacity: 3, purchasePrice: 300, usage: 0.5, cost: 50 },
-          { name: "ブロッコリー(株)", unit: "株", capacity: 1, purchasePrice: 200, usage: 0.25, cost: 50 },
-        ],
-      },
-      {
-        name: "お手頃シュガーバター",
-        cost: 104,
-        price: 380,
-        ingredients: [
-          { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-          { name: "バター", unit: "g", capacity: 200, purchasePrice: 600, usage: 20, cost: 60 },
-          { name: "砂糖", unit: "g", capacity: 1000, purchasePrice: 400, usage: 10, cost: 4 },
-        ],
-      },
-    ],
-  },
-  {
-    category: "🧇 Sweets (Waffle)",
-    items: [
-      {
-        name: "プレーンワッフル",
-        cost: 34,
-        price: 350,
-        note: "1バッチ ¥343 → 50g×10枚",
-        ingredients: [
-          { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
-          { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-          { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
-          { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
-        ],
-      },
-      {
-        name: "チョコチップワッフル",
-        cost: 36,
-        price: 400,
-        note: "1バッチ ¥365 → 50g×10枚",
-        ingredients: [
-          { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
-          { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-          { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
-          { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 30, cost: 10 },
-          { name: "チョコチップ", unit: "g", capacity: 500, purchasePrice: 525, usage: 30, cost: 32 },
-        ],
-      },
-      {
-        name: "抹茶ワッフル",
-        cost: 40,
-        price: 420,
-        note: "1バッチ ¥404 → 50g×10枚",
-        ingredients: [
-          { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
-          { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-          { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
-          { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
-          { name: "抹茶", unit: "g", capacity: 30, purchasePrice: 610, usage: 3, cost: 61 },
-        ],
-      },
-    ],
-  },
-  {
-    category: "🍸 Bar / Cocktail",
-    items: [
-      {
-        name: "バーボンサンライズ",
-        cost: 204,
-        price: 800,
-        ingredients: [
-          { name: "バーボンウイスキー", unit: "ml", capacity: 700, purchasePrice: 1540, usage: 45, cost: 99 },
-          { name: "ホワイトキュラソー", unit: "ml", capacity: 700, purchasePrice: 1683, usage: 20, cost: 48 },
-          { name: "オレンジジュース", unit: "ml", capacity: 6000, purchasePrice: 2667, usage: 65, cost: 29 },
-          { name: "グレナデンシロップ", unit: "ml", capacity: 700, purchasePrice: 1936, usage: 10, cost: 28 },
-        ],
-      },
-      {
-        name: "ベリーカクテル",
-        cost: 179,
-        price: 750,
-        ingredients: [
-          { name: "ライム果汁", unit: "ml", capacity: 1000, purchasePrice: 2019, usage: 10, cost: 20 },
-          { name: "クランベリージュース", unit: "ml", capacity: 5660, purchasePrice: 2685, usage: 60, cost: 28 },
-          { name: "いちご(冷凍)", unit: "g", capacity: 1000, purchasePrice: 1844, usage: 40, cost: 74 },
-          { name: "炭酸水", unit: "ml", capacity: 330, purchasePrice: 156, usage: 120, cost: 57 },
-        ],
-      },
-      {
-        name: "梅酒ジンジャー",
-        cost: 202,
-        price: 700,
-        ingredients: [
-          { name: "梅酒", unit: "ml", capacity: 700, purchasePrice: 1400, usage: 30, cost: 60 },
-          { name: "ジンジャーエール", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 200, cost: 28 },
-          { name: "ミント", unit: "g", capacity: 20, purchasePrice: 245, usage: 2, cost: 25 },
-          { name: "ライム", unit: "g", capacity: 1000, purchasePrice: 2970, usage: 30, cost: 89 },
-        ],
-      },
-      {
-        name: "エスプレッソウイスキー",
-        cost: 118,
-        price: 700,
-        ingredients: [
-          { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-          { name: "ウイスキー(JIM BEAM)", unit: "ml", capacity: 4000, purchasePrice: 6180, usage: 20, cost: 31 },
-          { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 250, usage: 150, cost: 38 },
-          { name: "バニラシロップ", unit: "ml", capacity: 1400, purchasePrice: 860, usage: 15, cost: 9 },
-        ],
-      },
-    ],
-  },
-];
 
 // ─── サブコンポーネント ───
 
@@ -283,15 +38,36 @@ function CostBadge({ rate }: { rate: number }) {
 
 // ─── メニュー一覧タブ ───
 
-function MenuListView() {
+function MenuListView({ items }: { items: MenuItem[] }) {
   const [openItem, setOpenItem] = useState<string | null>(null);
 
-  const allItems = menuData.flatMap((c) => c.items);
-  const withPrice = allItems.filter((i) => i.price);
+  // カテゴリ順を固定
+  const categoryOrder = [
+    "☕ Drinks (Cafe)",
+    "🍺 Beer",
+    "🥤 Smoothie / Protein",
+    "🥪 Hot Sandwich",
+    "🧇 Sweets (Waffle)",
+    "🍰 Sweets",
+    "🍸 Bar / Cocktail",
+  ];
+  const categories = [...new Set(items.map((i) => i.category))].sort(
+    (a, b) => {
+      const ai = categoryOrder.indexOf(a);
+      const bi = categoryOrder.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    },
+  );
+
+  const withPrice = items.filter((i) => i.price);
   const avgCostRate =
-    withPrice.reduce((s, i) => s + i.cost / i.price!, 0) / withPrice.length;
+    withPrice.length > 0
+      ? withPrice.reduce((s, i) => s + i.cost / i.price!, 0) / withPrice.length
+      : 0;
   const avgProfit =
-    withPrice.reduce((s, i) => s + (i.price! - i.cost), 0) / withPrice.length;
+    withPrice.length > 0
+      ? withPrice.reduce((s, i) => s + (i.price! - i.cost), 0) / withPrice.length
+      : 0;
 
   return (
     <>
@@ -299,7 +75,7 @@ function MenuListView() {
       <div className="card">
         <div className="summary-grid">
           <div className="summary-item">
-            <span className="summary-val">{allItems.length}</span>
+            <span className="summary-val">{items.length}</span>
             <span className="summary-label">メニュー数</span>
           </div>
           <div className="summary-item">
@@ -318,94 +94,113 @@ function MenuListView() {
       </div>
 
       {/* カテゴリ別テーブル */}
-      {menuData.map((cat) => (
-        <div key={cat.category} style={{ marginBottom: 20 }}>
-          <h3 className="cat-title">{cat.category}</h3>
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <table className="menu-table">
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>商品</th>
-                  <th>原価</th>
-                  <th>売価</th>
-                  <th>原価率</th>
-                  <th>粗利</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cat.items.map((item) => {
-                  const rate = item.price ? item.cost / item.price : 0;
-                  const profit = item.price ? item.price - item.cost : 0;
-                  const key = `${cat.category}-${item.name}`;
-                  const isOpen = openItem === key;
-                  return (
-                    <Fragment key={key}>
-                      <tr
-                        className="menu-row"
-                        onClick={() => setOpenItem(isOpen ? null : key)}
-                      >
-                        <td style={{ textAlign: "left" }}>
-                          <span className={`arrow ${isOpen ? "open" : ""}`}>▶</span>
-                          {item.name}
-                          {item.note && <small className="note">{item.note}</small>}
-                        </td>
-                        <td className="mono">¥{item.cost.toLocaleString()}</td>
-                        <td className="mono">
-                          {item.price ? `¥${item.price.toLocaleString()}` : "—"}
-                        </td>
-                        <td>{item.price ? <CostBadge rate={rate} /> : "—"}</td>
-                        <td className="mono" style={{ color: "var(--ok)" }}>
-                          {item.price ? `¥${profit.toLocaleString()}` : "—"}
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr>
-                          <td colSpan={5} className="detail-cell">
-                            <table className="detail-table">
-                              <thead>
-                                <tr>
-                                  <th style={{ textAlign: "left" }}>材料</th>
-                                  <th>内容量</th>
-                                  <th>仕入値</th>
-                                  <th>使用量</th>
-                                  <th>原価</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {item.ingredients.map((ing, i) => (
-                                  <tr key={i}>
-                                    <td style={{ textAlign: "left" }}>{ing.name}</td>
-                                    <td className="mono muted">
-                                      {ing.capacity}{ing.unit}
-                                    </td>
-                                    <td className="mono muted">
-                                      ¥{ing.purchasePrice.toLocaleString()}
-                                    </td>
-                                    <td className="mono muted">
-                                      {ing.usage}{ing.unit}
-                                    </td>
-                                    <td className="mono">¥{ing.cost.toLocaleString()}</td>
-                                  </tr>
-                                ))}
-                                <tr className="total-row">
-                                  <td colSpan={4} style={{ textAlign: "right" }}>合計</td>
-                                  <td className="mono">
-                                    ¥{item.ingredients.reduce((s, i) => s + i.cost, 0).toLocaleString()}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+      {categories.map((cat) => {
+        const catItems = items.filter((i) => i.category === cat);
+        return (
+          <div key={cat} style={{ marginBottom: 20 }}>
+            <h3 className="cat-title">{cat}</h3>
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              <table className="menu-table">
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left" }}>商品</th>
+                    <th>原価</th>
+                    <th>売価</th>
+                    <th>原価率</th>
+                    <th>粗利</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catItems.map((item) => {
+                    const rate = item.price ? item.cost / item.price : 0;
+                    const profit = item.price ? item.price - item.cost : 0;
+                    const isOpen = openItem === item.id;
+                    return (
+                      <Fragment key={item.id}>
+                        <tr
+                          className="menu-row"
+                          onClick={() => setOpenItem(isOpen ? null : item.id)}
+                        >
+                          <td style={{ textAlign: "left" }}>
+                            <span className={`arrow ${isOpen ? "open" : ""}`}>▶</span>
+                            {item.name}
+                            {item.note && <small className="note">{item.note}</small>}
+                          </td>
+                          <td className="mono">
+                            {item.cost > 0 ? `¥${item.cost.toLocaleString()}` : "—"}
+                          </td>
+                          <td className="mono">
+                            {item.price ? `¥${item.price.toLocaleString()}` : "—"}
+                          </td>
+                          <td>
+                            {item.price && item.cost > 0 ? (
+                              <CostBadge rate={rate} />
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="mono" style={{ color: "var(--ok)" }}>
+                            {item.price && item.cost > 0
+                              ? `¥${profit.toLocaleString()}`
+                              : "—"}
                           </td>
                         </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {isOpen && item.ingredients.length > 0 && (
+                          <tr>
+                            <td colSpan={5} className="detail-cell">
+                              <table className="detail-table">
+                                <thead>
+                                  <tr>
+                                    <th style={{ textAlign: "left" }}>材料</th>
+                                    <th>内容量</th>
+                                    <th>仕入値</th>
+                                    <th>使用量</th>
+                                    <th>原価</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {item.ingredients.map((ing, i) => (
+                                    <tr key={i}>
+                                      <td style={{ textAlign: "left" }}>{ing.name}</td>
+                                      <td className="mono muted">
+                                        {ing.capacity}{ing.unit}
+                                      </td>
+                                      <td className="mono muted">
+                                        ¥{ing.purchasePrice.toLocaleString()}
+                                      </td>
+                                      <td className="mono muted">
+                                        {ing.usage}{ing.unit}
+                                      </td>
+                                      <td className="mono">¥{ing.cost.toLocaleString()}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="total-row">
+                                    <td colSpan={4} style={{ textAlign: "right" }}>合計</td>
+                                    <td className="mono">
+                                      ¥{item.ingredients
+                                        .reduce((s, i) => s + i.cost, 0)
+                                        .toLocaleString()}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                              {item.updatedAt && (
+                                <p className="muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+                                  最終更新: {new Date(item.updatedAt).toLocaleDateString("ja-JP")}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -641,12 +436,30 @@ function CalcView() {
 
 export default function MenuPage() {
   const [tab, setTab] = useState<"list" | "calc">("list");
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadItems = useCallback(async () => {
+    try {
+      const res = await fetch("/api/menu");
+      const data = await res.json();
+      setItems(data.items ?? []);
+    } catch {
+      // fallback: empty
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
 
   return (
     <div className="wrap">
       <header>
         <h1>☕ flat. メニュー管理</h1>
-        <p>メニューの原価・売価を管理 → Squareデータと合わせて分析</p>
+        <p>メニューの原価・売価を管理 → 領収書登録で仕入値が自動更新されます</p>
       </header>
       <Nav />
 
@@ -666,7 +479,19 @@ export default function MenuPage() {
         </button>
       </div>
 
-      {tab === "list" ? <MenuListView /> : <CalcView />}
+      {loading ? (
+        <div className="card" style={{ textAlign: "center", padding: 40 }}>
+          <span
+            className="spinner"
+            style={{ borderColor: "#e4e1da", borderTopColor: "var(--accent)" }}
+          />
+          読み込み中…
+        </div>
+      ) : tab === "list" ? (
+        <MenuListView items={items} />
+      ) : (
+        <CalcView />
+      )}
     </div>
   );
 }
