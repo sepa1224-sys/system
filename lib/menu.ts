@@ -27,6 +27,7 @@ export type MenuItem = {
   cost: number;
   price: number | null;
   ingredients: Ingredient[];
+  recipe?: string; // 作り方
   note?: string;
   updatedAt?: string;
 };
@@ -304,46 +305,47 @@ export const DEFAULT_MENU: MenuItem[] = [
     cost: 0, price: 300, ingredients: [], note: "原価未登録",
   },
 
-  // 🍸 Bar / Cocktail
+  // 🍸 Bar / Cocktail（実メニュー5品 全て¥700）
   {
-    id: "bourbon-sunrise", name: "バーボンサンライズ", category: "🍸 Bar / Cocktail",
-    cost: 204, price: 800,
+    id: "aperol-coconut-margarita", name: "Aperol Coconut Margarita", category: "🍸 Bar / Cocktail",
+    cost: 183, price: 700,
+    recipe: "テキーラ30ml、アペロール15ml、ライムジュース15ml、ココナッツミルク30ml、シンプルシロップ15mlを氷と共にシェイク。グラスの縁に塩を付け、ライム一切れを添えて提供。",
     ingredients: [
-      { name: "バーボンウイスキー", unit: "ml", capacity: 700, purchasePrice: 1540, usage: 45, cost: 99 },
-      { name: "ホワイトキュラソー", unit: "ml", capacity: 700, purchasePrice: 1683, usage: 20, cost: 48 },
-      { name: "オレンジジュース", unit: "ml", capacity: 6000, purchasePrice: 2667, usage: 65, cost: 29 },
-      { name: "グレナデンシロップ", unit: "ml", capacity: 700, purchasePrice: 1936, usage: 10, cost: 28 },
+      { name: "テキーラ", unit: "ml", capacity: 750, purchasePrice: 2000, usage: 30, cost: 80 },
+      { name: "アペロール", unit: "ml", capacity: 700, purchasePrice: 1765, usage: 15, cost: 38 },
+      { name: "ライムジュース", unit: "ml", capacity: 540, purchasePrice: 713, usage: 15, cost: 20 },
+      { name: "ココナッツミルク", unit: "ml", capacity: 3000, purchasePrice: 2890, usage: 30, cost: 29 },
+      { name: "シンプルシロップ", unit: "ml", capacity: 780, purchasePrice: 847, usage: 15, cost: 16 },
     ],
+    note: "テキーラは概算¥2000/750ml。領収書で自動更新",
   },
   {
-    id: "berry-cocktail", name: "ベリーカクテル", category: "🍸 Bar / Cocktail",
-    cost: 179, price: 750,
-    ingredients: [
-      { name: "ライム果汁", unit: "ml", capacity: 1000, purchasePrice: 2019, usage: 10, cost: 20 },
-      { name: "クランベリージュース", unit: "ml", capacity: 5660, purchasePrice: 2685, usage: 60, cost: 28 },
-      { name: "いちご(冷凍)", unit: "g", capacity: 1000, purchasePrice: 1844, usage: 40, cost: 74 },
-      { name: "炭酸水", unit: "ml", capacity: 330, purchasePrice: 156, usage: 120, cost: 57 },
-    ],
+    id: "berry-coconut-cloud", name: "Berry Coconut Cloud", category: "🍸 Bar / Cocktail",
+    cost: 0, price: 700,
+    recipe: "",
+    ingredients: [],
+    note: "レシピ未登録",
   },
   {
-    id: "umeshu-ginger", name: "梅酒ジンジャー", category: "🍸 Bar / Cocktail",
-    cost: 202, price: 700,
-    ingredients: [
-      { name: "梅酒", unit: "ml", capacity: 700, purchasePrice: 1400, usage: 30, cost: 60 },
-      { name: "ジンジャーエール", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 200, cost: 28 },
-      { name: "ミント", unit: "g", capacity: 20, purchasePrice: 245, usage: 2, cost: 25 },
-      { name: "ライム", unit: "g", capacity: 1000, purchasePrice: 2970, usage: 30, cost: 89 },
-    ],
+    id: "miami-sunset", name: "Miami Sunset", category: "🍸 Bar / Cocktail",
+    cost: 0, price: 700,
+    recipe: "",
+    ingredients: [],
+    note: "レシピ未登録",
   },
   {
-    id: "espresso-whiskey", name: "エスプレッソウイスキー", category: "🍸 Bar / Cocktail",
-    cost: 118, price: 700,
-    ingredients: [
-      { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-      { name: "ウイスキー(JIM BEAM)", unit: "ml", capacity: 4000, purchasePrice: 6180, usage: 20, cost: 31 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 250, usage: 150, cost: 38 },
-      { name: "バニラシロップ", unit: "ml", capacity: 1400, purchasePrice: 860, usage: 15, cost: 9 },
-    ],
+    id: "espresso-martini", name: "Espresso Martini", category: "🍸 Bar / Cocktail",
+    cost: 0, price: 700,
+    recipe: "",
+    ingredients: [],
+    note: "レシピ未登録",
+  },
+  {
+    id: "umeshu-mojito", name: "Umeshu Mojito", category: "🍸 Bar / Cocktail",
+    cost: 0, price: 700,
+    recipe: "",
+    ingredients: [],
+    note: "レシピ未登録",
   },
 ];
 
@@ -400,7 +402,13 @@ const INGREDIENT_KEYWORDS: Record<string, string[]> = {
   "チョコチップ": ["チョコチップ"],
   "ざらめ": ["ざらめ", "ザラメ"],
   "ハイネケン 330ml瓶": ["ハイネケン", "Heineken"],
-  "バーボンウイスキー": ["バーボン", "ウイスキー"],
+  "テキーラ": ["テキーラ", "tequila"],
+  "アペロール": ["アペロール", "Aperol", "aperol"],
+  "ライムジュース": ["ライムジュース", "ライム果汁"],
+  "ココナッツミルク": ["ココナッツミルク", "ココナッツ"],
+  "シンプルシロップ": ["シロップ", "シンプルシロップ"],
+  "バーボンウイスキー": ["バーボン"],
+  "ウイスキー(JIM BEAM)": ["ウイスキー", "JIM BEAM", "ジムビーム"],
   "梅酒": ["梅酒"],
   "ジンジャーエール": ["ジンジャーエール"],
   "オレンジジュース": ["オレンジジュース", "オレンジ"],

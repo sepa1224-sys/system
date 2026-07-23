@@ -21,6 +21,7 @@ type MenuItem = {
   cost: number;
   price: number | null;
   ingredients: Ingredient[];
+  recipe?: string;
   note?: string;
   updatedAt?: string;
 };
@@ -145,9 +146,16 @@ function MenuListView({ items }: { items: MenuItem[] }) {
                               : "—"}
                           </td>
                         </tr>
-                        {isOpen && item.ingredients.length > 0 && (
+                        {isOpen && (
                           <tr>
                             <td colSpan={5} className="detail-cell">
+                              {item.recipe && (
+                                <div className="recipe-box">
+                                  <strong>作り方</strong>
+                                  <p>{item.recipe}</p>
+                                </div>
+                              )}
+                              {item.ingredients.length > 0 && (
                               <table className="detail-table">
                                 <thead>
                                   <tr>
@@ -184,10 +192,14 @@ function MenuListView({ items }: { items: MenuItem[] }) {
                                   </tr>
                                 </tbody>
                               </table>
+                              )}
                               {item.updatedAt && (
                                 <p className="muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
                                   最終更新: {new Date(item.updatedAt).toLocaleDateString("ja-JP")}
                                 </p>
+                              )}
+                              {!item.recipe && item.ingredients.length === 0 && (
+                                <p className="muted" style={{ fontSize: 13, margin: 0 }}>レシピ・材料未登録</p>
                               )}
                             </td>
                           </tr>

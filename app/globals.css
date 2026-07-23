@@ -1086,3 +1086,23 @@ button.ghost {
 .result-row:last-child {
   border-bottom: none;
 }
+
+.recipe-box {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.recipe-box strong {
+  font-size: 12px;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 4px;
+}
+.recipe-box p {
+  margin: 0;
+  color: var(--ink);
+}
