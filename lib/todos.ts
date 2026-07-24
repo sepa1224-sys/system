@@ -18,6 +18,7 @@ export type Todo = {
   memo: string;
   done: boolean;
   priority: "high" | "medium" | "low";
+  assignee?: string; // 担当者
   dueDate?: string; // YYYY-MM-DD
   createdAt: string;
   completedAt?: string;

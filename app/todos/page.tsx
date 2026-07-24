@@ -9,10 +9,13 @@ type Todo = {
   memo: string;
   done: boolean;
   priority: "high" | "medium" | "low";
+  assignee?: string;
   dueDate?: string;
   createdAt: string;
   completedAt?: string;
 };
+
+const MEMBERS = ["坂本", "町田", "櫻井", "國仲"] as const;
 
 type Filter = "all" | "active" | "done";
 
@@ -31,6 +34,7 @@ export default function TodosPage() {
   const [title, setTitle] = useState("");
   const [memo, setMemo] = useState("");
   const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
+  const [assignee, setAssignee] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -40,6 +44,7 @@ export default function TodosPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editMemo, setEditMemo] = useState("");
   const [editPriority, setEditPriority] = useState<"high" | "medium" | "low">("medium");
+  const [editAssignee, setEditAssignee] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
 
   // メモ展開
@@ -73,6 +78,7 @@ export default function TodosPage() {
           title: title.trim(),
           memo: memo.trim(),
           priority,
+          assignee: assignee || undefined,
           dueDate: dueDate || undefined,
         }),
       });
@@ -84,6 +90,7 @@ export default function TodosPage() {
       setTitle("");
       setMemo("");
       setPriority("medium");
+      setAssignee("");
       setDueDate("");
       await load();
     } catch {
@@ -130,6 +137,7 @@ export default function TodosPage() {
     setEditTitle(todo.title);
     setEditMemo(todo.memo);
     setEditPriority(todo.priority);
+    setEditAssignee(todo.assignee || "");
     setEditDueDate(todo.dueDate || "");
   };
 
@@ -147,6 +155,7 @@ export default function TodosPage() {
               title: editTitle.trim(),
               memo: editMemo.trim(),
               priority: editPriority,
+              assignee: editAssignee || undefined,
               dueDate: editDueDate || undefined,
             }
           : t,
@@ -162,6 +171,7 @@ export default function TodosPage() {
           title: editTitle.trim(),
           memo: editMemo.trim(),
           priority: editPriority,
+          assignee: editAssignee || undefined,
           dueDate: editDueDate || undefined,
         },
       }),
@@ -253,6 +263,15 @@ export default function TodosPage() {
         />
         <div className="row">
           <div>
+            <label>担当者</label>
+            <select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+              <option value="">未定</option>
+              {MEMBERS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label>優先度</label>
             <select
               value={priority}
@@ -332,6 +351,15 @@ export default function TodosPage() {
                   }}
                 />
                 <div className="row" style={{ marginTop: 8 }}>
+                  <div>
+                    <label>担当者</label>
+                    <select value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)}>
+                      <option value="">未定</option>
+                      {MEMBERS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label>優先度</label>
                     <select
@@ -437,9 +465,15 @@ export default function TodosPage() {
                         marginTop: 3,
                       }}
                     >
+                      {todo.assignee && (
+                        <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                          👤 {todo.assignee}
+                        </span>
+                      )}
                       {todo.dueDate && (
                         <span
                           style={{
+                            marginLeft: todo.assignee ? 8 : 0,
                             color: isOverdue(todo.dueDate) && !todo.done
                               ? "#b22"
                               : "var(--muted)",
@@ -453,7 +487,7 @@ export default function TodosPage() {
                         </span>
                       )}
                       {todo.memo && (
-                        <span style={{ marginLeft: todo.dueDate ? 8 : 0 }}>
+                        <span style={{ marginLeft: (todo.assignee || todo.dueDate) ? 8 : 0 }}>
                           📝 メモあり
                         </span>
                       )}

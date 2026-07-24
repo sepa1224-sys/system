@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     title?: string;
     memo?: string;
     priority?: "high" | "medium" | "low";
+    assignee?: string;
     dueDate?: string;
   };
   try {
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
       memo: body.memo?.trim() || "",
       done: false,
       priority: body.priority || "medium",
+      assignee: body.assignee?.trim() || undefined,
       dueDate: body.dueDate || undefined,
     });
     return NextResponse.json({ ok: true, id });
