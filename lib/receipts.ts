@@ -105,6 +105,45 @@ export async function deleteReceipt(id: string): Promise<void> {
   }
 }
 
+// 領収書の任意フィールドを更新する（編集画面用）。
+// lines が含まれるときは summary/category/tags も再導出する。
+export async function updateReceipt(
+  id: string,
+  patch: Partial<Omit<SavedReceipt, "id" | "savedAt">>,
+): Promise<boolean> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const all = await getReceipts();
+  const i = all.findIndex((r) => r.id === id);
+  if (i < 0) return false;
+
+  // lines が渡された場合は整合をとる
+  if (patch.lines && patch.lines.length > 0) {
+    const clean = applyAssetThreshold(
+      patch.lines
+        .filter((l) => l && (l.name || l.amount))
+        .map((l) => ({
+          name: l.name ?? "",
+          amount: Number(l.amount) || 0,
+          category: l.category || "不明",
+          tags: (l.tags ?? []).filter((t: string) => t && t.trim()).map((t: string) => t.trim()),
+        })),
+    );
+    if (clean.length > 0) {
+      const compatTags = [...new Set(clean.flatMap((l) => l.tags))];
+      patch.lines = clean;
+      patch.total = clean.reduce((s, l) => s + l.amount, 0);
+      patch.summary = clean.map((l) => l.name).filter(Boolean).join("、") || all[i].summary;
+      patch.category = clean[0]?.category ?? all[i].category;
+      patch.tags = compatTags.length ? compatTags : all[i].tags;
+    }
+  }
+
+  all[i] = { ...all[i], ...patch };
+  await store.set(IDX, all);
+  return true;
+}
+
 // 既存領収書の内訳（品目）を後から確定保存する。AI推測をユーザーが承認したとき使う。
 // summary / category / tags は lines から導出して整合を取る（POST /api/receipts と同じ流儀）。
 export async function updateReceiptItems(id: string, lines: RLine[]): Promise<boolean> {

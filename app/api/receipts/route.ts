@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveReceipt, getReceipts, deleteReceipt, findDuplicate, updateReceiptItems, type RLine } from "@/lib/receipts";
+import { saveReceipt, getReceipts, deleteReceipt, findDuplicate, updateReceiptItems, updateReceipt, type RLine } from "@/lib/receipts";
 import { applyAssetThreshold } from "@/lib/receipt";
 import { updateCostsFromReceipt } from "@/lib/menu";
 
@@ -18,18 +18,36 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// 既存領収書の品目（内訳）を確定保存する。AI推測の承認などで使う。
+// 既存領収書の更新。
+// action="items" → 品目だけ確定（AI推測の承認）。
+// action="edit" → 全フィールド編集。
+// action 省略 + lines → 旧互換（品目確定）。
 export async function PATCH(req: NextRequest) {
-  let body: { id?: string; lines?: RLine[] };
+  let body: {
+    id?: string;
+    action?: "items" | "edit";
+    lines?: RLine[];
+    patch?: Record<string, unknown>;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "不正なリクエスト" }, { status: 400 });
   }
-  if (!body.id || !Array.isArray(body.lines)) {
-    return NextResponse.json({ error: "id と lines が必要です" }, { status: 400 });
+  if (!body.id) {
+    return NextResponse.json({ error: "idが必要です" }, { status: 400 });
   }
+
   try {
+    if (body.action === "edit" && body.patch) {
+      const ok = await updateReceipt(body.id, body.patch as never);
+      if (!ok) return NextResponse.json({ error: "更新対象がありません" }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+    // 旧互換: lines確定
+    if (!Array.isArray(body.lines)) {
+      return NextResponse.json({ error: "lines が必要です" }, { status: 400 });
+    }
     const ok = await updateReceiptItems(body.id, body.lines);
     if (!ok) return NextResponse.json({ error: "更新対象がありません" }, { status: 404 });
     return NextResponse.json({ ok: true });
@@ -49,7 +67,7 @@ export async function POST(req: NextRequest) {
     payer?: string;
     memo?: string;
     image?: string;
-    expenseKind?: "company" | "labor";
+    expenseKind?: "company" | "card" | "labor";
     laborMember?: string;
     tags?: string[];
     lines?: RLine[];

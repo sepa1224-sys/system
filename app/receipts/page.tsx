@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CATEGORIES } from "@/lib/receipt";
 import Nav from "@/components/Nav";
 
 type RLine = { name: string; amount: number; category: string; tags?: string[] };
@@ -16,8 +17,17 @@ type Receipt = {
   memo: string;
   savedAt: string;
   registered?: { journalId: number; at: string };
+  expenseKind?: "company" | "card" | "labor";
+  laborMember?: string;
   lines?: RLine[];
   tags?: string[];
+};
+
+const MEMBERS = ["坂本", "町田", "櫻井", "國仲"] as const;
+const KIND_LABELS: Record<string, string> = {
+  company: "立替",
+  card: "会社カード",
+  labor: "労働枠",
 };
 
 export default function Receipts() {
@@ -30,6 +40,17 @@ export default function Receipts() {
   const [guesses, setGuesses] = useState<
     Record<string, "loading" | { lines: RLine[]; confidence: string; source: string }>
   >({});
+  // 編集中の領収書
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{
+    date: string;
+    vendor: string;
+    payer: string;
+    memo: string;
+    expenseKind: "company" | "card" | "labor";
+    laborMember: string;
+    lines: RLine[];
+  } | null>(null);
 
   function load() {
     fetch("/api/receipts")
@@ -130,6 +151,99 @@ export default function Receipts() {
     });
   }
 
+  function startEdit(r: Receipt) {
+    setEditId(r.id);
+    setEditForm({
+      date: r.date,
+      vendor: r.vendor,
+      payer: r.payer,
+      memo: r.memo || "",
+      expenseKind: r.expenseKind || "company",
+      laborMember: r.laborMember || MEMBERS[0],
+      lines: r.lines && r.lines.length > 0
+        ? r.lines.map((l) => ({ ...l, tags: l.tags ?? [] }))
+        : [{ name: r.summary || "", amount: r.total, category: r.category || "不明", tags: r.tags ?? [] }],
+    });
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setEditForm(null);
+  }
+
+  function setEditLine(i: number, patch: Partial<RLine>) {
+    if (!editForm) return;
+    setEditForm({
+      ...editForm,
+      lines: editForm.lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+    });
+  }
+
+  function addEditLine() {
+    if (!editForm) return;
+    setEditForm({
+      ...editForm,
+      lines: [...editForm.lines, { name: "", amount: 0, category: "不明", tags: [] }],
+    });
+  }
+
+  function removeEditLine(i: number) {
+    if (!editForm || editForm.lines.length <= 1) return;
+    setEditForm({
+      ...editForm,
+      lines: editForm.lines.filter((_, idx) => idx !== i),
+    });
+  }
+
+  async function saveEdit() {
+    if (!editId || !editForm) return;
+    setBusy(editId);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/receipts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editId,
+          action: "edit",
+          patch: {
+            date: editForm.date,
+            vendor: editForm.vendor,
+            payer: editForm.payer,
+            memo: editForm.memo,
+            expenseKind: editForm.expenseKind,
+            laborMember: editForm.expenseKind === "labor" ? editForm.laborMember : undefined,
+            lines: editForm.lines,
+          },
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "更新に失敗");
+      setMsg("更新しました ✓");
+      setEditId(null);
+      setEditForm(null);
+      load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "更新に失敗しました");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("この領収書を削除しますか？")) return;
+    setBusy(id);
+    try {
+      await fetch(`/api/receipts?id=${id}`, { method: "DELETE" });
+      setReceipts((rs) => rs ? rs.filter((r) => r.id !== id) : rs);
+      setMsg("削除しました");
+    } catch {
+      setMsg("削除に失敗しました");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function toggleImage(id: string) {
     // すでに開いている / 取得済みなら閉じる（stateから消す）
     setImages((m) => {
@@ -187,116 +301,252 @@ export default function Receipts() {
       {receipts?.map((r) => {
         const g = guesses[r.id];
         const noItems = !(r.lines && r.lines.length > 0) && !r.summary;
+        const isEditing = editId === r.id && editForm;
+        const kindLabel = KIND_LABELS[r.expenseKind || "company"] || "立替";
         return (
         <div key={r.id} className={`card meisai ${r.registered ? "done" : ""}`}>
-          <div className="meisai-head" style={{ cursor: "default" }}>
-            <div>
-              <div className="meisai-desc">{r.vendor || "（店名なし）"}</div>
-              <div className="meisai-sub">
-                {r.date}・{r.category}・立替: {r.payer}
-              </div>
-              {r.lines && r.lines.length > 0
-                ? r.lines.map((l, i) => (
-                    <div key={i} className="meisai-sub">
-                      🛒 {l.name || "（品目なし）"}
-                      {r.lines!.length > 1 && ` ¥${l.amount.toLocaleString()}`}
-                      <span style={{ color: "var(--muted)" }}>（{l.category}）</span>
-                      {l.tags && l.tags.length > 0 && (
-                        <span style={{ color: "var(--muted)" }}> [{l.tags.join("・")}]</span>
-                      )}
-                    </div>
-                  ))
-                : r.summary && <div className="meisai-sub">🛒 {r.summary}</div>}
-              {r.memo && <div className="meisai-sub">📝 {r.memo}</div>}
-            </div>
-            <div className="meisai-right">
-              <div className="meisai-amt out">¥{r.total.toLocaleString()}</div>
-            </div>
-          </div>
+          {isEditing ? (
+            /* ──── 編集モード ──── */
+            <div style={{ padding: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>✏️ 編集</div>
 
-          {noItems && (
-            <div style={{ marginTop: 8 }}>
-              {!g && (
-                <button className="rc-toggle" style={{ width: "100%" }} onClick={() => guessItems(r.id)}>
-                  🔮 品目が未入力 — AIで推測する
-                </button>
-              )}
-              {g === "loading" && (
-                <div style={{ textAlign: "center", color: "var(--muted)" }}>
-                  <span className="spinner" style={{ borderColor: "#e4e1da", borderTopColor: "var(--accent)" }} />{" "}
-                  AIが品目を推測中…
-                </div>
-              )}
-              {g && g !== "loading" && (
-                <div className="dup-warn" style={{ borderColor: "#b7791f", background: "#fffbea" }}>
-                  🔮 <strong>AIの推測</strong>（
-                  {g.source === "image" ? "原本画像から" : "店名・金額から推測"}・自信度 {g.confidence}）
-                  <div style={{ marginTop: 4 }}>
-                    {g.lines.map((l, i) => (
-                      <div key={i} className="meisai-sub" style={{ color: "#5b4a1a" }}>
-                        🛒 {l.name || "（品目なし）"} ¥{(Number(l.amount) || 0).toLocaleString()}（{l.category}）
-                        {l.tags && l.tags.length > 0 && ` [${l.tags.join("・")}]`}
-                      </div>
+              <label>日付</label>
+              <input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} />
+
+              <label>店名・支払先</label>
+              <input value={editForm.vendor} onChange={(e) => setEditForm({ ...editForm, vendor: e.target.value })} />
+
+              <label>内訳</label>
+              {editForm.lines.map((l, i) => (
+                <div key={i} className="rline">
+                  <div className="rline-top">
+                    <input
+                      className="rline-name"
+                      value={l.name}
+                      placeholder="品目"
+                      onChange={(e) => setEditLine(i, { name: e.target.value })}
+                    />
+                    <input
+                      className="rline-amt"
+                      type="number"
+                      value={l.amount || ""}
+                      placeholder="金額"
+                      onChange={(e) => setEditLine(i, { amount: Number(e.target.value) })}
+                    />
+                    {editForm.lines.length > 1 && (
+                      <button type="button" className="rline-del" onClick={() => removeEditLine(i)}>×</button>
+                    )}
+                  </div>
+                  <select value={l.category} onChange={(e) => setEditLine(i, { category: e.target.value })}>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
+                  </select>
+                </div>
+              ))}
+              <button type="button" className="rc-toggle" onClick={addEditLine} style={{ marginTop: 4 }}>
+                ＋ 行を追加
+              </button>
+              <div className="rline-total">
+                合計 ¥{editForm.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0).toLocaleString()}
+              </div>
+
+              <label>経費区分</label>
+              <div className="kind-toggle">
+                <button type="button" className={`kind-btn ${editForm.expenseKind === "company" ? "active" : ""}`}
+                  onClick={() => setEditForm({ ...editForm, expenseKind: "company" })}>
+                  立替
+                </button>
+                <button type="button" className={`kind-btn ${editForm.expenseKind === "card" ? "active" : ""}`}
+                  onClick={() => setEditForm({ ...editForm, expenseKind: "card" })}>
+                  会社カード
+                </button>
+                <button type="button" className={`kind-btn ${editForm.expenseKind === "labor" ? "active" : ""}`}
+                  onClick={() => setEditForm({ ...editForm, expenseKind: "labor" })}>
+                  労働枠
+                </button>
+              </div>
+
+              {editForm.expenseKind !== "card" && (
+                <>
+                  <label>立替えた人</label>
+                  <select value={editForm.payer} onChange={(e) => setEditForm({ ...editForm, payer: e.target.value })}>
+                    {MEMBERS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {editForm.expenseKind === "labor" && (
+                <>
+                  <label>誰の労働枠？</label>
+                  <select value={editForm.laborMember} onChange={(e) => setEditForm({ ...editForm, laborMember: e.target.value })}>
+                    {MEMBERS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              <label>メモ</label>
+              <textarea rows={2} value={editForm.memo} placeholder="メモ"
+                onChange={(e) => setEditForm({ ...editForm, memo: e.target.value })} />
+
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button className="primary" onClick={saveEdit} disabled={busy === r.id} style={{ flex: 1 }}>
+                  {busy === r.id ? <span className="spinner" /> : "保存"}
+                </button>
+                <button className="ghost" onClick={cancelEdit} style={{ flex: 1 }}>キャンセル</button>
+              </div>
+            </div>
+          ) : (
+            /* ──── 表示モード ──── */
+            <>
+              <div className="meisai-head" style={{ cursor: "default" }}>
+                <div>
+                  <div className="meisai-desc">{r.vendor || "（店名なし）"}</div>
+                  <div className="meisai-sub">
+                    {r.date}・{r.category}
+                    {r.expenseKind === "card"
+                      ? <span className="hint-chip">💳 会社カード</span>
+                      : <>・{kindLabel}: {r.payer}</>}
                   </div>
-                  <div style={{ marginTop: 4, fontSize: 12 }}>
-                    確定すると品目として保存されます。内容が違うときは破棄して、🧾タブで登録し直してください。
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button className="ghost" onClick={() => dismissGuess(r.id)} disabled={busy === r.id}>
-                      破棄
+                  {r.lines && r.lines.length > 0
+                    ? r.lines.map((l, i) => (
+                        <div key={i} className="meisai-sub">
+                          🛒 {l.name || "（品目なし）"}
+                          {r.lines!.length > 1 && ` ¥${l.amount.toLocaleString()}`}
+                          <span style={{ color: "var(--muted)" }}>（{l.category}）</span>
+                          {l.tags && l.tags.length > 0 && (
+                            <span style={{ color: "var(--muted)" }}> [{l.tags.join("・")}]</span>
+                          )}
+                        </div>
+                      ))
+                    : r.summary && <div className="meisai-sub">🛒 {r.summary}</div>}
+                  {r.memo && <div className="meisai-sub">📝 {r.memo}</div>}
+                </div>
+                <div className="meisai-right">
+                  <div className="meisai-amt out">¥{r.total.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {noItems && (
+                <div style={{ marginTop: 8 }}>
+                  {!g && (
+                    <button className="rc-toggle" style={{ width: "100%" }} onClick={() => guessItems(r.id)}>
+                      🔮 品目が未入力 — AIで推測する
                     </button>
-                    <button className="pay-btn" onClick={() => confirmItems(r.id)} disabled={busy === r.id}>
-                      {busy === r.id ? <span className="spinner" /> : "この内容で確定（保存）"}
-                    </button>
-                  </div>
+                  )}
+                  {g === "loading" && (
+                    <div style={{ textAlign: "center", color: "var(--muted)" }}>
+                      <span className="spinner" style={{ borderColor: "#e4e1da", borderTopColor: "var(--accent)" }} />{" "}
+                      AIが品目を推測中…
+                    </div>
+                  )}
+                  {g && g !== "loading" && (
+                    <div className="dup-warn" style={{ borderColor: "#b7791f", background: "#fffbea" }}>
+                      🔮 <strong>AIの推測</strong>（
+                      {g.source === "image" ? "原本画像から" : "店名・金額から推測"}・自信度 {g.confidence}）
+                      <div style={{ marginTop: 4 }}>
+                        {g.lines.map((l, i) => (
+                          <div key={i} className="meisai-sub" style={{ color: "#5b4a1a" }}>
+                            🛒 {l.name || "（品目なし）"} ¥{(Number(l.amount) || 0).toLocaleString()}（{l.category}）
+                            {l.tags && l.tags.length > 0 && ` [${l.tags.join("・")}]`}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 12 }}>
+                        確定すると品目として保存されます。内容が違うときは破棄して、🧾タブで登録し直してください。
+                      </div>
+                      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="ghost" onClick={() => dismissGuess(r.id)} disabled={busy === r.id}>
+                          破棄
+                        </button>
+                        <button className="pay-btn" onClick={() => confirmItems(r.id)} disabled={busy === r.id}>
+                          {busy === r.id ? <span className="spinner" /> : "この内容で確定（保存）"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          <div style={{ marginTop: 10 }}>
-            {r.registered ? (
-              <div className="decided-box" style={{ margin: 0 }}>
-                ✓ freee登録済（振替伝票 #{r.registered.journalId}）／ 借)
-                {r.category}・貸)役員借入金（{r.payer}）
+              <div style={{ marginTop: 10 }}>
+                {r.registered ? (
+                  <div className="decided-box" style={{ margin: 0 }}>
+                    ✓ freee登録済（振替伝票 #{r.registered.journalId}）／ 借)
+                    {r.category}・貸){r.expenseKind === "card" ? "普通預金" : `役員借入金（${r.payer}）`}
+                  </div>
+                ) : (
+                  <button
+                    className="pay-btn"
+                    style={{ width: "100%" }}
+                    onClick={() => register(r.id)}
+                    disabled={busy === r.id}
+                  >
+                    {busy === r.id
+                      ? <span className="spinner" />
+                      : r.expenseKind === "card"
+                        ? "freeeに登録（借)" + r.category + "／貸)普通預金）"
+                        : "freeeに登録（借)" + r.category + "／貸)役員借入金）"}
+                  </button>
+                )}
               </div>
-            ) : (
-              <button
-                className="pay-btn"
-                style={{ width: "100%" }}
-                onClick={() => register(r.id)}
-                disabled={busy === r.id}
-              >
-                {busy === r.id ? <span className="spinner" /> : "freeeに登録（借)" + r.category + "／貸)役員借入金）"}
-              </button>
-            )}
-          </div>
-          <button
-            className="rc-toggle"
-            style={{ marginTop: 8 }}
-            onClick={() => toggleImage(r.id)}
-          >
-            {images[r.id] ? "🖼 原本を閉じる" : "🖼 原本を見る"}
-          </button>
-          {images[r.id] === "loading" && (
-            <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 8 }}>
-              <span className="spinner" style={{ borderColor: "#e4e1da", borderTopColor: "var(--accent)" }} />
-            </div>
-          )}
-          {images[r.id] === "none" && (
-            <p className="hint" style={{ marginTop: 8 }}>
-              この領収書は原本画像が保存されていません（サイズ超過や旧データの可能性）。
-            </p>
-          )}
-          {images[r.id] && images[r.id] !== "loading" && images[r.id] !== "none" && (
-            images[r.id].startsWith("data:application/pdf") ? (
-              <a href={images[r.id]} target="_blank" rel="noreferrer" className="hint" style={{ display: "block", marginTop: 8 }}>
-                📄 PDFを別タブで開く
-              </a>
-            ) : (
-              <img src={images[r.id]} alt="領収書原本" className="preview" style={{ marginTop: 8 }} />
-            )
+
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  className="rc-toggle"
+                  style={{ flex: 1 }}
+                  onClick={() => toggleImage(r.id)}
+                >
+                  {images[r.id] ? "🖼 原本を閉じる" : "🖼 原本を見る"}
+                </button>
+                <button
+                  className="rc-toggle"
+                  style={{ flex: 1 }}
+                  onClick={() => startEdit(r)}
+                >
+                  ✏️ 編集
+                </button>
+                <button
+                  style={{
+                    flex: 0,
+                    background: "#fde8e8",
+                    color: "#b22",
+                    fontSize: 13,
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => handleDelete(r.id)}
+                  disabled={busy === r.id}
+                >
+                  🗑
+                </button>
+              </div>
+
+              {images[r.id] === "loading" && (
+                <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 8 }}>
+                  <span className="spinner" style={{ borderColor: "#e4e1da", borderTopColor: "var(--accent)" }} />
+                </div>
+              )}
+              {images[r.id] === "none" && (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  この領収書は原本画像が保存されていません（サイズ超過や旧データの可能性）。
+                </p>
+              )}
+              {images[r.id] && images[r.id] !== "loading" && images[r.id] !== "none" && (
+                images[r.id].startsWith("data:application/pdf") ? (
+                  <a href={images[r.id]} target="_blank" rel="noreferrer" className="hint" style={{ display: "block", marginTop: 8 }}>
+                    📄 PDFを別タブで開く
+                  </a>
+                ) : (
+                  <img src={images[r.id]} alt="領収書原本" className="preview" style={{ marginTop: 8 }} />
+                )
+              )}
+            </>
           )}
         </div>
         );
