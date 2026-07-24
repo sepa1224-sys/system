@@ -166,14 +166,40 @@ export default function Home() {
     setStatus("saved");
   }
 
+  // 画像を最大1600pxにリサイズしてデータURLを返す（PDFはそのまま）
+  function compressImage(dataUrl: string): Promise<string> {
+    if (dataUrl.startsWith("data:application/pdf")) return Promise.resolve(dataUrl);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1600;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const ratio = Math.min(MAX / width, MAX / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => resolve(dataUrl); // 失敗時は元のまま
+      img.src = dataUrl;
+    });
+  }
+
   async function handleFile(file: File) {
     setError(null);
-    const dataUrl = await new Promise<string>((resolve, reject) => {
+    const rawDataUrl = await new Promise<string>((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(r.result as string);
       r.onerror = reject;
       r.readAsDataURL(file);
     });
+    const dataUrl = await compressImage(rawDataUrl);
     setImage(dataUrl);
     setStatus("extracting");
 
@@ -183,7 +209,12 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: dataUrl }),
       });
-      const json = await res.json();
+      let json;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error("サーバーエラーが発生しました。画像が大きすぎる可能性があります。");
+      }
       if (!res.ok) throw new Error(json.error ?? "抽出に失敗しました。");
       const r = json.receipt as Receipt;
       const lines: Line[] =
