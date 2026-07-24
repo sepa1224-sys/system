@@ -50,9 +50,10 @@ export const ReceiptLineSchema = z.object({
   name: z.string().describe("品目・内容（例: 木材、コーヒー豆2kg）。"),
   amount: z.number().describe("この品目の税込金額（円）。"),
   category: z
-    .enum(CATEGORIES)
+    .string()
     .describe(
-      "科目。コーヒー豆/牛乳/フード材料は原価。家賃・水道光熱費・通信費などは経費。" +
+      "科目。次のいずれかから選ぶ: " + CATEGORIES.join(", ") + "。" +
+        "コーヒー豆/牛乳/フード材料は原価。家賃・水道光熱費・通信費などは経費。" +
         "**1点30万円未満の備品・什器・機械は「消耗品費」**（青色・少額減価償却資産の特例で全額経費）。" +
         "「設備（固定資産）」にするのは1点30万円以上のときだけ。判断できなければ「不明」。",
     ),
