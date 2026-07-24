@@ -17,7 +17,7 @@ type Form = {
   confidence: "high" | "medium" | "low";
   payer: string;
   memo: string;
-  expenseKind: "company" | "labor";
+  expenseKind: "company" | "card" | "labor";
   laborMember: string;
   lines: Line[];
 };
@@ -63,7 +63,11 @@ export default function Home() {
       .map((l) => `- ${l.name || "（品目なし）"} ¥${(Number(l.amount) || 0).toLocaleString()}（${l.category}）${l.tags.length ? ` [用途: ${l.tags.join(", ")}]` : ""}`)
       .join("\n");
     const kind =
-      form.expenseKind === "labor" ? `労働枠から使う（${form.laborMember}の枠）` : "会社経費";
+      form.expenseKind === "labor"
+        ? `労働枠から使う（${form.laborMember}の枠）`
+        : form.expenseKind === "card"
+          ? "会社カード支出（デビットカード）"
+          : "立替経費";
     return [
       `日付：${form.date || "未入力"}`,
       `店名・支払先：${form.vendor || "未入力"}`,
@@ -225,8 +229,8 @@ export default function Home() {
   return (
     <div className="wrap">
       <header>
-        <h1>☕ flat. 立替精算</h1>
-        <p>領収書を撮ってアップ → AIが日付・金額・科目・用途を自動判定（用途が違えば自動で分割）</p>
+        <h1>☕ flat. 経費管理</h1>
+        <p>領収書を撮ってアップ → AIが日付・金額・科目・用途を自動判定（立替・会社カード支出に対応）</p>
       </header>
       <Nav />
 
@@ -356,18 +360,20 @@ export default function Home() {
           </button>
           <div className="rline-total">合計 ¥{total.toLocaleString()}</div>
 
-          <div className="row" style={{ marginTop: 8 }}>
-            <div>
-              <label>立替えた人</label>
-              <select value={form.payer} onChange={(e) => setForm({ ...form, payer: e.target.value })}>
-                {MEMBERS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+          {form.expenseKind !== "card" && (
+            <div className="row" style={{ marginTop: 8 }}>
+              <div>
+                <label>立替えた人</label>
+                <select value={form.payer} onChange={(e) => setForm({ ...form, payer: e.target.value })}>
+                  {MEMBERS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           <label>メモ（なぜ払ったか・freeeの備考になります）</label>
           <textarea
@@ -384,16 +390,28 @@ export default function Home() {
               className={`kind-btn ${form.expenseKind === "company" ? "active" : ""}`}
               onClick={() => setForm({ ...form, expenseKind: "company" })}
             >
-              会社経費（必須）
+              立替
+            </button>
+            <button
+              type="button"
+              className={`kind-btn ${form.expenseKind === "card" ? "active" : ""}`}
+              onClick={() => setForm({ ...form, expenseKind: "card" })}
+            >
+              会社カード
             </button>
             <button
               type="button"
               className={`kind-btn ${form.expenseKind === "labor" ? "active" : ""}`}
               onClick={() => setForm({ ...form, expenseKind: "labor" })}
             >
-              労働枠から使う
+              労働枠
             </button>
           </div>
+          {form.expenseKind === "card" && (
+            <p className="hint">
+              💳 会社デビットカードで支払った経費。銀行口座の出金と自動マッチングされます。
+            </p>
+          )}
           {form.expenseKind === "labor" && (
             <>
               <label>誰の労働枠から引く？</label>
@@ -501,25 +519,53 @@ export default function Home() {
 
       {status === "saved" && (
         <div className="card">
-          <div className="saved">✅ 読み取り＆確認 OK（立替）</div>
+          <div className="saved">
+            {form.expenseKind === "card"
+              ? "✅ 読み取り＆確認 OK（会社カード支出）"
+              : "✅ 読み取り＆確認 OK（立替）"}
+          </div>
           <div className="freee-panel" style={{ marginTop: 12 }}>
-            <div className="freee-panel-title">📋 freee登録用（立替＝借)科目／貸)役員借入金）</div>
-            <CopyField label="発生日" value={form.date} />
-            <CopyField label="取引先" value={form.payer} hint="立替えた人" />
-            {form.lines.map((l, i) => (
-              <div key={i} className="freee-line-block">
-                <div className="freee-line-no">
-                  借方 {i + 1}
-                  {multi ? "（freeeで「＋行を追加」）" : ""}
+            {form.expenseKind === "card" ? (
+              <>
+                <div className="freee-panel-title">📋 freee登録用（会社カード支出＝借)科目／貸)普通預金）</div>
+                <CopyField label="発生日" value={form.date} />
+                <CopyField label="取引先" value={form.vendor} hint="支払先" />
+                {form.lines.map((l, i) => (
+                  <div key={i} className="freee-line-block">
+                    <div className="freee-line-no">
+                      借方 {i + 1}
+                      {multi ? "（freeeで「＋行を追加」）" : ""}
+                    </div>
+                    <CopyField label="勘定科目" value={l.category} />
+                    <CopyField label="金額" value={String(l.amount)} />
+                    {l.name ? <CopyField label="備考" value={l.name} /> : null}
+                  </div>
+                ))}
+                <div className="freee-note">
+                  貸方は「普通預金 ¥{total.toLocaleString()}」。デビットカードで直接支払い → 銀行明細と金額が一致するはず。
                 </div>
-                <CopyField label="勘定科目" value={l.category} />
-                <CopyField label="金額" value={String(l.amount)} />
-                {l.name ? <CopyField label="備考" value={l.name} /> : null}
-              </div>
-            ))}
-            <div className="freee-note">
-              貸方は「役員借入金 ¥{total.toLocaleString()}（取引先＝{form.payer}）」。／ 📥保存済みタブの「freeeに登録」ボタンなら自動で書き込めます。
-            </div>
+              </>
+            ) : (
+              <>
+                <div className="freee-panel-title">📋 freee登録用（立替＝借)科目／貸)役員借入金）</div>
+                <CopyField label="発生日" value={form.date} />
+                <CopyField label="取引先" value={form.payer} hint="立替えた人" />
+                {form.lines.map((l, i) => (
+                  <div key={i} className="freee-line-block">
+                    <div className="freee-line-no">
+                      借方 {i + 1}
+                      {multi ? "（freeeで「＋行を追加」）" : ""}
+                    </div>
+                    <CopyField label="勘定科目" value={l.category} />
+                    <CopyField label="金額" value={String(l.amount)} />
+                    {l.name ? <CopyField label="備考" value={l.name} /> : null}
+                  </div>
+                ))}
+                <div className="freee-note">
+                  貸方は「役員借入金 ¥{total.toLocaleString()}（取引先＝{form.payer}）」。／ 📥保存済みタブの「freeeに登録」ボタンなら自動で書き込めます。
+                </div>
+              </>
+            )}
           </div>
           <button className="primary" onClick={reset} style={{ marginTop: 12 }}>
             次の領収書を登録
