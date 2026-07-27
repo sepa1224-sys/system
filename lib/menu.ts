@@ -122,11 +122,27 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🍺 Drinks (Beer)
   {
     id: "heineken", name: "ハイネケン", category: "🍺 Beer",
-    cost: 270, price: 500,
+    cost: 274, price: 650,
     ingredients: [
-      { name: "ハイネケン 330ml瓶", unit: "本", capacity: 24, purchasePrice: 6480, usage: 1, cost: 270 },
+      { name: "ハイネケン 330ml瓶", unit: "本", capacity: 24, purchasePrice: 6580, usage: 1, cost: 274 },
     ],
-    note: "Amazon 24本入り",
+    note: "リカマンオンライン 24本×2ケース",
+  },
+  {
+    id: "corona", name: "コロナ エキストラ", category: "🍺 Beer",
+    cost: 249, price: 650,
+    ingredients: [
+      { name: "コロナ 330ml瓶", unit: "本", capacity: 24, purchasePrice: 5980, usage: 1, cost: 249 },
+    ],
+    note: "リカマンオンライン 24本×2ケース",
+  },
+  {
+    id: "budweiser", name: "バドワイザー", category: "🍺 Beer",
+    cost: 224, price: 650,
+    ingredients: [
+      { name: "バドワイザー 330ml瓶", unit: "本", capacity: 24, purchasePrice: 5380, usage: 1, cost: 224 },
+    ],
+    note: "リカマンオンライン 24本×1ケース",
   },
 
   // 🥤 Smoothie / Protein
@@ -347,6 +363,30 @@ export const DEFAULT_MENU: MenuItem[] = [
     ingredients: [],
     note: "レシピ未登録",
   },
+  {
+    id: "lemon-sour", name: "レモンサワー", category: "🍸 Bar / Cocktail",
+    cost: 156, price: 650,
+    recipe: "①よく冷やしたグラスに氷を入れる ②レモンジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
+    ingredients: [
+      { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
+      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 30, cost: 41 },
+      { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
+      { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
+  {
+    id: "lime-sour", name: "ライムサワー", category: "🍸 Bar / Cocktail",
+    cost: 155, price: 650,
+    recipe: "①よく冷やしたグラスに氷を入れる ②ライムジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
+    ingredients: [
+      { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 30, cost: 36 },
+      { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
+      { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
 ];
 
 // ─── CRUD ───
@@ -409,6 +449,12 @@ const INGREDIENT_KEYWORDS: Record<string, string[]> = {
   "シンプルシロップ": ["シロップ", "シンプルシロップ"],
   "バーボンウイスキー": ["バーボン"],
   "ウイスキー(JIM BEAM)": ["ウイスキー", "JIM BEAM", "ジムビーム"],
+  "ウォッカ（アブソルート）": ["ウォッカ", "アブソルート", "ABSOLUT"],
+  "ホワイトキュラソー（コアントロー）": ["コアントロー", "COINTREAU", "キュラソー"],
+  "レモンジュース（ポッカレモン100%）": ["ポッカレモン", "レモンジュース"],
+  "ガムシロップ（サントリー）": ["ガムシロップ"],
+  "コロナ 330ml瓶": ["コロナ", "Corona"],
+  "バドワイザー 330ml瓶": ["バドワイザー", "Budweiser"],
   "梅酒": ["梅酒"],
   "ジンジャーエール": ["ジンジャーエール"],
   "オレンジジュース": ["オレンジジュース", "オレンジ"],

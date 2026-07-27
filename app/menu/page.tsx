@@ -444,10 +444,62 @@ function CalcView() {
   );
 }
 
+// ─── メニュー表タブ ───
+
+function MenuDisplayView({ items }: { items: MenuItem[] }) {
+  const categoryOrder = [
+    "☕ Drinks (Cafe)",
+    "🍺 Beer",
+    "🥤 Smoothie / Protein",
+    "🥪 Hot Sandwich",
+    "🧇 Sweets (Waffle)",
+    "🍰 Sweets",
+    "🍸 Bar / Cocktail",
+  ];
+  const categories = [...new Set(items.map((i) => i.category))].sort(
+    (a, b) => {
+      const ai = categoryOrder.indexOf(a);
+      const bi = categoryOrder.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    },
+  );
+
+  return (
+    <div className="card" style={{ backgroundColor: "#3c3228", color: "#f5f0e8", padding: "32px 24px", borderRadius: 16 }}>
+      <h2 style={{ fontSize: 28, textAlign: "center", marginBottom: 32, letterSpacing: 2, fontWeight: 300 }}>
+        MENU
+      </h2>
+      {categories.map((cat) => {
+        const catItems = items.filter((i) => i.category === cat);
+        return (
+          <div key={cat} style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.2)", letterSpacing: 1 }}>
+              {cat}
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {catItems.map((item) => (
+                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 14 }}>
+                  <span>{item.name}</span>
+                  <span style={{ marginLeft: 16, whiteSpace: "nowrap", fontSize: 13, opacity: 0.85 }}>
+                    {item.price ? `¥${item.price.toLocaleString()}` : "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.2)", fontSize: 11, opacity: 0.6, textAlign: "center" }}>
+        価格はすべて税込です
+      </div>
+    </div>
+  );
+}
+
 // ─── メインページ ───
 
 export default function MenuPage() {
-  const [tab, setTab] = useState<"list" | "calc">("list");
+  const [tab, setTab] = useState<"list" | "display" | "calc">("list");
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -481,7 +533,13 @@ export default function MenuPage() {
           className={`sub-tab ${tab === "list" ? "active" : ""}`}
           onClick={() => setTab("list")}
         >
-          📋 メニュー一覧
+          📋 原価表
+        </button>
+        <button
+          className={`sub-tab ${tab === "display" ? "active" : ""}`}
+          onClick={() => setTab("display")}
+        >
+          🍽️ メニュー表
         </button>
         <button
           className={`sub-tab ${tab === "calc" ? "active" : ""}`}
@@ -501,6 +559,8 @@ export default function MenuPage() {
         </div>
       ) : tab === "list" ? (
         <MenuListView items={items} />
+      ) : tab === "display" ? (
+        <MenuDisplayView items={items} />
       ) : (
         <CalcView />
       )}
