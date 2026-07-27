@@ -321,10 +321,10 @@ export const DEFAULT_MENU: MenuItem[] = [
     cost: 0, price: 300, ingredients: [], note: "原価未登録",
   },
 
-  // 🍸 Bar / Cocktail（実メニュー5品 全て¥700）
+  // 🍸 Bar / Cocktail（全て¥650）
   {
     id: "aperol-coconut-margarita", name: "Aperol Coconut Margarita", category: "🍸 Bar / Cocktail",
-    cost: 183, price: 700,
+    cost: 183, price: 650,
     recipe: "テキーラ30ml、アペロール15ml、ライムジュース15ml、ココナッツミルク30ml、シンプルシロップ15mlを氷と共にシェイク。グラスの縁に塩を付け、ライム一切れを添えて提供。",
     ingredients: [
       { name: "テキーラ", unit: "ml", capacity: 750, purchasePrice: 2000, usage: 30, cost: 80 },
@@ -337,28 +337,28 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "berry-coconut-cloud", name: "Berry Coconut Cloud", category: "🍸 Bar / Cocktail",
-    cost: 0, price: 700,
+    cost: 0, price: 650,
     recipe: "",
     ingredients: [],
     note: "レシピ未登録",
   },
   {
     id: "miami-sunset", name: "Miami Sunset", category: "🍸 Bar / Cocktail",
-    cost: 0, price: 700,
+    cost: 0, price: 650,
     recipe: "",
     ingredients: [],
     note: "レシピ未登録",
   },
   {
     id: "espresso-martini", name: "Espresso Martini", category: "🍸 Bar / Cocktail",
-    cost: 0, price: 700,
+    cost: 0, price: 650,
     recipe: "",
     ingredients: [],
     note: "レシピ未登録",
   },
   {
     id: "umeshu-mojito", name: "Umeshu Mojito", category: "🍸 Bar / Cocktail",
-    cost: 0, price: 700,
+    cost: 0, price: 650,
     recipe: "",
     ingredients: [],
     note: "レシピ未登録",
