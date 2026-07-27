@@ -338,7 +338,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "aperol-margarita", name: "アペロールマルガリータ", category: "🍸 Bar / Cocktail",
+    id: "aperol-margarita", name: "アペロールマルガリータ", category: "🍸 Original Cocktail",
     cost: 184, price: 650,
     recipe: "テキーラ26ml、アペロール30ml、ライムジュース26ml、ガムシロップ18mlをシェイク。ロックグラスに氷を入れて注ぐ。",
     ingredients: [
@@ -349,7 +349,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "berry-coconut-cloud", name: "ココナッツベリークラウド", category: "🍸 Bar / Cocktail",
+    id: "berry-coconut-cloud", name: "ココナッツベリークラウド", category: "🍸 Original Cocktail",
     cost: 130, price: 650,
     ingredients: [
       { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 34, cost: 61 },
@@ -359,7 +359,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "miami-sunset", name: "マイアミサンセット", category: "🍸 Bar / Cocktail",
+    id: "miami-sunset", name: "マイアミサンセット", category: "🍸 Original Cocktail",
     cost: 155, price: 650,
     ingredients: [
       { name: "バーボン（JIM BEAM 4L）", unit: "ml", capacity: 4000, purchasePrice: 5825, usage: 30, cost: 44 },
@@ -369,7 +369,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "espresso-martini", name: "エスプレッソマティーニ", category: "🍸 Bar / Cocktail",
+    id: "espresso-martini", name: "エスプレッソマティーニ", category: "🍸 Original Cocktail",
     cost: 119, price: 650,
     ingredients: [
       { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
@@ -379,7 +379,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "umeshu-mojito", name: "梅酒モヒート", category: "🍸 Bar / Cocktail",
+    id: "umeshu-mojito", name: "梅酒モヒート", category: "🍸 Original Cocktail",
     cost: 173, price: 650,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 30, cost: 43 },

@@ -51,6 +51,8 @@ function MenuListView({ items }: { items: MenuItem[] }) {
     "🧇 Sweets (Waffle)",
     "🍰 Sweets",
     "🍸 Bar / Cocktail",
+    "🍸 Original Cocktail",
+    "📝 将来メニュー",
   ];
   const categories = [...new Set(items.map((i) => i.category))].sort(
     (a, b) => {
@@ -455,6 +457,8 @@ function MenuDisplayView({ items }: { items: MenuItem[] }) {
     "🧇 Sweets (Waffle)",
     "🍰 Sweets",
     "🍸 Bar / Cocktail",
+    "🍸 Original Cocktail",
+    "📝 将来メニュー",
   ];
   const categories = [...new Set(items.map((i) => i.category))].sort(
     (a, b) => {
