@@ -287,40 +287,6 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
 
-  // 🍰 Sweets (Other)
-  {
-    id: "basque-cheesecake", name: "バスクチーズケーキ", category: "🍰 Sweets",
-    cost: 0, price: 480, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "matcha-basque", name: "抹茶バスクチーズケーキ", category: "🍰 Sweets",
-    cost: 0, price: 500, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "choco-basque", name: "チョコバスクチーズケーキ", category: "🍰 Sweets",
-    cost: 0, price: 500, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "pumpkin-pudding", name: "かぼちゃプリン", category: "🍰 Sweets",
-    cost: 0, price: 400, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "matcha-pudding", name: "抹茶プリン", category: "🍰 Sweets",
-    cost: 0, price: 400, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "choco-pudding", name: "チョコプリン", category: "🍰 Sweets",
-    cost: 0, price: 400, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "gateau-chocolat", name: "絹豆腐のガトーショコラ（低糖質）", category: "🍰 Sweets",
-    cost: 0, price: 350, ingredients: [], note: "原価未登録",
-  },
-  {
-    id: "marshmallow", name: "はちみつ生マシュマロ（砂糖不使用）", category: "🍰 Sweets",
-    cost: 0, price: 300, ingredients: [], note: "原価未登録",
-  },
-
   // 🍸 Bar / Cocktail（全て¥650）
   {
     id: "highball", name: "ハイボール", category: "🍸 Bar / Cocktail",
