@@ -15,6 +15,7 @@ export default function Nav() {
     { href: "/report", label: "📊 用途別" },
     { href: "/zeirishi", label: "🧑‍💼 税理士" },
     { href: "/menu", label: "🍽️ メニュー" },
+    { href: "/inventory", label: "📦 仕入れ表" },
     { href: "/todos", label: "✅ ToDo" },
     { href: "/soudan", label: "💬 相談" },
   ];
