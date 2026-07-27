@@ -347,7 +347,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "gin-tonic", name: "ジントニック", category: "🍸 Bar / Cocktail",
+    id: "gin-tonic", name: "ジントニック", category: "📝 将来メニュー",
     cost: 110, price: 550,
     ingredients: [
       { name: "ジン", unit: "ml", capacity: 700, purchasePrice: 1400, usage: 45, cost: 90 },
@@ -355,7 +355,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "cassis-orange", name: "カシスオレンジ", category: "🍸 Bar / Cocktail",
+    id: "cassis-orange", name: "カシスオレンジ", category: "📝 将来メニュー",
     cost: 120, price: 550,
     ingredients: [
       { name: "カシスリキュール", unit: "ml", capacity: 700, purchasePrice: 1200, usage: 30, cost: 51 },
@@ -363,7 +363,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "moscow-mule", name: "モスコミュール", category: "🍸 Bar / Cocktail",
+    id: "moscow-mule", name: "モスコミュール", category: "📝 将来メニュー",
     cost: 115, price: 550,
     ingredients: [
       { name: "ウォッカ", unit: "ml", capacity: 700, purchasePrice: 1200, usage: 45, cost: 77 },
