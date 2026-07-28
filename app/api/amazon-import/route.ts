@@ -134,17 +134,33 @@ export async function POST(req: NextRequest) {
     const accountMap = await getAccountItemMap();
 
     // 支払いグループ（同じ支払日+金額 = 1つの銀行取引）
-    const groups = new Map<string, AmazonItem[]>();
+    // ただし同一キーでも品目の税込合計がbankAmountを超える場合は分割
+    const tempGroups = new Map<string, AmazonItem[]>();
     for (const item of items) {
       if (!item.paymentDate) continue; // 未確定はスキップ
       const key = `${item.paymentDate}:${item.bankAmount}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(item);
+      if (!tempGroups.has(key)) tempGroups.set(key, []);
+      tempGroups.get(key)!.push(item);
+    }
+
+    // グループを展開: 品目合計 > bankAmount なら1品目ずつ分割
+    const groups: { key: string; items: AmazonItem[] }[] = [];
+    for (const [key, groupItems] of tempGroups) {
+      const bankAmount = Number(key.split(":")[1]);
+      const itemsTotal = groupItems.reduce((s, i) => s + i.amountIncTax + i.shipping, 0);
+      if (itemsTotal > bankAmount && groupItems.length > 1) {
+        // 品目ごとに分割（各品目のbankAmountで個別取引）
+        for (const item of groupItems) {
+          groups.push({ key: `${item.paymentDate}:${item.bankAmount}`, items: [item] });
+        }
+      } else {
+        groups.push({ key, items: groupItems });
+      }
     }
 
     const results: { key: string; status: string; dealId?: number; items: string[] }[] = [];
 
-    for (const [key, groupItems] of groups) {
+    for (const { key, items: groupItems } of groups) {
       const [payDate, bankAmountStr] = key.split(":");
       const bankAmount = Number(bankAmountStr);
 
@@ -159,20 +175,24 @@ export async function POST(req: NextRequest) {
       for (const item of groupItems) {
         const accId = accountMap[item.account];
         if (!accId) throw new Error(`勘定科目「${item.account}」がfreeeに見つかりません`);
-        // 商品本体（税込）
+        // 品目金額: bankAmountに合わせる（分割引落の場合は税込 > bankAmount）
+        const itemAmount = Math.min(item.amountIncTax, bankAmount);
+        // 配送料: bankAmountに余裕がある場合のみ
+        const shippingAmount = item.shipping > 0
+          ? Math.min(item.shipping, bankAmount - itemAmount)
+          : 0;
         details.push({
           account_item_id: accId,
           tax_code: taxCode(item.taxRate),
-          amount: item.amountIncTax,
+          amount: itemAmount,
           description: `${item.productName}${item.quantity > 1 ? ` ×${item.quantity}` : ""}`,
         });
-        // 配送料がある場合は別行で追加（荷造運賃 or 同じ科目）
-        if (item.shipping > 0) {
+        if (shippingAmount > 0) {
           const shippingAccId = accountMap["荷造運賃"] || accId;
           details.push({
             account_item_id: shippingAccId,
-            tax_code: 116, // 10%
-            amount: item.shipping,
+            tax_code: 116,
+            amount: shippingAmount,
             description: `配送料（${item.productName.slice(0, 15)}）`,
           });
         }
@@ -181,17 +201,22 @@ export async function POST(req: NextRequest) {
       // details合計とbankAmountの差額チェック
       const detailsTotal = details.reduce((s, d) => s + d.amount, 0);
       if (detailsTotal !== bankAmount) {
-        // ポイント値引き等で差額がある場合、調整行を追加
         const diff = bankAmount - detailsTotal;
-        if (Math.abs(diff) <= 500) {
-          // 少額差額は雑費で調整
+        if (diff > 0 && diff <= 500) {
+          // 少額不足は雑費で調整
           const zatsuhiId = accountMap["雑費"] || details[0].account_item_id;
           details.push({
             account_item_id: zatsuhiId,
-            tax_code: 0, // 対象外
+            tax_code: 0,
             amount: diff,
-            description: "Amazon調整額（ポイント値引き等）",
+            description: "Amazon調整額",
           });
+        } else if (diff < 0) {
+          // details > bankAmountの場合、最後の明細を調整
+          details[details.length - 1].amount += diff;
+          if (details[details.length - 1].amount <= 0) {
+            details.pop();
+          }
         }
       }
 
