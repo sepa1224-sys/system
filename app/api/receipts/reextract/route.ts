@@ -40,14 +40,14 @@ export async function POST(req: NextRequest) {
 
 各商品について以下のJSON配列で返してください:
 [
-  { "name": "商品名", "amount": 金額(税込・数値), "category": "フード材料費", "tags": ["フード材料"] }
+  { "name": "商品名", "amount": 金額(税込・数値), "category": "仕入高", "tags": ["酒類"] }
 ]
 
 ルール:
 - 商品名はレシートに書かれている通りの名前（略称でもOK）
 - 金額は各商品の小計（個数×単価）
-- categoryは全て "フード材料費" にしてください
-- tagsは ["フード材料"] にしてください
+- categoryはfreee勘定科目: 飲食材料は「仕入高」、備品は「消耗品費」
+- tagsは品目分類を付ける: 酒類/ソフトドリンク・炭酸/コーヒー豆・茶葉/牛乳・乳製品/シロップ・調味料/フード材料/グラス・食器/包装資材/掃除・衛生用品 等
 - 値引き・割引は別行で amount をマイナスに
 - 合計金額の行は含めないでください
 - JSONのみ返してください（説明文不要）`,
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     await updateCostsFromReceipt({
       summary: lines.map((l) => l.name).join("、"),
       total: extractedTotal,
-      category: "フード材料費",
+      category: "仕入高",
       lines,
     });
   } catch {
