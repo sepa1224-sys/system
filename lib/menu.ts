@@ -313,11 +313,11 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "gin-tonic", name: "ジントニック", category: "📝 将来メニュー",
-    cost: 110, price: 550,
+    id: "gin-tonic", name: "ジントニック", category: "🍸 Bar / Cocktail",
+    cost: 101, price: 550,
     ingredients: [
-      { name: "ジン", unit: "ml", capacity: 700, purchasePrice: 1400, usage: 45, cost: 90 },
-      { name: "トニックウォーター", unit: "ml", capacity: 500, purchasePrice: 150, usage: 120, cost: 36 },
+      { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 30, cost: 54 },
+      { name: "トニックウォーター（185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
     ],
   },
   {
