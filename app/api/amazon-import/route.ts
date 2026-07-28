@@ -234,13 +234,23 @@ export async function POST(req: NextRequest) {
         }] : [],
       };
 
-      const deal = await freeePost<{ deal: { id: number } }>("/api/1/deals", dealBody);
-      results.push({
-        key,
-        status: "登録完了",
-        dealId: deal.deal.id,
-        items: groupItems.map(i => `${i.productName} ¥${i.amountIncTax}`),
-      });
+      try {
+        const deal = await freeePost<{ deal: { id: number } }>("/api/1/deals", dealBody);
+        results.push({
+          key,
+          status: "登録完了",
+          dealId: deal.deal.id,
+          items: groupItems.map(i => `${i.productName} ¥${i.amountIncTax}`),
+        });
+      } catch (e) {
+        results.push({
+          key,
+          status: `エラー: ${e instanceof Error ? e.message : "不明"}`,
+          items: groupItems.map(i => `${i.productName} ¥${i.amountIncTax}`),
+          // @ts-expect-error debug
+          debug: { dealBody, detailsTotal: details.reduce((s, d) => s + d.amount, 0), bankAmount },
+        });
+      }
     }
 
     // 支払い未確定分
