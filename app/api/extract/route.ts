@@ -116,6 +116,27 @@ export async function POST(req: NextRequest) {
     // 30万円未満の固定資産は消耗品費に確定補正（AIが誤っても直す）
     receipt.lines = applyAssetThreshold(receipt.lines);
 
+    // ── 税抜き補正: total(税込)と内訳合計にズレがあれば消費税が漏れている ──
+    const linesSum = receipt.lines.reduce((s, l) => s + (l.amount || 0), 0);
+    if (receipt.total > 0 && linesSum > 0 && receipt.total > linesSum) {
+      const gap = receipt.total - linesSum;
+      const gapRatio = gap / linesSum;
+      // 差が8〜10%程度なら消費税の漏れと判断して按分加算
+      if (gapRatio >= 0.07 && gapRatio <= 0.11) {
+        let remaining = receipt.total;
+        for (let i = 0; i < receipt.lines.length; i++) {
+          if (i < receipt.lines.length - 1) {
+            const taxIncl = Math.round(receipt.lines[i].amount * (1 + gapRatio));
+            receipt.lines[i].amount = taxIncl;
+            remaining -= taxIncl;
+          } else {
+            // 最後の行で端数調整
+            receipt.lines[i].amount = remaining;
+          }
+        }
+      }
+    }
+
     return NextResponse.json({ receipt });
   } catch (err) {
     console.error("extract error", err);
