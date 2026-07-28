@@ -38,6 +38,7 @@ export const CATEGORY_MAP: Record<string, FreeeLine> = {
   "修繕費": { accountItemId: 1035440106, taxCode: 34 },
   "荷造運賃": { accountItemId: 1035440098, taxCode: 34 },
   "旅費交通費": { accountItemId: 1035440096, taxCode: 34 },
+  "交際費": { accountItemId: 1035440100, taxCode: 34 },
   "雑費": { accountItemId: 1035440125, taxCode: 34 },
   // 設備
   "設備（固定資産）": { accountItemId: 1035440008, taxCode: 34 }, // 工具器具備品
