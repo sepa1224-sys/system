@@ -9,6 +9,7 @@ export default function Nav() {
     { href: "/", label: "🧾 領収書" },
     { href: "/shorui", label: "📄 書類" },
     { href: "/meisai", label: "🏦 明細" },
+    { href: "/kariire", label: "💴 立替" },
     { href: "/payables", label: "💰 払うもの" },
     { href: "/bills", label: "🔁 定期請求" },
     { href: "/labor", label: "🕒 労働枠" },
