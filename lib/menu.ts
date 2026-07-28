@@ -321,6 +321,14 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
+    id: "umeshu-soda", name: "梅酒ソーダ割り", category: "🍸 Bar / Cocktail",
+    cost: 112, price: 550,
+    ingredients: [
+      { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 45, cost: 65 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
+  {
     id: "cassis-orange", name: "カシスオレンジ", category: "📝 将来メニュー",
     cost: 120, price: 550,
     ingredients: [
