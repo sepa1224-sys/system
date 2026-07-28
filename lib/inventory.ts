@@ -379,6 +379,19 @@ export const DEFAULT_INVENTORY: InventoryItem[] = [
     note: "1本あたり¥224。1ケース購入（¥5,380）",
     addedDate: "2026-07-27",
   },
+  {
+    id: 28,
+    name: "トニックウォーター 185ml×30本",
+    brand: "神戸居留地",
+    category: "ミキサー・炭酸",
+    unit: "本",
+    capacity: 30,
+    price: 2011,
+    supplier: "Amazon",
+    url: "https://www.amazon.co.jp/dp/B072ZVDQZ7",
+    note: "1本あたり¥67（税込）。定期おトク便5%OFFで¥67/本",
+    addedDate: "2026-07-28",
+  },
 ];
 
 // ─── CRUD ───
