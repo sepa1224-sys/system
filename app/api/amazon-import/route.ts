@@ -154,19 +154,46 @@ export async function POST(req: NextRequest) {
       // 銀行未処理明細とマッチング（日付+金額）
       const matchedTxn = txns.find(t => t.date === freeeDate && t.amount === bankAmount);
 
-      // 勘定科目IDを解決
-      const details = groupItems.map(item => {
+      // 勘定科目IDを解決（配送料込みの金額を使う）
+      const details: { account_item_id: number; tax_code: number; amount: number; description: string }[] = [];
+      for (const item of groupItems) {
         const accId = accountMap[item.account];
         if (!accId) throw new Error(`勘定科目「${item.account}」がfreeeに見つかりません`);
-        return {
+        // 商品本体（税込）
+        details.push({
           account_item_id: accId,
           tax_code: taxCode(item.taxRate),
           amount: item.amountIncTax,
           description: `${item.productName}${item.quantity > 1 ? ` ×${item.quantity}` : ""}`,
-          // インボイス番号があればメモに
-          ...(item.invoiceNumber ? { tag_ids: [], segment_1_tag_id: undefined } : {}),
-        };
-      });
+        });
+        // 配送料がある場合は別行で追加（荷造運賃 or 同じ科目）
+        if (item.shipping > 0) {
+          const shippingAccId = accountMap["荷造運賃"] || accId;
+          details.push({
+            account_item_id: shippingAccId,
+            tax_code: 116, // 10%
+            amount: item.shipping,
+            description: `配送料（${item.productName.slice(0, 15)}）`,
+          });
+        }
+      }
+
+      // details合計とbankAmountの差額チェック
+      const detailsTotal = details.reduce((s, d) => s + d.amount, 0);
+      if (detailsTotal !== bankAmount) {
+        // ポイント値引き等で差額がある場合、調整行を追加
+        const diff = bankAmount - detailsTotal;
+        if (Math.abs(diff) <= 500) {
+          // 少額差額は雑費で調整
+          const zatsuhiId = accountMap["雑費"] || details[0].account_item_id;
+          details.push({
+            account_item_id: zatsuhiId,
+            tax_code: 0, // 対象外
+            amount: diff,
+            description: "Amazon調整額（ポイント値引き等）",
+          });
+        }
+      }
 
       // 相手勘定（支払元）の口座を特定
       let fromWalletableId: number | undefined;
