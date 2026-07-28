@@ -49,7 +49,7 @@ export function applyAssetThreshold<T extends { category: string; amount: number
 /** レシートの1行（内訳）。用途/科目が違う品目は行を分ける。 */
 export const ReceiptLineSchema = z.object({
   name: z.string().describe("品目・内容（例: 木材、コーヒー豆2kg）。"),
-  amount: z.number().describe("この品目の税込金額（円）。"),
+  amount: z.number().describe("この品目の税込金額（円）。レシートが税抜表示の場合は消費税を加算した税込金額にすること。"),
   category: z
     .string()
     .describe(
@@ -78,7 +78,7 @@ export const ReceiptSchema = z.object({
   vendor: z.string().describe("店名・支払先。読めなければ空文字。"),
   total: z
     .number()
-    .describe("合計金額（税込・円）。数字のみ。読めなければ 0。"),
+    .describe("合計金額（税込・円）。レシートの支払総額。税抜表示のレシートでも消費税を含めた支払総額を入れる。読めなければ 0。"),
   lines: z
     .array(ReceiptLineSchema)
     .describe(
