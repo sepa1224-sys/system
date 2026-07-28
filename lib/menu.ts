@@ -321,6 +321,15 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
+    id: "gin-buck", name: "ジンバック", category: "🍸 Bar / Cocktail",
+    cost: 107, price: 550,
+    ingredients: [
+      { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 30, cost: 54 },
+      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 20, cost: 27 },
+      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 185, cost: 26 },
+    ],
+  },
+  {
     id: "umeshu-soda", name: "梅酒ソーダ割り", category: "🍸 Bar / Cocktail",
     cost: 112, price: 550,
     ingredients: [
