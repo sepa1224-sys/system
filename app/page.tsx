@@ -487,11 +487,48 @@ export default function Home() {
                   ))}
                 </div>
               )}
-              {consult.map((m, i) => (
-                <div key={i} className={`bubble ${m.role}`}>
-                  {m.content || (consulting && i === consult.length - 1 ? "…" : "")}
-                </div>
-              ))}
+              {consult.map((m, i) => {
+                // AIの応答から提案ブロックをパース
+                const proposalMatch = m.role === "assistant" && m.content
+                  ? m.content.match(/---提案---\n科目[：:]\s*(.+)\nタグ[：:]\s*(.*)\n---提案終---/)
+                  : null;
+                const displayContent = m.content
+                  ? m.content.replace(/---提案---[\s\S]*?---提案終---/, "").trim()
+                  : consulting && i === consult.length - 1 ? "…" : "";
+                // 旧形式もパース
+                const oldMatch = !proposalMatch && m.role === "assistant" && m.content
+                  ? m.content.match(/おすすめ科目[：:]\s*(.+)/)
+                  : null;
+                const suggestedCategory = proposalMatch?.[1]?.trim() || oldMatch?.[1]?.trim();
+                const suggestedTags = proposalMatch?.[2]?.trim().split(/[,、]/).map(t => t.trim()).filter(Boolean) || [];
+
+                return (
+                  <div key={i}>
+                    <div className={`bubble ${m.role}`}>{displayContent}</div>
+                    {suggestedCategory && (
+                      <button
+                        type="button"
+                        className="rc-apply"
+                        style={{ marginTop: 6, marginBottom: 6 }}
+                        onClick={() => {
+                          setForm((f) => ({
+                            ...f,
+                            lines: f.lines.map((l) => ({
+                              ...l,
+                              category: suggestedCategory,
+                              tags: suggestedTags.length > 0
+                                ? [...new Set([...l.tags, ...suggestedTags])]
+                                : l.tags,
+                            })),
+                          }));
+                        }}
+                      >
+                        ✓ 提案を反映（{suggestedCategory}{suggestedTags.length > 0 ? ` + ${suggestedTags.join(", ")}` : ""}）
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               <form
                 className="composer"
                 style={{ marginTop: 8 }}
