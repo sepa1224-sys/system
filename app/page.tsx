@@ -48,6 +48,54 @@ export default function Home() {
     { vendor: string; date: string; total: number; registered: boolean } | null
   >(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  async function startScan() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      streamRef.current = stream;
+      setScanning(true);
+      // videoRefが描画された後にsrcObjectをセット
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      });
+    } catch {
+      // カメラが使えない場合はファイル選択にフォールバック
+      inputRef.current?.click();
+    }
+  }
+
+  function stopScan() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  }
+
+  function captureAndProcess() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    stopScan();
+    // handleFileと同じ流れでAI解析に投入
+    setImage(dataUrl);
+    setStatus("extracting");
+    extractFromImage(dataUrl);
+  }
+
   // この領収書についてのAI相談（確認画面内）
   type Msg = { role: "user" | "assistant"; content: string };
   const [consultOpen, setConsultOpen] = useState(false);
@@ -191,18 +239,7 @@ export default function Home() {
     });
   }
 
-  async function handleFile(file: File) {
-    setError(null);
-    const rawDataUrl = await new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result as string);
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-    const dataUrl = await compressImage(rawDataUrl);
-    setImage(dataUrl);
-    setStatus("extracting");
-
+  async function extractFromImage(dataUrl: string) {
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
@@ -242,6 +279,20 @@ export default function Home() {
     }
   }
 
+  async function handleFile(file: File) {
+    setError(null);
+    const rawDataUrl = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    const dataUrl = await compressImage(rawDataUrl);
+    setImage(dataUrl);
+    setStatus("extracting");
+    extractFromImage(dataUrl);
+  }
+
   function reset() {
     setStatus("idle");
     setImage(null);
@@ -265,8 +316,17 @@ export default function Home() {
       </header>
       <Nav />
 
-      {status === "idle" && (
+      {status === "idle" && !scanning && (
         <>
+          {/* スキャンボタン（カメラ直接起動） */}
+          <button
+            className="primary"
+            onClick={startScan}
+            style={{ marginBottom: 12, fontSize: 16, padding: "16px 20px" }}
+          >
+            📷 領収書をスキャン
+          </button>
+
           <div
             className={`drop ${over ? "over" : ""}`}
             onClick={() => inputRef.current?.click()}
@@ -282,7 +342,7 @@ export default function Home() {
               if (f) handleFile(f);
             }}
           >
-            <strong>領収書をアップロード</strong>
+            <strong>画像を選んでアップロード</strong>
             <small>タップして選択 / ドラッグ＆ドロップ（png・jpeg・webp・PDF）</small>
           </div>
           <input
@@ -304,6 +364,52 @@ export default function Home() {
             📥 保存済み領収書を見る・freeeに登録する →
           </a>
         </>
+      )}
+
+      {/* カメラスキャンモード */}
+      {scanning && (
+        <div style={{ position: "relative" }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              width: "100%",
+              borderRadius: 14,
+              border: "2px solid var(--accent)",
+              background: "#000",
+            }}
+          />
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+          <div style={{
+            position: "absolute",
+            top: 12, left: 0, right: 0,
+            textAlign: "center",
+            color: "#fff",
+            textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}>
+            領収書を枠内に合わせてください
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <button
+              className="primary"
+              style={{ flex: 2, fontSize: 16, padding: 14 }}
+              onClick={captureAndProcess}
+            >
+              シャッター
+            </button>
+            <button
+              className="ghost"
+              style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 10 }}
+              onClick={stopScan}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
       )}
 
       {status === "extracting" && (
