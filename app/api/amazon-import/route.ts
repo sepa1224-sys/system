@@ -211,15 +211,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (dryRun) {
-        results.push({
-          key,
-          status: matchedTxn ? "マッチ済" : "未処理明細なし（新規取引として登録）",
-          items: groupItems.map(i => `${i.productName} ¥${i.amountIncTax}`),
-        });
-        continue;
-      }
-
       // freee取引を作成
       const dealBody: Record<string, unknown> = {
         company_id: Number(FREEE_COMPANY_ID),
@@ -233,6 +224,17 @@ export async function POST(req: NextRequest) {
           date: freeeDate,
         }] : [],
       };
+
+      if (dryRun) {
+        results.push({
+          key,
+          status: matchedTxn ? "マッチ済" : "未処理明細なし（新規取引として登録）",
+          items: groupItems.map(i => `${i.productName} ¥${i.amountIncTax}`),
+          // @ts-expect-error debug
+          debug: { dealBody, detailsTotal: details.reduce((s, d) => s + d.amount, 0), bankAmount },
+        });
+        continue;
+      }
 
       try {
         const deal = await freeePost<{ deal: { id: number } }>("/api/1/deals", dealBody);
