@@ -330,7 +330,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "umeshu-soda", name: "梅酒ソーダ割り", category: "🍸 Bar / Cocktail",
+    id: "umeshu-soda", name: "梅ハイ", category: "🍸 Bar / Cocktail",
     cost: 112, price: 550,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 45, cost: 65 },
@@ -408,16 +408,6 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "non-al-mojito", name: "ノンアルモヒート", category: "🍸 Bar / Cocktail",
-    cost: 65, price: 500,
-    ingredients: [
-      { name: "ライム", unit: "個", capacity: 1, purchasePrice: 50, usage: 0.5, cost: 25 },
-      { name: "ミント（自家栽培）", unit: "g", capacity: 50, purchasePrice: 0, usage: 5, cost: 0 },
-      { name: "炭酸水", unit: "ml", capacity: 500, purchasePrice: 100, usage: 200, cost: 40 },
-      { name: "シロップ", unit: "ml", capacity: 750, purchasePrice: 500, usage: 15, cost: 10 },
-    ],
-  },
-  {
     id: "lemon-sour", name: "レモンサワー", category: "🍸 Bar / Cocktail",
     cost: 156, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②レモンジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
@@ -436,6 +426,18 @@ export const DEFAULT_MENU: MenuItem[] = [
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
       { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 30, cost: 36 },
+      { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
+      { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
+  {
+    id: "grapefruit-sour", name: "グレープフルーツサワー", category: "🍸 Bar / Cocktail",
+    cost: 167, price: 650,
+    recipe: "①よく冷やしたグラスに氷を入れる ②グレープフルーツジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
+    ingredients: [
+      { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
+      { name: "グレープフルーツジュース（ポッカお酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 846, usage: 30, cost: 47 },
       { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
