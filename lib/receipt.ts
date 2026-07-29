@@ -87,6 +87,9 @@ export const ReceiptSchema = z.object({
   confidence: z
     .enum(["high", "medium", "low"])
     .describe("抽出全体の自信度。画像が不鮮明なら low。"),
+  cardLast4: z
+    .string()
+    .describe("クレジットカード/デビットカードの下4桁。レシートに「****1234」「カード番号下4桁:1234」等の記載があれば読み取る。なければ空文字。"),
 });
 
 export type ReceiptLine = z.infer<typeof ReceiptLineSchema>;

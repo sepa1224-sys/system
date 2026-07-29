@@ -258,7 +258,9 @@ export default function Home() {
         r.lines && r.lines.length > 0
           ? r.lines.map((l) => ({ name: l.name, amount: l.amount, category: l.category, tags: l.tags ?? [] }))
           : [emptyLine()];
-      setForm((f) => ({ ...f, date: r.date, vendor: r.vendor, confidence: r.confidence, lines }));
+      // カード下4桁で立替区分を自動判定
+      const autoKind = r.cardLast4 === "4137" ? "card" as const : "company" as const;
+      setForm((f) => ({ ...f, date: r.date, vendor: r.vendor, confidence: r.confidence, lines, expenseKind: autoKind }));
 
       // 重複チェック：同じ日付・合計金額の領収書が既に保存済みなら警告
       setDup(null);
