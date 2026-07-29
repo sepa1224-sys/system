@@ -7,14 +7,14 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const ContactSchema = z.object({
-  name: z.string().describe("氏名（漢字）"),
-  nameKana: z.string().optional().describe("フリガナ（カタカナ）"),
-  company: z.string().optional().describe("会社名・組織名"),
-  title: z.string().optional().describe("役職・肩書き"),
-  phone: z.string().optional().describe("電話番号"),
-  email: z.string().optional().describe("メールアドレス"),
-  address: z.string().optional().describe("住所"),
-  website: z.string().optional().describe("WebサイトURL"),
+  name: z.string().describe("氏名（漢字）。読み取れなければ空文字。"),
+  nameKana: z.string().describe("フリガナ（カタカナ）。記載なければ空文字。"),
+  company: z.string().describe("会社名・組織名。記載なければ空文字。"),
+  title: z.string().describe("役職・肩書き。記載なければ空文字。"),
+  phone: z.string().describe("電話番号（ハイフン区切り）。記載なければ空文字。"),
+  email: z.string().describe("メールアドレス。記載なければ空文字。"),
+  address: z.string().describe("住所。記載なければ空文字。"),
+  website: z.string().describe("WebサイトURL。記載なければ空文字。"),
 });
 
 function parseDataUrl(dataUrl: string): { mediaType: string; data: string } | null {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const client = new Anthropic();
     const response = await client.beta.messages.parse({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       output_format: betaZodOutputFormat(ContactSchema),
       messages: [
