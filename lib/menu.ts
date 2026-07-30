@@ -178,8 +178,8 @@ export const DEFAULT_MENU: MenuItem[] = [
 
   // 🥪 Hot Sandwich
   {
-    id: "ham-cream-cheese", name: "ハム＆クリームチーズ", category: "🥪 Hot Sandwich",
-    cost: 130, price: 500,
+    id: "ham-cream-cheese", name: "クラシックメルト", category: "🥪 Hot Sandwich",
+    cost: 130, price: 800,
     ingredients: [
       { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 91, usage: 2, cost: 30 },
       { name: "切り落としハム", unit: "g", capacity: 800, purchasePrice: 905, usage: 40, cost: 45 },
@@ -190,8 +190,8 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "tuna-broccoli", name: "ツナブロッコリー", category: "🥪 Hot Sandwich",
-    cost: 165, price: 500,
+    id: "tuna-broccoli", name: "ガーデンメルト", category: "🥪 Hot Sandwich",
+    cost: 165, price: 800,
     ingredients: [
       { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 91, usage: 2, cost: 30 },
       { name: "ツナ", unit: "缶", capacity: 1, purchasePrice: 181, usage: 0.3, cost: 54 },
@@ -201,52 +201,6 @@ export const DEFAULT_MENU: MenuItem[] = [
       { name: "ペストロ", unit: "g", capacity: 185, purchasePrice: 321, usage: 5, cost: 9 },
       { name: "マスタード", unit: "g", capacity: 160, purchasePrice: 308, usage: 5, cost: 10 },
       { name: "マーガリン", unit: "g", capacity: 900, purchasePrice: 478, usage: 10, cost: 5 },
-    ],
-  },
-  {
-    id: "spam-onigiri", name: "スパムおにぎり風", category: "🥪 Hot Sandwich",
-    cost: 270, price: 550,
-    ingredients: [
-      { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-      { name: "スパム(缶)", unit: "缶", capacity: 1, purchasePrice: 800, usage: 0.25, cost: 200 },
-      { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-    ],
-  },
-  {
-    id: "ham-cheese", name: "定番ハムチーズ", category: "🥪 Hot Sandwich",
-    cost: 170, price: 500,
-    ingredients: [
-      { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-      { name: "ハム", unit: "枚", capacity: 10, purchasePrice: 400, usage: 2, cost: 80 },
-      { name: "チーズ", unit: "g", capacity: 1000, purchasePrice: 1000, usage: 50, cost: 50 },
-    ],
-  },
-  {
-    id: "tuna-mayo-broccoli", name: "健康的ツナマヨブロッコリー", category: "🥪 Hot Sandwich",
-    cost: 140, price: 480,
-    ingredients: [
-      { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-      { name: "ツナ(缶)", unit: "缶", capacity: 3, purchasePrice: 300, usage: 0.5, cost: 50 },
-      { name: "ブロッコリー(株)", unit: "株", capacity: 1, purchasePrice: 200, usage: 0.25, cost: 50 },
-    ],
-  },
-  {
-    id: "sugar-butter", name: "お手頃シュガーバター", category: "🥪 Hot Sandwich",
-    cost: 104, price: 380,
-    ingredients: [
-      { name: "食パン", unit: "枚", capacity: 8, purchasePrice: 160, usage: 2, cost: 40 },
-      { name: "バター", unit: "g", capacity: 200, purchasePrice: 600, usage: 20, cost: 60 },
-      { name: "砂糖", unit: "g", capacity: 1000, purchasePrice: 400, usage: 10, cost: 4 },
-    ],
-  },
-  {
-    id: "choco-banana", name: "チョコバナナ", category: "🥪 Hot Sandwich",
-    cost: 167, price: 450,
-    ingredients: [
-      { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 108, usage: 2, cost: 36 },
-      { name: "バナナ", unit: "本", capacity: 4, purchasePrice: 98, usage: 1, cost: 25 },
-      { name: "板チョコ", unit: "g", capacity: 50, purchasePrice: 178, usage: 25, cost: 89 },
-      { name: "マーガリン", unit: "g", capacity: 180, purchasePrice: 308, usage: 10, cost: 17 },
     ],
   },
 
