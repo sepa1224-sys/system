@@ -285,11 +285,13 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "ume-lime-soda", name: "梅ライムソーダ", category: "🥤 Soft Drink",
-    cost: 80, price: 500,
+    cost: 48, price: 500,
     ingredients: [
-      { name: "梅ジュース（三田飲料 ザ・スタンダード梅）", unit: "ml", capacity: 1000, purchasePrice: 891, usage: 40, cost: 36 },
-      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 10, cost: 12 },
-      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+      { name: "梅ジュース（三田飲料 ザ・スタンダード梅 1L）", unit: "ml", capacity: 1000, purchasePrice: 843, usage: 15, cost: 13 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 15, cost: 18 },
+      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 60, cost: 9 },
+      { name: "ミント（自家栽培）", unit: "枚", capacity: 1, purchasePrice: 0, usage: 4, cost: 0 },
+      { name: "スプライト", unit: "ml", capacity: 1500, purchasePrice: 200, usage: 60, cost: 8 },
     ],
   },
   {
