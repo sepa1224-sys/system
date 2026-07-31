@@ -284,6 +284,25 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
+    id: "ume-lime-soda", name: "梅ライムソーダ", category: "🥤 Soft Drink",
+    cost: 80, price: 500,
+    ingredients: [
+      { name: "梅ジュース（三田飲料 ザ・スタンダード梅）", unit: "ml", capacity: 1000, purchasePrice: 891, usage: 40, cost: 36 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 10, cost: 12 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
+  {
+    id: "yuzu-lemonade", name: "ゆずレモネード", category: "🥤 Soft Drink",
+    cost: 75, price: 500,
+    ingredients: [
+      { name: "ゆずジュース", unit: "ml", capacity: 500, purchasePrice: 800, usage: 30, cost: 48 },
+      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 15, cost: 20 },
+      { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 10, cost: 10 },
+      { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
+    ],
+  },
+  {
     id: "umeshu-soda", name: "梅ハイ", category: "📝 将来メニュー",
     cost: 112, price: 550,
     ingredients: [
