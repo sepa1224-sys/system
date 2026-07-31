@@ -284,7 +284,7 @@ export const DEFAULT_MENU: MenuItem[] = [
     ],
   },
   {
-    id: "umeshu-soda", name: "梅ハイ", category: "🍸 Bar / Cocktail",
+    id: "umeshu-soda", name: "梅ハイ", category: "📝 将来メニュー",
     cost: 112, price: 550,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 45, cost: 65 },
