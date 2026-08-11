@@ -102,3 +102,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "登録失敗" }, { status: 500 });
   }
 }
+
+// PATCH: 既存アイテムの価格を更新
+// body: { variation_id, price }  price は円（税込）
+export async function PATCH(req: NextRequest) {
+  try {
+    const { variation_id, price } = (await req.json()) as { variation_id: string; price: number };
+    if (!variation_id || price == null) {
+      return NextResponse.json({ error: "variation_id と price が必要" }, { status: 400 });
+    }
+
+    // まず現在のオブジェクトを取得（versionが必要）
+    const getRes = await fetch(`${SQUARE_API}/catalog/object/${variation_id}`, { headers: headers() });
+    const getData = await getRes.json();
+    if (!getRes.ok) {
+      return NextResponse.json({
+        error: getData.errors?.[0]?.detail || `取得エラー ${getRes.status}`,
+      }, { status: getRes.status });
+    }
+
+    const obj = getData.object;
+    // price_moneyを更新
+    obj.item_variation_data.price_money = { amount: price, currency: "JPY" };
+
+    const upsertRes = await fetch(`${SQUARE_API}/catalog/object`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        idempotency_key: `update_${variation_id}_${Date.now()}`,
+        object: obj,
+      }),
+    });
+
+    const upsertData = await upsertRes.json();
+    if (!upsertRes.ok) {
+      return NextResponse.json({
+        error: upsertData.errors?.[0]?.detail || `更新エラー ${upsertRes.status}`,
+        details: upsertData.errors,
+      }, { status: upsertRes.status });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      updated: {
+        id: upsertData.catalog_object?.id,
+        name: upsertData.catalog_object?.item_variation_data?.name,
+        price,
+      },
+    });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "更新失敗" }, { status: 500 });
+  }
+}
