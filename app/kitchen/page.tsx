@@ -32,40 +32,23 @@ export default function KitchenPage() {
   const [now, setNow] = useState(Date.now());
   const [soundEnabled, setSoundEnabled] = useState(false);
   const soundEnabledRef = useRef(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevKeysRef = useRef<Set<string>>(new Set());
 
-  // AudioContextをユーザータップで初期化（iOS制限対策）
+  // 通知音（Audio要素を使い回す — iOS対応）
   const initAudio = () => {
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new AudioContext();
+    if (!audioRef.current) {
+      audioRef.current = new Audio("/ping.wav");
+      audioRef.current.load();
     }
-    // suspended状態ならresume
-    if (audioCtxRef.current.state === "suspended") {
-      audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
   };
 
-  // 通知音（既存のAudioContextを使い回す）
   const playSound = () => {
     try {
-      const ctx = audioCtxRef.current;
-      if (!ctx) return;
-      if (ctx.state === "suspended") ctx.resume();
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc1.frequency.value = 830;
-      osc2.frequency.value = 1100;
-      gain.gain.value = 0.5;
-      osc1.connect(gain);
-      osc2.connect(gain);
-      gain.connect(ctx.destination);
-      osc1.start(ctx.currentTime);
-      osc1.stop(ctx.currentTime + 0.2);
-      osc2.start(ctx.currentTime + 0.3);
-      osc2.stop(ctx.currentTime + 0.6);
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
     } catch {}
   };
 
