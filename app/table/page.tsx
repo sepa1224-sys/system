@@ -57,9 +57,21 @@ const TABLES = [
 
 const fmt = (n: number) => `¥${n.toLocaleString()}`;
 
+// 時間帯で昼/夜を自動判定（JST: 6:00-18:30=昼、18:30-6:00=夜）
+function autoMode(): "day" | "night" {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const h = jst.getUTCHours();
+  const m = jst.getUTCMinutes();
+  const mins = h * 60 + m;
+  // 6:00 (360) 〜 18:30 (1110) = 昼
+  return mins >= 360 && mins < 1110 ? "day" : "night";
+}
+
 export default function TablePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [mode, setMode] = useState<"day" | "night">(autoMode());
   const [selected, setSelected] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sending, setSending] = useState(false);
@@ -72,6 +84,11 @@ export default function TablePage() {
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
   const [squareAppId, setSquareAppId] = useState("");
+  // 昼モード: カウンター注文のstate
+  const [dayOrderId, setDayOrderId] = useState<string | null>(null);
+  const [dayVersion, setDayVersion] = useState(0);
+  const [dayTotal, setDayTotal] = useState(0);
+  const [dayItems, setDayItems] = useState<{ uid: string; name: string; qty: number; amount: number }[]>([]);
 
   // OPEN注文を取得
   const loadOrders = useCallback(async () => {
@@ -224,16 +241,265 @@ export default function TablePage() {
     }
   };
 
+  // 昼モード: カウンター注文送信 → 即会計
+  const submitDayOrder = async (payMethod: "cash" | "card" | "paypay", tenderedAmt?: number) => {
+    if (!cart.length) return;
+    setSending(true);
+    setErr("");
+    setMsg("");
+    try {
+      const items = cart.map((c) => ({
+        catalog_object_id: c.catalog_object_id,
+        quantity: c.quantity,
+        note: c.note || undefined,
+      }));
+      const total = cart.reduce((s, c) => s + c.price * c.quantity, 0);
+
+      // 注文作成（ticket_name: "counter"）
+      const orderRes = await fetch("/api/square/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "カウンター", items }),
+      });
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderData.error || "注文作成失敗");
+
+      const orderId = orderData.order.id;
+
+      if (payMethod === "card") {
+        // カード: Square POSに飛ばす
+        const posData = {
+          amount_money: { amount: total, currency_code: "JPY" },
+          callback_url: `${window.location.origin}/table`,
+          client_id: squareAppId,
+          version: "1.3",
+          notes: "カウンター",
+          options: { supported_tender_types: ["CREDIT_CARD"] },
+        };
+        const encoded = encodeURIComponent(JSON.stringify(posData));
+        window.location.href = `square-commerce-v1://payment/create?data=${encoded}`;
+        return;
+      }
+
+      // 現金 or PayPay: APIで決済
+      const payRes = await fetch("/api/square/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: orderId,
+          amount: total,
+          tendered: tenderedAmt || total,
+          method: payMethod === "paypay" ? "paypay" : undefined,
+        }),
+      });
+      const payData = await payRes.json();
+      if (!payRes.ok) throw new Error(payData.error || "決済失敗");
+
+      const change = payMethod === "cash" ? Math.max(0, (tenderedAmt || total) - total) : 0;
+      setPayResult({ change });
+      setCart([]);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0);
   const currentOrder = selected ? orderFor(selected) : null;
 
   return (
     <div className="wrap">
       <header>
-        <h1>🪑 テーブルマップ</h1>
-        <p>テーブルをタップして注文</p>
+        <h1>🛎️ 注文</h1>
+        <p>{mode === "day" ? "カウンター注文" : "テーブル注文"}</p>
       </header>
       <Nav />
+
+      {/* 昼/夜 切替 */}
+      <div className="sub-tabs" style={{ marginBottom: 12 }}>
+        <button className={`sub-tab ${mode === "day" ? "active" : ""}`} onClick={() => { setMode("day"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
+          ☀️ 昼（カウンター）
+        </button>
+        <button className={`sub-tab ${mode === "night" ? "active" : ""}`} onClick={() => { setMode("night"); setCart([]); setPayMode(false); setPayResult(null); }}>
+          🌙 夜（テーブル）
+        </button>
+      </div>
+
+      {/* ===== 昼モード ===== */}
+      {mode === "day" && (
+        <>
+          {/* 決済完了 */}
+          {payResult && (
+            <div className="card" style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--ok)", marginBottom: 4 }}>会計完了</div>
+              {payResult.change > 0 && (
+                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--accent)" }}>お釣り: {fmt(payResult.change)}</div>
+              )}
+              <button className="primary" onClick={() => { setPayResult(null); setCart([]); setErr(""); setMsg(""); setPayMode(false); setTendered(""); }} style={{ marginTop: 16 }}>
+                次の注文へ
+              </button>
+            </div>
+          )}
+
+          {!payResult && (
+            <>
+              {/* メニュー選択（カテゴリ別） — 夜と同じロジック */}
+              {(() => {
+                const FALLBACK: Record<string, string> = {};
+                const HOTSAND_NAMES = ["ガーデンメルト","クラシックメルト"];
+                const FOOD_NAMES = ["マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
+                const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
+                const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
+                const DESSERT_NAMES = ["アフォガート","ワッフル"];
+                const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
+                HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
+                FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
+                ALCOHOL_NAMES.forEach(n => FALLBACK[n] = "🍺 アルコール");
+                CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
+                DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
+                SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
+
+                const validItems = menu.filter(item => { const v = item.variations[0]; return v && v.price != null; });
+                const grouped: Record<string, MenuItem[]> = {};
+                const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
+                for (const item of validItems) {
+                  const cat = item.category || FALLBACK[item.name] || "その他";
+                  if (!grouped[cat]) grouped[cat] = [];
+                  grouped[cat].push(item);
+                }
+                const cats = CAT_ORDER.filter(c => grouped[c]);
+                for (const c of Object.keys(grouped)) { if (!cats.includes(c)) cats.push(c); }
+
+                return cats.map(cat => (
+                  <div className="card" key={cat}>
+                    <div className="cat-title">{cat}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {grouped[cat].map((item) => {
+                        const v = item.variations[0];
+                        const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
+                        const hasHotIce = HOT_ICE_ITEMS.has(item.name);
+                        const hasVariant = !!VARIANT_ITEMS[item.name];
+                        return (
+                          <button key={item.id} onClick={() => addToCart(item)} style={{
+                            flex: "1 1 calc(50% - 4px)", minWidth: 0, padding: "10px 8px", borderRadius: 10,
+                            border: totalInCart ? "2px solid var(--accent)" : "1px solid var(--line)",
+                            background: totalInCart ? "var(--accent-weak)" : "var(--card)",
+                            textAlign: "left", fontSize: 13, fontWeight: 600, cursor: "pointer", position: "relative",
+                          }}>
+                            <div style={{ marginBottom: 2 }}>
+                              {item.name}
+                              {hasHotIce && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>H/I</span>}
+                              {hasVariant && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>味選択</span>}
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
+                            {totalInCart > 0 && (
+                              <span style={{
+                                position: "absolute", top: -6, right: -6, background: "var(--accent)", color: "#fff",
+                                borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center",
+                                justifyContent: "center", fontSize: 12, fontWeight: 700,
+                              }}>{totalInCart}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+              })()}
+
+              {/* バリエーション選択 */}
+              {variantPending && VARIANT_ITEMS[variantPending.name] && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setVariantPending(null)}>
+                  <div className="card" style={{ width: 300, margin: 0 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{variantPending.name}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {VARIANT_ITEMS[variantPending.name].map((v) => (
+                        <button key={v.value} onClick={() => selectVariant(v.value)} style={{
+                          padding: "12px 0", borderRadius: 10, border: `2px solid ${v.color}`, background: v.bg,
+                          color: v.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                        }}>{v.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Hot/Ice選択 */}
+              {hotIcePending && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setHotIcePending(null)}>
+                  <div className="card" style={{ width: 280, margin: 0 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{hotIcePending.name}</div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button onClick={() => selectHotIce("Hot")} style={{ flex: 1, padding: "14px 0", borderRadius: 10, border: "2px solid #c0392b", background: "#fde8e8", color: "#c0392b", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🔥 Hot</button>
+                      <button onClick={() => selectHotIce("Ice")} style={{ flex: 1, padding: "14px 0", borderRadius: 10, border: "2px solid #2980b9", background: "#e8f4fd", color: "#2980b9", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🧊 Ice</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* カート + 会計 */}
+              {cart.length > 0 && (
+                <div className="card" style={{ position: "sticky", bottom: 16 }}>
+                  {cart.map((c) => (
+                    <div key={`${c.catalog_object_id}_${c.note || ""}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", fontSize: 14 }}>
+                      <span>
+                        {c.name}
+                        {c.note && <span style={{ fontSize: 11, marginLeft: 4, padding: "1px 6px", borderRadius: 4, background: c.note === "Hot" ? "#fde8e8" : c.note === "Ice" ? "#e8f4fd" : "#f0f0f0", color: c.note === "Hot" ? "#c0392b" : c.note === "Ice" ? "#2980b9" : "var(--ink)" }}>{c.note}</span>}
+                        {" "}×{c.quantity}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="mono" style={{ fontWeight: 700 }}>{fmt(c.price * c.quantity)}</span>
+                        <button onClick={() => removeFromCart(c.catalog_object_id, c.note)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 16, border: "1px solid var(--line)", background: "#fff", color: "#c0392b", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ textAlign: "right", fontWeight: 700, fontSize: 18, marginTop: 6, paddingTop: 8, borderTop: "2px solid var(--line)" }}>
+                    {fmt(cartTotal)}
+                  </div>
+                  {err && <p className="err">{err}</p>}
+
+                  {/* 現金会計モード */}
+                  {payMode ? (
+                    <div style={{ marginTop: 10 }}>
+                      <label>お預かり金額</label>
+                      <input type="number" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder={String(cartTotal)} style={{ textAlign: "right", fontSize: 20, fontWeight: 700 }} autoFocus />
+                      {tendered && Number(tendered) >= cartTotal && (
+                        <div style={{ textAlign: "center", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>お釣り: {fmt(Number(tendered) - cartTotal)}</div>
+                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                        {[cartTotal, 500, 1000, 2000, 3000, 5000, 10000].map((amt) => (
+                          <button key={amt} onClick={() => setTendered(String(amt))} style={{ flex: "1 1 calc(25% - 6px)", padding: "8px 0", borderRadius: 8, border: "1px solid var(--line)", background: "var(--card)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                            {amt === cartTotal ? "ぴったり" : `¥${amt.toLocaleString()}`}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button className="ghost" onClick={() => setPayMode(false)} style={{ flex: 1 }}>戻る</button>
+                        <button
+                          disabled={sending || !tendered || Number(tendered) < cartTotal}
+                          onClick={() => submitDayOrder("cash", Number(tendered))}
+                          style={{ flex: 2, padding: "14px 0", borderRadius: 10, background: (!tendered || Number(tendered) < cartTotal) ? "#cbb9a8" : "var(--ok)", color: "#fff", fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer" }}
+                        >{sending ? "処理中..." : "現金で決済"}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <button onClick={() => { setPayMode(true); setTendered(""); }} style={{ flex: 1, padding: "14px 0", borderRadius: 10, background: "var(--ok)", color: "#fff", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer" }}>💴 現金</button>
+                      <button onClick={() => submitDayOrder("card")} disabled={!squareAppId} style={{ flex: 1, padding: "14px 0", borderRadius: 10, background: "#2980b9", color: "#fff", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer" }}>💳 カード</button>
+                      <button onClick={() => { if (confirm("PayPay支払い済みですか？")) submitDayOrder("paypay"); }} disabled={sending} style={{ flex: 1, padding: "14px 0", borderRadius: 10, background: "#e60020", color: "#fff", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer" }}>PayPay</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ===== 夜モード ===== */}
+      {mode === "night" && (<>
 
       {/* フロアマップ */}
       <div className="card" style={{ padding: 12, position: "relative", aspectRatio: "1.1", overflow: "hidden" }}>
@@ -820,6 +1086,8 @@ export default function TablePage() {
           </button>
         </>
       )}
+
+      </>)}
     </div>
   );
 }
