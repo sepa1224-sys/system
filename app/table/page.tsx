@@ -335,14 +335,66 @@ export default function TablePage() {
           {/* 現在の注文 */}
           {currentOrder && (
             <div className="card">
-              <div className="cat-title">{selected} の注文中</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="cat-title" style={{ marginBottom: 0 }}>{selected} の注文中</div>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`${selected} の注文を全てキャンセルしますか？`)) return;
+                    try {
+                      const res = await fetch("/api/square/order", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ order_id: currentOrder.id, version: currentOrder.version }),
+                      });
+                      const d = await res.json();
+                      if (!res.ok) throw new Error(d.error);
+                      setSelected(null);
+                      await loadOrders();
+                    } catch (e: any) { setErr(e.message); }
+                  }}
+                  style={{
+                    fontSize: 11, padding: "4px 10px", borderRadius: 6,
+                    border: "1px solid #e0b4b4", background: "#fde8e8", color: "#c0392b",
+                    cursor: "pointer", fontWeight: 600,
+                  }}
+                >
+                  全キャンセル
+                </button>
+              </div>
               {currentOrder.items.map((item, i) => (
-                <div key={i} className="result-row">
-                  <span>
+                <div key={i} className="result-row" style={{ alignItems: "center" }}>
+                  <span style={{ flex: 1 }}>
                     {item.name}
                     {item.qty > 1 && <span style={{ color: "var(--muted)", marginLeft: 4 }}>×{item.qty}</span>}
                   </span>
-                  <span className="mono" style={{ fontWeight: 700 }}>{fmt(item.amount)}</span>
+                  <span className="mono" style={{ fontWeight: 700, marginRight: 8 }}>{fmt(item.amount)}</span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/square/order", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            order_id: currentOrder.id,
+                            version: currentOrder.version,
+                            item_uid: item.uid,
+                          }),
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error);
+                        await loadOrders();
+                        if (d.remaining === 0) setSelected(null);
+                      } catch (e: any) { setErr(e.message); }
+                    }}
+                    style={{
+                      width: 26, height: 26, borderRadius: 6, fontSize: 14,
+                      border: "1px solid var(--line)", background: "#fff", color: "#c0392b",
+                      padding: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
               <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--line)" }}>

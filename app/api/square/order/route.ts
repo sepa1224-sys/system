@@ -174,3 +174,86 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "追加失敗" }, { status: 500 });
   }
 }
+
+// DELETE: 注文からアイテムを削除、または注文全体を削除
+// body: { order_id, version, item_uid? }
+// item_uid がある場合はそのアイテムだけ削除、ない場合は注文全体をキャンセル
+export async function DELETE(req: NextRequest) {
+  try {
+    const { order_id, version, item_uid } = (await req.json()) as {
+      order_id: string;
+      version: number;
+      item_uid?: string;
+    };
+    if (!order_id) {
+      return NextResponse.json({ error: "order_id が必要" }, { status: 400 });
+    }
+
+    if (item_uid) {
+      // 特定アイテムを削除
+      const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {
+        method: "PUT",
+        headers: hdrs(),
+        body: JSON.stringify({
+          order: {
+            version,
+          },
+          fields_to_clear: [`line_items[${item_uid}]`],
+          idempotency_key: `del_${order_id.slice(-10)}_${Date.now().toString(36)}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return NextResponse.json({
+          error: data.errors?.[0]?.detail || `削除エラー ${res.status}`,
+          details: data.errors,
+        }, { status: res.status });
+      }
+
+      // アイテムが0になったら注文自体をキャンセル
+      const remaining = data.order?.line_items?.length || 0;
+      if (remaining === 0) {
+        // OPEN注文をCANCELEDに
+        await fetch(`${SQUARE_API}/orders/${order_id}`, {
+          method: "PUT",
+          headers: hdrs(),
+          body: JSON.stringify({
+            order: {
+              version: data.order?.version,
+              state: "CANCELED",
+            },
+            idempotency_key: `canc_${order_id.slice(-10)}_${Date.now().toString(36)}`,
+          }),
+        });
+      }
+
+      return NextResponse.json({ ok: true, remaining });
+    } else {
+      // 注文全体をキャンセル
+      const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {
+        method: "PUT",
+        headers: hdrs(),
+        body: JSON.stringify({
+          order: {
+            version,
+            state: "CANCELED",
+          },
+          idempotency_key: `canc_${order_id.slice(-10)}_${Date.now().toString(36)}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return NextResponse.json({
+          error: data.errors?.[0]?.detail || `キャンセルエラー ${res.status}`,
+          details: data.errors,
+        }, { status: res.status });
+      }
+
+      return NextResponse.json({ ok: true, canceled: true });
+    }
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "削除失敗" }, { status: 500 });
+  }
+}
