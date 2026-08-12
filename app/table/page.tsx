@@ -297,7 +297,7 @@ export default function TablePage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {menu.map((item) => {
                 const v = item.variations[0];
-                if (!v) return null;
+                if (!v || v.price == null) return null;
                 const inCart = cart.find((c) => c.catalog_object_id === v.id);
                 return (
                   <button
