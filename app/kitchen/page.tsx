@@ -99,6 +99,10 @@ export default function KitchenPage() {
           }
         }
 
+        // 注文から消えたアイテム（キャンセル・削除）をKDSからも除去
+        setInProgress((prev) => prev.filter((i) => newKeys.has(i.key)));
+        setDone((prev) => prev.filter((i) => newKeys.has(i.key)));
+
         prevKeysRef.current = newKeys;
         setErr("");
       }
