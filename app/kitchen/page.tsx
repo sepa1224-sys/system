@@ -58,14 +58,14 @@ export default function KitchenPage() {
       const gain = ctx.createGain();
       osc1.frequency.value = 830;
       osc2.frequency.value = 1100;
-      gain.gain.value = 0.3;
+      gain.gain.value = 0.5;
       osc1.connect(gain);
       osc2.connect(gain);
       gain.connect(ctx.destination);
       osc1.start(ctx.currentTime);
-      osc1.stop(ctx.currentTime + 0.15);
-      osc2.start(ctx.currentTime + 0.2);
-      osc2.stop(ctx.currentTime + 0.4);
+      osc1.stop(ctx.currentTime + 0.2);
+      osc2.start(ctx.currentTime + 0.3);
+      osc2.stop(ctx.currentTime + 0.6);
     } catch {}
   };
 
@@ -86,7 +86,6 @@ export default function KitchenPage() {
             const key = `${o.id}_${item.uid}`;
             newKeys.add(key);
             if (!prevKeysRef.current.has(key)) {
-              // 完了済みにもないか確認
               newItems.push({
                 key,
                 orderId: o.id,
@@ -102,13 +101,16 @@ export default function KitchenPage() {
 
         if (newItems.length > 0) {
           setInProgress((prev) => {
-            // 既にin progressか完了済みにあるものは追加しない
             const existingKeys = new Set(prev.map((i) => i.key));
-            const toAdd = newItems.filter((i) => !existingKeys.has(i.key));
+            const doneKeys = new Set(done.map((i) => i.key));
+            const toAdd = newItems.filter((i) => !existingKeys.has(i.key) && !doneKeys.has(i.key));
             return [...prev, ...toAdd];
           });
-          if (soundEnabledRef.current && prevKeysRef.current.size > 0) {
-            playSound();
+          if (soundEnabledRef.current) {
+            // 初回ロード（ページ開いた時）は鳴らさない
+            if (prevKeysRef.current.size > 0) {
+              playSound();
+            }
           }
         }
 
