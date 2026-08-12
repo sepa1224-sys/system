@@ -68,12 +68,12 @@ export async function GET() {
 }
 
 // POST: 新規注文作成（OPEN状態）
-// body: { table: "A1", items: [{ catalog_object_id, quantity }] }
+// body: { table: "A1", items: [{ catalog_object_id, quantity, note? }] }
 export async function POST(req: NextRequest) {
   try {
     const { table, items } = (await req.json()) as {
       table: string;
-      items: { catalog_object_id: string; quantity: number }[];
+      items: { catalog_object_id: string; quantity: number; note?: string }[];
     };
     if (!table || !items?.length) {
       return NextResponse.json({ error: "table と items が必要" }, { status: 400 });
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
     const lineItems = items.map((it) => ({
       catalog_object_id: it.catalog_object_id,
       quantity: String(it.quantity),
+      ...(it.note ? { note: it.note } : {}),
     }));
 
     const res = await fetch(`${SQUARE_API}/orders`, {
@@ -123,12 +124,12 @@ export async function POST(req: NextRequest) {
 }
 
 // PUT: 既存注文に追加
-// body: { order_id, items: [{ catalog_object_id, quantity }], version }
+// body: { order_id, items: [{ catalog_object_id, quantity, note? }], version }
 export async function PUT(req: NextRequest) {
   try {
     const { order_id, items, version } = (await req.json()) as {
       order_id: string;
-      items: { catalog_object_id: string; quantity: number }[];
+      items: { catalog_object_id: string; quantity: number; note?: string }[];
       version: number;
     };
     if (!order_id || !items?.length) {
@@ -138,6 +139,7 @@ export async function PUT(req: NextRequest) {
     const lineItems = items.map((it) => ({
       catalog_object_id: it.catalog_object_id,
       quantity: String(it.quantity),
+      ...(it.note ? { note: it.note } : {}),
     }));
 
     const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {

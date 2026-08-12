@@ -18,7 +18,22 @@ type Order = {
   total: number;
   items: OrderItem[];
 };
-type CartItem = { catalog_object_id: string; name: string; price: number; quantity: number };
+type CartItem = { catalog_object_id: string; name: string; price: number; quantity: number; note?: string };
+
+// Hot/Ice 選択可能なメニュー
+const HOT_ICE_ITEMS = new Set([
+  "コーヒー", "アメリカーノ", "カフェラテ", "ソイラテ",
+  "抹茶ラテ", "チョコレートミルク", "ドリップコーヒー",
+]);
+
+// バリエーション選択が必要なメニュー
+const VARIANT_ITEMS: Record<string, { label: string; value: string; color: string; bg: string }[]> = {
+  "ワッフル": [
+    { label: "プレーン", value: "プレーン", color: "#8B6914", bg: "#FFF8E1" },
+    { label: "チョコ", value: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
+    { label: "抹茶", value: "抹茶", color: "#2E7D32", bg: "#E8F5E9" },
+  ],
+};
 
 const TABLES = [
   // A: 壁側テーブル（上段、右から）
@@ -50,6 +65,8 @@ export default function TablePage() {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [hotIcePending, setHotIcePending] = useState<MenuItem | null>(null);
+  const [variantPending, setVariantPending] = useState<MenuItem | null>(null);
 
   // OPEN注文を取得
   const loadOrders = useCallback(async () => {
@@ -89,30 +106,56 @@ export default function TablePage() {
   };
 
   // カートに追加
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: MenuItem, tempNote?: string) => {
     const v = item.variations[0];
     if (!v) return;
+    // バリエーション選択が必要
+    if (VARIANT_ITEMS[item.name] && !tempNote) {
+      setVariantPending(item);
+      return;
+    }
+    // Hot/Ice選択が必要
+    if (HOT_ICE_ITEMS.has(item.name) && !tempNote) {
+      setHotIcePending(item);
+      return;
+    }
+    const note = tempNote || undefined;
+    const cartKey = `${v.id}_${note || ""}`;
     setCart((prev) => {
-      const exists = prev.find((c) => c.catalog_object_id === v.id);
+      const exists = prev.find((c) => c.catalog_object_id === v.id && c.note === note);
       if (exists) {
         return prev.map((c) =>
-          c.catalog_object_id === v.id ? { ...c, quantity: c.quantity + 1 } : c
+          c.catalog_object_id === v.id && c.note === note ? { ...c, quantity: c.quantity + 1 } : c
         );
       }
-      return [...prev, { catalog_object_id: v.id, name: item.name, price: v.price, quantity: 1 }];
+      return [...prev, { catalog_object_id: v.id, name: item.name, price: v.price, quantity: 1, note }];
     });
   };
 
+  const selectHotIce = (choice: "Hot" | "Ice") => {
+    if (hotIcePending) {
+      addToCart(hotIcePending, choice);
+      setHotIcePending(null);
+    }
+  };
+
+  const selectVariant = (choice: string) => {
+    if (variantPending) {
+      addToCart(variantPending, choice);
+      setVariantPending(null);
+    }
+  };
+
   // カートから削除
-  const removeFromCart = (catalogId: string) => {
+  const removeFromCart = (catalogId: string, note?: string) => {
     setCart((prev) => {
-      const item = prev.find((c) => c.catalog_object_id === catalogId);
+      const item = prev.find((c) => c.catalog_object_id === catalogId && c.note === note);
       if (item && item.quantity > 1) {
         return prev.map((c) =>
-          c.catalog_object_id === catalogId ? { ...c, quantity: c.quantity - 1 } : c
+          c.catalog_object_id === catalogId && c.note === note ? { ...c, quantity: c.quantity - 1 } : c
         );
       }
-      return prev.filter((c) => c.catalog_object_id !== catalogId);
+      return prev.filter((c) => !(c.catalog_object_id === catalogId && c.note === note));
     });
   };
 
@@ -127,6 +170,7 @@ export default function TablePage() {
       const items = cart.map((c) => ({
         catalog_object_id: c.catalog_object_id,
         quantity: c.quantity,
+        note: c.note || undefined,
       }));
 
       let res;
@@ -294,11 +338,13 @@ export default function TablePage() {
           {(() => {
             // カテゴリ名ベースのフォールバック分類
             const FALLBACK: Record<string, string> = {};
-            const FOOD_NAMES = ["ガーデンメルト","クラシックメルト","ワッフル","マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
+            const HOTSAND_NAMES = ["ガーデンメルト","クラシックメルト"];
+            const FOOD_NAMES = ["マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
             const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
-            const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー"];
-            const DESSERT_NAMES = ["アフォガート","チョコレートミルク","プロテインスムージー"];
+            const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
+            const DESSERT_NAMES = ["アフォガート","ワッフル"];
             const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
+            HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
             FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
             ALCOHOL_NAMES.forEach(n => FALLBACK[n] = "🍺 アルコール");
             CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
@@ -312,7 +358,7 @@ export default function TablePage() {
 
             // カテゴリ分類
             const grouped: Record<string, MenuItem[]> = {};
-            const CAT_ORDER = ["🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
+            const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
             for (const item of validItems) {
               const cat = item.category || FALLBACK[item.name] || "その他";
               if (!grouped[cat]) grouped[cat] = [];
@@ -334,7 +380,9 @@ export default function TablePage() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {grouped[cat].map((item) => {
                     const v = item.variations[0];
-                    const inCart = cart.find((c) => c.catalog_object_id === v.id);
+                    const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
+                    const hasHotIce = HOT_ICE_ITEMS.has(item.name);
+                    const hasVariant = !!VARIANT_ITEMS[item.name];
                     return (
                       <button
                         key={item.id}
@@ -344,8 +392,8 @@ export default function TablePage() {
                           minWidth: 0,
                           padding: "10px 8px",
                           borderRadius: 10,
-                          border: inCart ? "2px solid var(--accent)" : "1px solid var(--line)",
-                          background: inCart ? "var(--accent-weak)" : "var(--card)",
+                          border: totalInCart ? "2px solid var(--accent)" : "1px solid var(--line)",
+                          background: totalInCart ? "var(--accent-weak)" : "var(--card)",
                           textAlign: "left",
                           fontSize: 13,
                           fontWeight: 600,
@@ -353,9 +401,13 @@ export default function TablePage() {
                           position: "relative",
                         }}
                       >
-                        <div style={{ marginBottom: 2 }}>{item.name}</div>
+                        <div style={{ marginBottom: 2 }}>
+                          {item.name}
+                          {hasHotIce && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>H/I</span>}
+                          {hasVariant && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>味選択</span>}
+                        </div>
                         <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
-                        {inCart && (
+                        {totalInCart > 0 && (
                           <span style={{
                             position: "absolute", top: -6, right: -6,
                             background: "var(--accent)", color: "#fff",
@@ -363,7 +415,7 @@ export default function TablePage() {
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontSize: 12, fontWeight: 700,
                           }}>
-                            {inCart.quantity}
+                            {totalInCart}
                           </span>
                         )}
                       </button>
@@ -374,19 +426,92 @@ export default function TablePage() {
             ));
           })()}
 
+          {/* バリエーション選択 */}
+          {variantPending && VARIANT_ITEMS[variantPending.name] && (
+            <div style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+            }} onClick={() => setVariantPending(null)}>
+              <div className="card" style={{ width: 300, margin: 0 }} onClick={e => e.stopPropagation()}>
+                <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
+                  {variantPending.name}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {VARIANT_ITEMS[variantPending.name].map((v) => (
+                    <button
+                      key={v.value}
+                      onClick={() => selectVariant(v.value)}
+                      style={{
+                        padding: "12px 0", borderRadius: 10,
+                        border: `2px solid ${v.color}`, background: v.bg,
+                        color: v.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                      }}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hot/Ice選択 */}
+          {hotIcePending && (
+            <div style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+            }} onClick={() => setHotIcePending(null)}>
+              <div className="card" style={{ width: 280, margin: 0 }} onClick={e => e.stopPropagation()}>
+                <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>
+                  {hotIcePending.name}
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => selectHotIce("Hot")}
+                    style={{
+                      flex: 1, padding: "14px 0", borderRadius: 10,
+                      border: "2px solid #c0392b", background: "#fde8e8",
+                      color: "#c0392b", fontSize: 16, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    🔥 Hot
+                  </button>
+                  <button
+                    onClick={() => selectHotIce("Ice")}
+                    style={{
+                      flex: 1, padding: "14px 0", borderRadius: 10,
+                      border: "2px solid #2980b9", background: "#e8f4fd",
+                      color: "#2980b9", fontSize: 16, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    🧊 Ice
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* カート */}
           {cart.length > 0 && (
             <div className="card" style={{ position: "sticky", bottom: 16 }}>
-              {cart.map((c) => (
-                <div key={c.catalog_object_id} style={{
+              {cart.map((c, idx) => (
+                <div key={`${c.catalog_object_id}_${c.note || ""}`} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
                   padding: "6px 0", fontSize: 14,
                 }}>
-                  <span>{c.name} ×{c.quantity}</span>
+                  <span>
+                    {c.name}
+                    {c.note && <span style={{
+                      fontSize: 11, marginLeft: 4, padding: "1px 6px", borderRadius: 4,
+                      background: c.note === "Hot" ? "#fde8e8" : "#e8f4fd",
+                      color: c.note === "Hot" ? "#c0392b" : "#2980b9",
+                    }}>{c.note}</span>}
+                    {" "}×{c.quantity}
+                  </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span className="mono" style={{ fontWeight: 700 }}>{fmt(c.price * c.quantity)}</span>
                     <button
-                      onClick={() => removeFromCart(c.catalog_object_id)}
+                      onClick={() => removeFromCart(c.catalog_object_id, c.note)}
                       style={{
                         width: 28, height: 28, borderRadius: 8, fontSize: 16,
                         border: "1px solid var(--line)", background: "#fff", color: "#c0392b",
