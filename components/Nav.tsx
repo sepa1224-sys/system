@@ -23,6 +23,7 @@ export default function Nav() {
     { href: "/todos", label: "✅ ToDo" },
     { href: "/table", label: "🪑 テーブル" },
     { href: "/kitchen", label: "🍳 KDS" },
+    { href: "/accounting", label: "📊 経営" },
     { href: "/sales", label: "📈 売上" },
     { href: "/soudan", label: "💬 相談" },
   ];

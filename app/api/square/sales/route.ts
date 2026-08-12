@@ -55,29 +55,32 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get("to");
 
     // 日付範囲を決定（JSTベース → UTC変換）
+    // 営業日は朝6時切替（6:00〜翌5:59が1日分）
     let beginAt: string;
     let endAt: string;
 
     if (date) {
-      // 特定日: JSTの00:00〜23:59:59 → UTCに変換（-9時間）
-      beginAt = `${date}T00:00:00+09:00`;
-      // 翌日の00:00:00
-      const next = new Date(`${date}T00:00:00+09:00`);
+      // 特定日: JSTの06:00〜翌日05:59
+      beginAt = `${date}T06:00:00+09:00`;
+      const next = new Date(`${date}T06:00:00+09:00`);
       next.setDate(next.getDate() + 1);
       endAt = next.toISOString();
     } else if (from && to) {
-      beginAt = `${from}T00:00:00+09:00`;
-      const next = new Date(`${to}T00:00:00+09:00`);
+      beginAt = `${from}T06:00:00+09:00`;
+      const next = new Date(`${to}T06:00:00+09:00`);
       next.setDate(next.getDate() + 1);
       endAt = next.toISOString();
     } else {
-      // デフォルト: 今日（JST）
+      // デフォルト: 今日（JST、6時切替考慮）
       const now = new Date();
-      const jstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
-      beginAt = `${jstDate}T00:00:00+09:00`;
-      const next = new Date(`${jstDate}T00:00:00+09:00`);
+      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      // 6時前なら前日扱い
+      if (jstNow.getHours() < 6) {
+        jstNow.setDate(jstNow.getDate() - 1);
+      }
+      const jstDate = jstNow.toISOString().slice(0, 10);
+      beginAt = `${jstDate}T06:00:00+09:00`;
+      const next = new Date(`${jstDate}T06:00:00+09:00`);
       next.setDate(next.getDate() + 1);
       endAt = next.toISOString();
     }
