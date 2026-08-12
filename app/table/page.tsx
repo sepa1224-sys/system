@@ -443,6 +443,40 @@ export default function TablePage() {
                   >
                     💳 カード
                   </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`${selected} をPayPay支払い済みにしますか？`)) return;
+                      setPaying(true);
+                      setErr("");
+                      try {
+                        const res = await fetch("/api/square/pay", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            order_id: currentOrder.id,
+                            amount: currentOrder.total,
+                            tendered: currentOrder.total,
+                          }),
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error || "決済失敗");
+                        setPayResult({ change: 0 });
+                        await loadOrders();
+                      } catch (e: any) {
+                        setErr(e.message);
+                      } finally {
+                        setPaying(false);
+                      }
+                    }}
+                    disabled={paying}
+                    style={{
+                      flex: 1, padding: "14px 0", borderRadius: 10,
+                      background: "#e60020", color: "#fff", fontSize: 15, fontWeight: 700,
+                      border: "none", cursor: "pointer",
+                    }}
+                  >
+                    PayPay
+                  </button>
                 </div>
               )}
 
