@@ -83,18 +83,17 @@ export default function KitchenPage() {
         }
 
         if (newItems.length > 0) {
+          const shouldSound = soundEnabledRef.current && prevKeysRef.current.size > 0;
           setInProgress((prev) => {
             const existingKeys = new Set(prev.map((i) => i.key));
             const doneKeys = new Set(done.map((i) => i.key));
             const toAdd = newItems.filter((i) => !existingKeys.has(i.key) && !doneKeys.has(i.key));
+            if (toAdd.length > 0 && shouldSound) {
+              // 画面反映と同時に少し遅らせて鳴らす
+              setTimeout(() => playSound(), 300);
+            }
             return [...prev, ...toAdd];
           });
-          if (soundEnabledRef.current) {
-            // 初回ロード（ページ開いた時）は鳴らさない
-            if (prevKeysRef.current.size > 0) {
-              playSound();
-            }
-          }
         }
 
         // 注文から消えたアイテム（キャンセル・削除）をKDSからも除去
