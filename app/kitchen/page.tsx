@@ -31,7 +31,8 @@ export default function KitchenPage() {
   const [err, setErr] = useState("");
   const [now, setNow] = useState(Date.now());
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const [showDone, setShowDone] = useState(false);
+  const soundEnabledRef = useRef(false);
+  // showDone不要 — 常に両方表示
   const prevKeysRef = useRef<Set<string>>(new Set());
 
   // 通知音
@@ -93,7 +94,7 @@ export default function KitchenPage() {
             const toAdd = newItems.filter((i) => !existingKeys.has(i.key));
             return [...prev, ...toAdd];
           });
-          if (soundEnabled && prevKeysRef.current.size > 0) {
+          if (soundEnabledRef.current && prevKeysRef.current.size > 0) {
             playSound();
           }
         }
@@ -106,7 +107,7 @@ export default function KitchenPage() {
     } finally {
       setLoading(false);
     }
-  }, [soundEnabled]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -208,24 +209,11 @@ export default function KitchenPage() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
-            onClick={() => setShowDone(!showDone)}
-            style={{
-              background: showDone ? "#555" : "#333",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 12px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {showDone ? "✕ 閉じる" : `✅ 完了済み(${done.length})`}
-          </button>
-          <button
             onClick={() => {
-              setSoundEnabled(!soundEnabled);
-              if (!soundEnabled) playSound();
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              soundEnabledRef.current = next;
+              if (next) playSound();
             }}
             style={{
               background: soundEnabled ? "#2e7d32" : "#444",
@@ -260,7 +248,7 @@ export default function KitchenPage() {
       {err && <p style={{ color: "#e74c3c", fontSize: 14 }}>{err}</p>}
 
       {/* 注文なし */}
-      {!loading && inProgress.length === 0 && !showDone && (
+      {!loading && inProgress.length === 0 && done.length === 0 && (
         <div style={{
           textAlign: "center",
           color: "#666",
@@ -274,7 +262,7 @@ export default function KitchenPage() {
       )}
 
       {/* In Progress: テーブルごと */}
-      {!showDone && grouped.map(([table, items]) => (
+      {grouped.map(([table, items]) => (
         <div key={table} style={{ marginBottom: 16 }}>
           {/* テーブルヘッダー */}
           <div style={{
@@ -369,8 +357,8 @@ export default function KitchenPage() {
       ))}
 
       {/* 完了済みリスト */}
-      {showDone && (
-        <div>
+      {done.length > 0 && (
+        <div style={{ marginTop: 24 }}>
           <div style={{
             fontSize: 16,
             fontWeight: 700,
@@ -381,12 +369,7 @@ export default function KitchenPage() {
           }}>
             ✅ 完了済み（タップで戻す）
           </div>
-          {done.length === 0 ? (
-            <div style={{ textAlign: "center", color: "#555", padding: 40 }}>
-              完了済みはありません
-            </div>
-          ) : (
-            done.map((item) => (
+          {done.map((item) => (
               <div
                 key={item.key}
                 onClick={() => markUndo(item.key)}
@@ -430,8 +413,7 @@ export default function KitchenPage() {
                   戻す
                 </span>
               </div>
-            ))
-          )}
+            ))}
         </div>
       )}
     </div>
