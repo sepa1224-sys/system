@@ -31,13 +31,18 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     if (!res.ok) {
       // キャンセルできない場合はRefundを試す
+      // まず支払い情報を取得して金額を確認
+      const payInfoRes = await fetch(`${SQUARE_API}/payments/${payment_id}`, { headers: hdrs() });
+      const payInfo = await payInfoRes.json();
+      const amountMoney = payInfo.payment?.amount_money || { amount: 0, currency: "JPY" };
+
       const refRes = await fetch(`${SQUARE_API}/refunds`, {
         method: "POST",
         headers: hdrs(),
         body: JSON.stringify({
           idempotency_key: `ref_${payment_id.slice(-10)}_${Date.now().toString(36)}`,
           payment_id,
-          amount_money: data.payment?.amount_money || { amount: 0, currency: "JPY" },
+          amount_money: amountMoney,
           reason: "テスト注文取消",
         }),
       });
