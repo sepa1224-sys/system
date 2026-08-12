@@ -41,18 +41,20 @@ export async function POST(req: NextRequest) {
     const changeBack = tenderedAmount - amount;
 
     // Square Payments API で現金決済を作成
+    // idempotency_key は45文字以内
+    const idempKey = `p${order_id.slice(-12)}${Date.now().toString(36)}`;
     const payRes = await fetch(`${SQUARE_API}/payments`, {
       method: "POST",
       headers: hdrs(),
       body: JSON.stringify({
-        idempotency_key: `pay_${order_id}_${Date.now()}`,
+        idempotency_key: idempKey,
         source_id: "CASH",
         amount_money: {
           amount,
           currency: "JPY",
         },
         cash_details: {
-          buyer_tendered_money: {
+          buyer_supplied_money: {
             amount: tenderedAmount,
             currency: "JPY",
           },
