@@ -32,13 +32,27 @@ export default function KitchenPage() {
   const [now, setNow] = useState(Date.now());
   const [soundEnabled, setSoundEnabled] = useState(false);
   const soundEnabledRef = useRef(false);
-  // showDone不要 — 常に両方表示
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const prevKeysRef = useRef<Set<string>>(new Set());
 
-  // 通知音
+  // AudioContextをユーザータップで初期化（iOS制限対策）
+  const initAudio = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext();
+    }
+    // suspended状態ならresume
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  };
+
+  // 通知音（既存のAudioContextを使い回す）
   const playSound = () => {
     try {
-      const ctx = new AudioContext();
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -52,7 +66,6 @@ export default function KitchenPage() {
       osc1.stop(ctx.currentTime + 0.15);
       osc2.start(ctx.currentTime + 0.2);
       osc2.stop(ctx.currentTime + 0.4);
-      setTimeout(() => ctx.close(), 1000);
     } catch {}
   };
 
@@ -217,7 +230,10 @@ export default function KitchenPage() {
               const next = !soundEnabled;
               setSoundEnabled(next);
               soundEnabledRef.current = next;
-              if (next) playSound();
+              if (next) {
+                initAudio(); // ユーザータップでAudioContextを初期化
+                playSound();
+              }
             }}
             style={{
               background: soundEnabled ? "#2e7d32" : "#444",
