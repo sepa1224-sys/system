@@ -71,6 +71,7 @@ export default function TablePage() {
   const [tendered, setTendered] = useState("");
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
+  const [squareAppId, setSquareAppId] = useState("");
 
   // OPEN注文を取得
   const loadOrders = useCallback(async () => {
@@ -93,6 +94,15 @@ export default function TablePage() {
   useEffect(() => {
     loadOrders();
     loadMenu();
+    // Square App ID取得
+    fetch("/api/square/config").then(r => r.json()).then(d => setSquareAppId(d.appId || "")).catch(() => {});
+    // Square POSからのコールバック検知
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("data")) {
+      // Square POSからの戻り → 注文リストを即更新
+      loadOrders();
+      window.history.replaceState({}, "", "/table");
+    }
     const iv = setInterval(loadOrders, 10000);
     return () => clearInterval(iv);
   }, [loadOrders, loadMenu]);
@@ -341,16 +351,46 @@ export default function TablePage() {
 
               {/* 会計ボタン */}
               {!payMode && !payResult && (
-                <button
-                  onClick={() => { setPayMode(true); setTendered(""); }}
-                  style={{
-                    width: "100%", marginTop: 12, padding: "14px 0", borderRadius: 10,
-                    background: "var(--ok)", color: "#fff", fontSize: 16, fontWeight: 700,
-                    border: "none", cursor: "pointer",
-                  }}
-                >
-                  💰 会計する（{fmt(currentOrder.total)}）
-                </button>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button
+                    onClick={() => { setPayMode(true); setTendered(""); }}
+                    style={{
+                      flex: 1, padding: "14px 0", borderRadius: 10,
+                      background: "var(--ok)", color: "#fff", fontSize: 15, fontWeight: 700,
+                      border: "none", cursor: "pointer",
+                    }}
+                  >
+                    💴 現金
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!squareAppId) {
+                        setErr("Square Application IDが未設定です");
+                        return;
+                      }
+                      // Square POS APIでカード決済画面を開く
+                      const amount = currentOrder.total;
+                      const posData = {
+                        amount_money: { amount, currency_code: "JPY" },
+                        callback_url: `${window.location.origin}/table`,
+                        client_id: squareAppId,
+                        version: "1.3",
+                        notes: currentOrder.ticket_name || "",
+                        options: { supported_tender_types: ["CREDIT_CARD", "SQUARE_GIFT_CARD"] },
+                      };
+                      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(posData))));
+                      const url = `square-commerce-v1://payment/create?data=${encoded}`;
+                      window.location.href = url;
+                    }}
+                    style={{
+                      flex: 1, padding: "14px 0", borderRadius: 10,
+                      background: "#2980b9", color: "#fff", fontSize: 15, fontWeight: 700,
+                      border: "none", cursor: "pointer",
+                    }}
+                  >
+                    💳 カード
+                  </button>
+                </div>
               )}
 
               {/* 決済フロー */}
