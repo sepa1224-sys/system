@@ -58,6 +58,7 @@ export async function GET() {
         qty: parseInt(li.quantity) || 1,
         amount: li.total_money?.amount || 0,
         catalog_object_id: li.catalog_object_id || "",
+        note: li.note || "",
       })),
     }));
 

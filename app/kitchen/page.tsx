@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
-type OrderItem = { uid: string; name: string; qty: number; amount: number };
+type OrderItem = { uid: string; name: string; qty: number; amount: number; note?: string };
 type Order = {
   id: string;
   ticket_name: string;
@@ -12,48 +12,32 @@ type Order = {
   items: OrderItem[];
 };
 
-const fmt = (n: number) => `¥${n.toLocaleString()}`;
+// KDS用のアイテム（注文単位ではなくアイテム単位で管理）
+type KdsItem = {
+  key: string; // order_id + item_uid
+  orderId: string;
+  table: string;
+  name: string;
+  qty: number;
+  note?: string;
+  receivedAt: number; // timestamp
+};
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [inProgress, setInProgress] = useState<KdsItem[]>([]);
+  const [done, setDone] = useState<KdsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const prevCountRef = useRef(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [soundEnabled, setSoundEnabled] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/square/order");
-      const data = await res.json();
-      if (res.ok) {
-        const newOrders: Order[] = data.orders || [];
-        // 新しい注文が来たら音を鳴らす
-        if (soundEnabled && newOrders.length > prevCountRef.current && prevCountRef.current > 0) {
-          playSound();
-        }
-        prevCountRef.current = newOrders.length;
-        setOrders(newOrders);
-        setErr("");
-      }
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [soundEnabled]);
-
-  useEffect(() => {
-    load();
-    const iv = setInterval(load, 8000); // 8秒ごとにチェック
-    return () => clearInterval(iv);
-  }, [load]);
+  const [showDone, setShowDone] = useState(false);
+  const prevKeysRef = useRef<Set<string>>(new Set());
 
   // 通知音
   const playSound = () => {
     try {
       const ctx = new AudioContext();
-      // ピンポン音を生成
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -71,20 +55,131 @@ export default function KitchenPage() {
     } catch {}
   };
 
-  // 時刻表示（JST）
-  const timeStr = (iso: string) => {
-    const d = new Date(iso);
-    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-    return `${jst.getHours()}:${String(jst.getMinutes()).padStart(2, "0")}`;
+  // 注文取得
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/square/order");
+      const data = await res.json();
+      if (res.ok) {
+        const newOrders: Order[] = data.orders || [];
+        setOrders(newOrders);
+
+        // 新しいアイテムをin progressに追加
+        const newKeys = new Set<string>();
+        const newItems: KdsItem[] = [];
+        for (const o of newOrders) {
+          for (const item of o.items) {
+            const key = `${o.id}_${item.uid}`;
+            newKeys.add(key);
+            if (!prevKeysRef.current.has(key)) {
+              // 完了済みにもないか確認
+              newItems.push({
+                key,
+                orderId: o.id,
+                table: o.ticket_name || "?",
+                name: item.name,
+                qty: item.qty,
+                note: item.note,
+                receivedAt: Date.now(),
+              });
+            }
+          }
+        }
+
+        if (newItems.length > 0) {
+          setInProgress((prev) => {
+            // 既にin progressか完了済みにあるものは追加しない
+            const existingKeys = new Set(prev.map((i) => i.key));
+            const toAdd = newItems.filter((i) => !existingKeys.has(i.key));
+            return [...prev, ...toAdd];
+          });
+          if (soundEnabled && prevKeysRef.current.size > 0) {
+            playSound();
+          }
+        }
+
+        prevKeysRef.current = newKeys;
+        setErr("");
+      }
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 6000);
+    return () => clearInterval(iv);
+  }, [load]);
+
+  // 毎秒タイマー更新
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // 完了済みから消えたOrder（会計済み）のアイテムを自動クリーンアップ
+  useEffect(() => {
+    const activeOrderIds = new Set(orders.map((o) => o.id));
+    setDone((prev) => prev.filter((i) => activeOrderIds.has(i.orderId) || Date.now() - i.receivedAt < 3600000));
+  }, [orders]);
+
+  // タップで完了
+  const markDone = (key: string) => {
+    setInProgress((prev) => {
+      const item = prev.find((i) => i.key === key);
+      if (item) {
+        setDone((d) => [{ ...item, receivedAt: item.receivedAt }, ...d]);
+      }
+      return prev.filter((i) => i.key !== key);
+    });
   };
 
-  // 経過時間
-  const elapsed = (iso: string) => {
-    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (mins < 1) return "たった今";
-    if (mins < 60) return `${mins}分前`;
-    return `${Math.floor(mins / 60)}時間${mins % 60}分前`;
+  // 完了済みからin progressに戻す
+  const markUndo = (key: string) => {
+    setDone((prev) => {
+      const item = prev.find((i) => i.key === key);
+      if (item) {
+        setInProgress((ip) => [...ip, item]);
+      }
+      return prev.filter((i) => i.key !== key);
+    });
   };
+
+  // 経過時間表示（秒）
+  const timerStr = (receivedAt: number) => {
+    const secs = Math.floor((now - receivedAt) / 1000);
+    if (secs < 60) return `${secs}秒`;
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${mins}:${String(remSecs).padStart(2, "0")}`;
+  };
+
+  // タイマー色
+  const timerColor = (receivedAt: number) => {
+    const secs = Math.floor((now - receivedAt) / 1000);
+    if (secs < 120) return "#4CAF50"; // 緑: 2分未満
+    if (secs < 300) return "#FF9800"; // オレンジ: 5分未満
+    return "#f44336"; // 赤: 5分以上
+  };
+
+  // テーブルごとにグループ化
+  const groupByTable = (items: KdsItem[]) => {
+    const map: Record<string, KdsItem[]> = {};
+    for (const item of items) {
+      if (!map[item.table]) map[item.table] = [];
+      map[item.table].push(item);
+    }
+    return Object.entries(map).sort((a, b) => {
+      const aMin = Math.min(...a[1].map((i) => i.receivedAt));
+      const bMin = Math.min(...b[1].map((i) => i.receivedAt));
+      return aMin - bMin;
+    });
+  };
+
+  const grouped = groupByTable(inProgress);
 
   return (
     <div style={{
@@ -106,28 +201,44 @@ export default function KitchenPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>🍳 キッチン</h1>
           <span style={{ fontSize: 12, color: "#888" }}>
-            {orders.length}件のオーダー
-            {loading && " ・読込中..."}
+            {inProgress.length}件 調理中
+            {done.length > 0 && ` ・ ${done.length}件 完了`}
+            {loading && " ・ 更新中..."}
           </span>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => setShowDone(!showDone)}
+            style={{
+              background: showDone ? "#555" : "#333",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {showDone ? "✕ 閉じる" : `✅ 完了済み(${done.length})`}
+          </button>
           <button
             onClick={() => {
               setSoundEnabled(!soundEnabled);
-              if (!soundEnabled) playSound(); // テスト音
+              if (!soundEnabled) playSound();
             }}
             style={{
               background: soundEnabled ? "#2e7d32" : "#444",
               color: "#fff",
               border: "none",
               borderRadius: 8,
-              padding: "8px 14px",
-              fontSize: 14,
+              padding: "8px 12px",
+              fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
             }}
           >
-            {soundEnabled ? "🔔 通知ON" : "🔕 通知OFF"}
+            {soundEnabled ? "🔔 ON" : "🔕 OFF"}
           </button>
           <button
             onClick={load}
@@ -136,7 +247,7 @@ export default function KitchenPage() {
               color: "#fff",
               border: "none",
               borderRadius: 8,
-              padding: "8px 14px",
+              padding: "8px 12px",
               fontSize: 14,
               cursor: "pointer",
             }}
@@ -149,7 +260,7 @@ export default function KitchenPage() {
       {err && <p style={{ color: "#e74c3c", fontSize: 14 }}>{err}</p>}
 
       {/* 注文なし */}
-      {!loading && orders.length === 0 && (
+      {!loading && inProgress.length === 0 && !showDone && (
         <div style={{
           textAlign: "center",
           color: "#666",
@@ -158,90 +269,171 @@ export default function KitchenPage() {
         }}>
           注文はありません
           <br />
-          <span style={{ fontSize: 13 }}>8秒ごとに自動更新中...</span>
+          <span style={{ fontSize: 13 }}>6秒ごとに自動更新中...</span>
         </div>
       )}
 
-      {/* 注文カード一覧 */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-        gap: 12,
-      }}>
-        {orders.map((o) => {
-          const mins = Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000);
-          const urgent = mins > 15;
-          return (
+      {/* In Progress: テーブルごと */}
+      {!showDone && grouped.map(([table, items]) => (
+        <div key={table} style={{ marginBottom: 16 }}>
+          {/* テーブルヘッダー */}
+          <div style={{
+            background: "#2a2a2a",
+            borderRadius: "12px 12px 0 0",
+            padding: "10px 16px",
+            borderBottom: "2px solid #b5651d",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color: "#b5651d" }}>
+              {table}
+            </span>
+            <span style={{ fontSize: 12, color: "#888" }}>
+              {items.length}品
+            </span>
+          </div>
+
+          {/* アイテムリスト */}
+          {items.sort((a, b) => a.receivedAt - b.receivedAt).map((item) => (
             <div
-              key={o.id}
+              key={item.key}
+              onClick={() => markDone(item.key)}
               style={{
-                background: urgent ? "#3d1f1f" : "#2a2a2a",
-                border: urgent ? "2px solid #e74c3c" : "1px solid #444",
-                borderRadius: 12,
-                padding: 16,
-                transition: "all 0.3s",
-              }}
-            >
-              {/* テーブル名 & 時刻 */}
-              <div style={{
+                background: "#2a2a2a",
+                borderBottom: "1px solid #333",
+                padding: "12px 16px",
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "baseline",
-                marginBottom: 12,
-              }}>
-                <span style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: urgent ? "#e74c3c" : "#b5651d",
-                }}>
-                  {o.ticket_name || "不明"}
+                alignItems: "center",
+                cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onTouchStart={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = "#3a3a3a";
+              }}
+              onTouchEnd={(e) => {
+                (e.currentTarget as HTMLDivElement).style.background = "#2a2a2a";
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 18, fontWeight: 700 }}>
+                  {item.name}
                 </span>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 13, color: "#888" }}>{timeStr(o.created_at)}</div>
-                  <div style={{
-                    fontSize: 11,
-                    color: urgent ? "#e74c3c" : "#666",
-                    fontWeight: urgent ? 700 : 400,
-                  }}>
-                    {elapsed(o.created_at)}
-                    {urgent && " ⚠️"}
-                  </div>
-                </div>
-              </div>
-
-              {/* 商品リスト */}
-              {o.items.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 0",
-                    borderTop: i === 0 ? "1px solid #444" : "none",
-                    borderBottom: "1px solid #333",
-                    fontSize: 16,
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>{item.name}</span>
+                {item.qty > 1 && (
                   <span style={{
+                    marginLeft: 8,
                     background: "#b5651d",
                     color: "#fff",
-                    borderRadius: 8,
-                    padding: "2px 10px",
+                    borderRadius: 6,
+                    padding: "1px 8px",
                     fontWeight: 800,
-                    fontSize: 18,
-                    minWidth: 30,
-                    textAlign: "center",
+                    fontSize: 16,
                   }}>
-                    {item.qty}
+                    ×{item.qty}
                   </span>
-                </div>
-              ))}
+                )}
+                {item.note && (
+                  <span style={{
+                    marginLeft: 8,
+                    fontSize: 13,
+                    color: "#aaa",
+                    background: "#333",
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                  }}>
+                    {item.note}
+                  </span>
+                )}
+              </div>
+              <span style={{
+                fontSize: 20,
+                fontWeight: 800,
+                fontVariantNumeric: "tabular-nums",
+                color: timerColor(item.receivedAt),
+                minWidth: 60,
+                textAlign: "right",
+              }}>
+                {timerStr(item.receivedAt)}
+              </span>
             </div>
-          );
-        })}
-      </div>
+          ))}
+
+          {/* テーブル下部の角丸 */}
+          <div style={{
+            background: "#2a2a2a",
+            borderRadius: "0 0 12px 12px",
+            height: 4,
+          }} />
+        </div>
+      ))}
+
+      {/* 完了済みリスト */}
+      {showDone && (
+        <div>
+          <div style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: "#888",
+            marginBottom: 12,
+            paddingBottom: 8,
+            borderBottom: "1px solid #333",
+          }}>
+            ✅ 完了済み（タップで戻す）
+          </div>
+          {done.length === 0 ? (
+            <div style={{ textAlign: "center", color: "#555", padding: 40 }}>
+              完了済みはありません
+            </div>
+          ) : (
+            done.map((item) => (
+              <div
+                key={item.key}
+                onClick={() => markUndo(item.key)}
+                style={{
+                  background: "#222",
+                  borderBottom: "1px solid #2a2a2a",
+                  padding: "10px 16px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  opacity: 0.6,
+                }}
+              >
+                <div>
+                  <span style={{
+                    fontSize: 12,
+                    color: "#b5651d",
+                    fontWeight: 700,
+                    marginRight: 8,
+                  }}>
+                    {item.table}
+                  </span>
+                  <span style={{ fontSize: 15, fontWeight: 600, textDecoration: "line-through" }}>
+                    {item.name}
+                  </span>
+                  {item.qty > 1 && (
+                    <span style={{ marginLeft: 6, fontSize: 13, color: "#666" }}>×{item.qty}</span>
+                  )}
+                  {item.note && (
+                    <span style={{ marginLeft: 6, fontSize: 12, color: "#555" }}>{item.note}</span>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 12,
+                  color: "#555",
+                  background: "#2a2a2a",
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                }}>
+                  戻す
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
