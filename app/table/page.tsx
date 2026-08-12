@@ -456,6 +456,7 @@ export default function TablePage() {
                             order_id: currentOrder.id,
                             amount: currentOrder.total,
                             tendered: currentOrder.total,
+                            method: "paypay",
                           }),
                         });
                         const d = await res.json();

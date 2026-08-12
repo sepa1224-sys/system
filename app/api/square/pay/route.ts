@@ -25,10 +25,11 @@ async function getLocationId(): Promise<string> {
 // amount: 注文合計金額、tendered: お客さんから受け取った金額
 export async function POST(req: NextRequest) {
   try {
-    const { order_id, amount, tendered } = (await req.json()) as {
+    const { order_id, amount, tendered, method } = (await req.json()) as {
       order_id: string;
       amount: number;
       tendered: number;
+      method?: string; // "cash" | "paypay"
     };
     if (!order_id || !amount) {
       return NextResponse.json({ error: "order_id と amount が必要" }, { status: 400 });
@@ -39,33 +40,42 @@ export async function POST(req: NextRequest) {
 
     const tenderedAmount = tendered || amount;
     const changeBack = tenderedAmount - amount;
-
-    // Square Payments API で現金決済を作成
-    // idempotency_key は45文字以内
     const idempKey = `p${order_id.slice(-12)}${Date.now().toString(36)}`;
-    const payRes = await fetch(`${SQUARE_API}/payments`, {
-      method: "POST",
-      headers: hdrs(),
-      body: JSON.stringify({
+
+    let payBody: any;
+    if (method === "paypay") {
+      // PayPay: 「その他のお支払い」として記録、メモに「pp」
+      payBody = {
+        idempotency_key: idempKey,
+        source_id: "EXTERNAL",
+        external_details: {
+          type: "OTHER",
+          source: "PayPay",
+        },
+        amount_money: { amount, currency: "JPY" },
+        note: "PayPay",
+        order_id,
+        location_id: locationId,
+      };
+    } else {
+      // 現金決済
+      payBody = {
         idempotency_key: idempKey,
         source_id: "CASH",
-        amount_money: {
-          amount,
-          currency: "JPY",
-        },
+        amount_money: { amount, currency: "JPY" },
         cash_details: {
-          buyer_supplied_money: {
-            amount: tenderedAmount,
-            currency: "JPY",
-          },
-          change_back_money: {
-            amount: Math.max(0, changeBack),
-            currency: "JPY",
-          },
+          buyer_supplied_money: { amount: tenderedAmount, currency: "JPY" },
+          change_back_money: { amount: Math.max(0, changeBack), currency: "JPY" },
         },
         order_id,
         location_id: locationId,
-      }),
+      };
+    }
+
+    const payRes = await fetch(`${SQUARE_API}/payments`, {
+      method: "POST",
+      headers: hdrs(),
+      body: JSON.stringify(payBody),
     });
 
     const payData = await payRes.json();
