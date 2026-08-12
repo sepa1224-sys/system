@@ -80,7 +80,7 @@ export default function KitchenPage() {
                 name: item.name,
                 qty: item.qty,
                 note: item.note,
-                receivedAt: Date.now(),
+                receivedAt: new Date(o.created_at).getTime(),
               });
             }
           }
