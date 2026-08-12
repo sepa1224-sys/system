@@ -42,6 +42,34 @@ export async function POST(req: NextRequest) {
     const changeBack = tenderedAmount - amount;
     const idempKey = `p${order_id.slice(-12)}${Date.now().toString(36)}`;
 
+    // カード決済後のOPEN注文クローズ（Square POSで決済済み）
+    if (method === "card_close") {
+      // OPEN注文を取得してCANCELEDに
+      const closeRes = await fetch(`${SQUARE_API}/orders/${order_id}`, {
+        method: "PUT",
+        headers: hdrs(),
+        body: JSON.stringify({
+          order: { state: "CANCELED", version: undefined },
+          idempotency_key: idempKey,
+        }),
+      });
+      // versionが必要なので、まず取得
+      const getRes = await fetch(`${SQUARE_API}/orders/${order_id}`, { headers: hdrs() });
+      const getD = await getRes.json();
+      const ver = getD.order?.version;
+      if (ver) {
+        await fetch(`${SQUARE_API}/orders/${order_id}`, {
+          method: "PUT",
+          headers: hdrs(),
+          body: JSON.stringify({
+            order: { state: "CANCELED", version: ver },
+            idempotency_key: `cc${order_id.slice(-12)}${Date.now().toString(36)}`,
+          }),
+        });
+      }
+      return NextResponse.json({ ok: true, method: "card_close" });
+    }
+
     let payBody: any;
     if (method === "paypay") {
       // PayPay: 「その他のお支払い」として記録、メモに「pp」

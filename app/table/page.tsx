@@ -126,8 +126,24 @@ export default function TablePage() {
     fetch("/api/square/config").then(r => r.json()).then(d => setSquareAppId(d.appId || "")).catch(() => {});
     // Square POSからのコールバック検知
     const params = new URLSearchParams(window.location.search);
-    if (params.has("data")) {
-      // Square POSからの戻り → 注文リストを即更新
+    const cardOrderId = params.get("card_order");
+    const cardVer = params.get("card_ver");
+    if (cardOrderId) {
+      // Square POSで決済完了 → OPEN注文をCOMPLETEDに
+      fetch("/api/square/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: cardOrderId,
+          amount: 0,
+          tendered: 0,
+          method: "card_close",
+        }),
+      }).catch(() => {}).finally(() => {
+        loadOrders();
+      });
+      window.history.replaceState({}, "", "/table");
+    } else if (params.has("data")) {
       loadOrders();
       window.history.replaceState({}, "", "/table");
     }
@@ -294,10 +310,10 @@ export default function TablePage() {
       const orderId = orderData.order.id;
 
       if (payMethod === "card") {
-        // カード: Square POSに飛ばす
+        // カード: Square POSに飛ばす（callback_urlにorder_idを含める）
         const posData = {
           amount_money: { amount: total, currency_code: "JPY" },
-          callback_url: `${window.location.origin}/table`,
+          callback_url: `${window.location.origin}/table?card_order=${orderId}&card_ver=1`,
           client_id: squareAppId,
           version: "1.3",
           notes: "カウンター",
@@ -718,7 +734,7 @@ export default function TablePage() {
                       const amount = currentOrder.total;
                       const posData = {
                         amount_money: { amount, currency_code: "JPY" },
-                        callback_url: `${window.location.origin}/table`,
+                        callback_url: `${window.location.origin}/table?card_order=${currentOrder.id}&card_ver=${currentOrder.version}`,
                         client_id: squareAppId,
                         version: "1.3",
                         notes: currentOrder.ticket_name || "",
