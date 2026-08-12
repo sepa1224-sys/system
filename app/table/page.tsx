@@ -33,7 +33,17 @@ const VARIANT_ITEMS: Record<string, { label: string; value: string; color: strin
     { label: "チョコ", value: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
     { label: "抹茶", value: "抹茶", color: "#2E7D32", bg: "#E8F5E9" },
   ],
+  "プロテインスムージー": [
+    { label: "チョコ", value: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
+    { label: "バニラ", value: "バニラ", color: "#8B6914", bg: "#FFF8E1" },
+    { label: "ブルーベリー", value: "ブルーベリー", color: "#4A148C", bg: "#F3E5F5" },
+  ],
 };
+
+// ソイ変更可能なラテ系（+50円）
+const SOY_ITEMS = new Set([
+  "カフェラテ", "抹茶ラテ", "チョコレートミルク", "オーツラテ（Ice/Hot）",
+]);
 
 const TABLES = [
   // A: 壁側テーブル（上段、右から）
@@ -79,6 +89,7 @@ export default function TablePage() {
   const [msg, setMsg] = useState("");
   const [hotIcePending, setHotIcePending] = useState<MenuItem | null>(null);
   const [variantPending, setVariantPending] = useState<MenuItem | null>(null);
+  const [soyPending, setSoyPending] = useState<{ item: MenuItem; note: string } | null>(null);
   const [payMode, setPayMode] = useState(false);
   const [tendered, setTendered] = useState("");
   const [paying, setPaying] = useState(false);
@@ -154,7 +165,9 @@ export default function TablePage() {
       return;
     }
     const note = tempNote || undefined;
-    const cartKey = `${v.id}_${note || ""}`;
+    // ソイ変更の場合は+50円
+    const isSoy = note?.includes("ソイ");
+    const price = isSoy ? v.price + 50 : v.price;
     setCart((prev) => {
       const exists = prev.find((c) => c.catalog_object_id === v.id && c.note === note);
       if (exists) {
@@ -162,14 +175,28 @@ export default function TablePage() {
           c.catalog_object_id === v.id && c.note === note ? { ...c, quantity: c.quantity + 1 } : c
         );
       }
-      return [...prev, { catalog_object_id: v.id, name: item.name, price: v.price, quantity: 1, note }];
+      return [...prev, { catalog_object_id: v.id, name: item.name, price, quantity: 1, note }];
     });
   };
 
   const selectHotIce = (choice: "Hot" | "Ice") => {
     if (hotIcePending) {
+      // ソイ変更可能ならソイ選択画面へ
+      if (SOY_ITEMS.has(hotIcePending.name)) {
+        setSoyPending({ item: hotIcePending, note: choice });
+        setHotIcePending(null);
+        return;
+      }
       addToCart(hotIcePending, choice);
       setHotIcePending(null);
+    }
+  };
+
+  const selectSoy = (isSoy: boolean) => {
+    if (soyPending) {
+      const note = isSoy ? `${soyPending.note}/ソイ` : soyPending.note;
+      addToCart(soyPending.item, note);
+      setSoyPending(null);
     }
   };
 
@@ -1088,6 +1115,24 @@ export default function TablePage() {
       )}
 
       </>)}
+
+      {/* ソイ変更選択（昼夜共通） */}
+      {soyPending && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setSoyPending(null)}>
+          <div className="card" style={{ width: 280, margin: 0 }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{soyPending.item.name}</div>
+            <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>{soyPending.note}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => selectSoy(false)} style={{ flex: 1, padding: "14px 0", borderRadius: 10, border: "2px solid var(--line)", background: "var(--card)", color: "var(--ink)", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                🥛 通常
+              </button>
+              <button onClick={() => selectSoy(true)} style={{ flex: 1, padding: "14px 0", borderRadius: 10, border: "2px solid #8BC34A", background: "#F1F8E9", color: "#558B2F", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                🌱 ソイ +¥50
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
