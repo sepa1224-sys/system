@@ -21,6 +21,8 @@ export default function Nav() {
     { href: "/orders", label: "📬 注文" },
     { href: "/inventory", label: "📦 仕入れ表" },
     { href: "/todos", label: "✅ ToDo" },
+    { href: "/table", label: "🪑 テーブル" },
+    { href: "/kitchen", label: "🍳 KDS" },
     { href: "/sales", label: "📈 売上" },
     { href: "/soudan", label: "💬 相談" },
   ];
