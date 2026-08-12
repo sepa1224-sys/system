@@ -67,6 +67,10 @@ export default function TablePage() {
   const [msg, setMsg] = useState("");
   const [hotIcePending, setHotIcePending] = useState<MenuItem | null>(null);
   const [variantPending, setVariantPending] = useState<MenuItem | null>(null);
+  const [payMode, setPayMode] = useState(false);
+  const [tendered, setTendered] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [payResult, setPayResult] = useState<{ change: number } | null>(null);
 
   // OPEN注文を取得
   const loadOrders = useCallback(async () => {
@@ -103,6 +107,9 @@ export default function TablePage() {
     setCart([]);
     setErr("");
     setMsg("");
+    setPayMode(false);
+    setPayResult(null);
+    setTendered("");
   };
 
   // カートに追加
@@ -331,6 +338,135 @@ export default function TablePage() {
               <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--line)" }}>
                 合計 {fmt(currentOrder.total)}
               </div>
+
+              {/* 会計ボタン */}
+              {!payMode && !payResult && (
+                <button
+                  onClick={() => { setPayMode(true); setTendered(""); }}
+                  style={{
+                    width: "100%", marginTop: 12, padding: "14px 0", borderRadius: 10,
+                    background: "var(--ok)", color: "#fff", fontSize: 16, fontWeight: 700,
+                    border: "none", cursor: "pointer",
+                  }}
+                >
+                  💰 会計する（{fmt(currentOrder.total)}）
+                </button>
+              )}
+
+              {/* 決済フロー */}
+              {payMode && !payResult && (
+                <div style={{ marginTop: 12, borderTop: "2px solid var(--line)", paddingTop: 12 }}>
+                  <div style={{ textAlign: "center", fontSize: 24, fontWeight: 800, marginBottom: 12 }}>
+                    {fmt(currentOrder.total)}
+                  </div>
+                  <label>お預かり金額</label>
+                  <input
+                    type="number"
+                    value={tendered}
+                    onChange={(e) => setTendered(e.target.value)}
+                    placeholder={String(currentOrder.total)}
+                    style={{ textAlign: "right", fontSize: 20, fontWeight: 700 }}
+                    autoFocus
+                  />
+                  {tendered && Number(tendered) >= currentOrder.total && (
+                    <div style={{ textAlign: "center", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>
+                      お釣り: {fmt(Number(tendered) - currentOrder.total)}
+                    </div>
+                  )}
+                  {tendered && Number(tendered) < currentOrder.total && (
+                    <div style={{ textAlign: "center", marginTop: 8, fontSize: 13, color: "#c0392b" }}>
+                      金額が不足しています
+                    </div>
+                  )}
+                  {/* よく使う金額ボタン */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {[currentOrder.total, 500, 1000, 2000, 3000, 5000, 10000].map((amt) => (
+                      <button
+                        key={amt}
+                        onClick={() => setTendered(String(amt))}
+                        style={{
+                          flex: "1 1 calc(25% - 6px)", padding: "8px 0", borderRadius: 8,
+                          border: "1px solid var(--line)", background: "var(--card)",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >
+                        {amt === currentOrder.total ? "ぴったり" : `¥${amt.toLocaleString()}`}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button
+                      className="ghost"
+                      onClick={() => setPayMode(false)}
+                      style={{ flex: 1 }}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      disabled={paying || !tendered || Number(tendered) < currentOrder.total}
+                      onClick={async () => {
+                        setPaying(true);
+                        setErr("");
+                        try {
+                          const res = await fetch("/api/square/pay", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              order_id: currentOrder.id,
+                              amount: currentOrder.total,
+                              tendered: Number(tendered),
+                            }),
+                          });
+                          const d = await res.json();
+                          if (!res.ok) throw new Error(d.error || "決済失敗");
+                          setPayResult({ change: d.payment.change });
+                          setPayMode(false);
+                          await loadOrders();
+                        } catch (e: any) {
+                          setErr(e.message);
+                        } finally {
+                          setPaying(false);
+                        }
+                      }}
+                      style={{
+                        flex: 2, padding: "14px 0", borderRadius: 10,
+                        background: (!tendered || Number(tendered) < currentOrder.total) ? "#cbb9a8" : "var(--ok)",
+                        color: "#fff", fontSize: 16, fontWeight: 700,
+                        border: "none", cursor: "pointer",
+                      }}
+                    >
+                      {paying ? "処理中..." : "現金で決済"}
+                    </button>
+                  </div>
+                  {err && <p className="err">{err}</p>}
+                </div>
+              )}
+
+              {/* 決済完了 */}
+              {payResult && (
+                <div style={{ marginTop: 12, borderTop: "2px solid var(--line)", paddingTop: 12, textAlign: "center" }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--ok)", marginBottom: 4 }}>
+                    会計完了
+                  </div>
+                  {payResult.change > 0 && (
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--accent)" }}>
+                      お釣り: {fmt(payResult.change)}
+                    </div>
+                  )}
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      setPayResult(null);
+                      setSelected(null);
+                      setCart([]);
+                    }}
+                    style={{ marginTop: 16 }}
+                  >
+                    閉じる
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
