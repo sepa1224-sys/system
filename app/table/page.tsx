@@ -370,6 +370,7 @@ export default function TablePage() {
                   <span className="mono" style={{ fontWeight: 700, marginRight: 8 }}>{fmt(item.amount)}</span>
                   <button
                     onClick={async () => {
+                      if (!confirm(`${item.name} を削除しますか？`)) return;
                       try {
                         const res = await fetch("/api/square/order", {
                           method: "DELETE",
