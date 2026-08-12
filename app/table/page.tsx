@@ -376,9 +376,10 @@ export default function TablePage() {
                         client_id: squareAppId,
                         version: "1.3",
                         notes: currentOrder.ticket_name || "",
-                        options: { supported_tender_types: ["CREDIT_CARD", "SQUARE_GIFT_CARD"] },
+                        options: { supported_tender_types: ["CREDIT_CARD"] },
                       };
-                      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(posData))));
+                      const jsonStr = JSON.stringify(posData);
+                      const encoded = encodeURIComponent(jsonStr);
                       const url = `square-commerce-v1://payment/create?data=${encoded}`;
                       window.location.href = url;
                     }}
