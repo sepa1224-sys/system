@@ -89,8 +89,7 @@ export default function KitchenPage() {
             const doneKeys = new Set(done.map((i) => i.key));
             const toAdd = newItems.filter((i) => !existingKeys.has(i.key) && !doneKeys.has(i.key));
             if (toAdd.length > 0 && shouldSound) {
-              // 画面反映と同時に少し遅らせて鳴らす
-              setTimeout(() => playSound(), 300);
+              setTimeout(() => playSound(), 10000);
             }
             return [...prev, ...toAdd];
           });
