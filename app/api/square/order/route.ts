@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { decrementStock } from "@/lib/stock";
 
 export const runtime = "nodejs";
 
@@ -109,6 +110,13 @@ export async function POST(req: NextRequest) {
         error: data.errors?.[0]?.detail || `注文作成エラー ${res.status}`,
         details: data.errors,
       }, { status: res.status });
+    }
+
+    // 在庫管理対象の商品を自動で減らす
+    for (const li of data.order?.line_items || []) {
+      const name = li.name || "";
+      const qty = parseInt(li.quantity) || 1;
+      if (name) await decrementStock(name, qty).catch(() => {});
     }
 
     return NextResponse.json({

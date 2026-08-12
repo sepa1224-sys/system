@@ -40,6 +40,9 @@ const VARIANT_ITEMS: Record<string, { label: string; value: string; color: strin
   ],
 };
 
+// 仕込み在庫管理対象
+const STOCK_MANAGED = new Set(["ガーデンメルト", "クラシックメルト"]);
+
 // ソイ変更可能なラテ系（+50円）
 const SOY_ITEMS = new Set([
   "カフェラテ", "抹茶ラテ", "チョコレートミルク", "オーツラテ（Ice/Hot）",
@@ -100,6 +103,8 @@ export default function TablePage() {
   const [dayVersion, setDayVersion] = useState(0);
   const [dayTotal, setDayTotal] = useState(0);
   const [dayItems, setDayItems] = useState<{ uid: string; name: string; qty: number; amount: number }[]>([]);
+  // 仕込み在庫
+  const [stock, setStock] = useState<Record<string, number>>({});
 
   // OPEN注文を取得
   const loadOrders = useCallback(async () => {
@@ -119,9 +124,23 @@ export default function TablePage() {
     } catch {}
   }, []);
 
+  // 在庫取得
+  const loadStock = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stock");
+      const data = await res.json();
+      if (res.ok) {
+        const map: Record<string, number> = {};
+        for (const item of data.items || []) map[item.name] = item.count;
+        setStock(map);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     loadOrders();
     loadMenu();
+    loadStock();
     // Square App ID取得
     fetch("/api/square/config").then(r => r.json()).then(d => setSquareAppId(d.appId || "")).catch(() => {});
     // Square POSからのコールバック検知
@@ -277,6 +296,7 @@ export default function TablePage() {
       setMsg(existing ? "追加注文を送りました" : "注文を送りました");
       setCart([]);
       await loadOrders();
+      await loadStock();
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -341,6 +361,7 @@ export default function TablePage() {
       const change = payMethod === "cash" ? Math.max(0, (tenderedAmt || total) - total) : 0;
       setPayResult({ change });
       setCart([]);
+      await loadStock();
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -367,6 +388,32 @@ export default function TablePage() {
         <button className={`sub-tab ${mode === "night" ? "active" : ""}`} onClick={() => { setMode("night"); setCart([]); setPayMode(false); setPayResult(null); }}>
           🌙 夜（テーブル）
         </button>
+      </div>
+
+      {/* 仕込み管理 */}
+      <div className="card" style={{ padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>🥪 仕込み在庫</span>
+        </div>
+        {[...STOCK_MANAGED].map((name) => {
+          const count = stock[name] ?? 0;
+          return (
+            <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{name}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={async () => { await fetch("/api/stock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, delta: -1 }) }); loadStock(); }}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--line)", background: "#fff", fontSize: 18, fontWeight: 700, color: "#c0392b", cursor: "pointer" }}
+                >−</button>
+                <span style={{ fontSize: 22, fontWeight: 800, minWidth: 36, textAlign: "center", color: count === 0 ? "#c0392b" : "var(--ink)" }}>{count}</span>
+                <button
+                  onClick={async () => { await fetch("/api/stock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, delta: 1 }) }); loadStock(); }}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--line)", background: "#fff", fontSize: 18, fontWeight: 700, color: "var(--ok)", cursor: "pointer" }}
+                >+</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ===== 昼モード ===== */}
@@ -424,17 +471,26 @@ export default function TablePage() {
                         const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
                         const hasHotIce = HOT_ICE_ITEMS.has(item.name);
                         const hasVariant = !!VARIANT_ITEMS[item.name];
+                        const isStockManaged = STOCK_MANAGED.has(item.name);
+                        const stockCount = isStockManaged ? (stock[item.name] ?? 0) : -1;
+                        const soldOut = isStockManaged && stockCount <= 0;
                         return (
-                          <button key={item.id} onClick={() => addToCart(item)} style={{
+                          <button key={item.id} onClick={() => !soldOut && addToCart(item)} disabled={soldOut} style={{
                             flex: "1 1 calc(50% - 4px)", minWidth: 0, padding: "10px 8px", borderRadius: 10,
                             border: totalInCart ? "2px solid var(--accent)" : "1px solid var(--line)",
-                            background: totalInCart ? "var(--accent-weak)" : "var(--card)",
-                            textAlign: "left", fontSize: 13, fontWeight: 600, cursor: "pointer", position: "relative",
+                            background: soldOut ? "#f0ede8" : totalInCart ? "var(--accent-weak)" : "var(--card)",
+                            textAlign: "left", fontSize: 13, fontWeight: 600, cursor: soldOut ? "not-allowed" : "pointer", position: "relative",
+                            opacity: soldOut ? 0.5 : 1,
                           }}>
                             <div style={{ marginBottom: 2 }}>
                               {item.name}
                               {hasHotIce && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>H/I</span>}
                               {hasVariant && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>味選択</span>}
+                              {isStockManaged && (
+                                <span style={{ fontSize: 10, marginLeft: 4, padding: "1px 5px", borderRadius: 4, fontWeight: 700, background: soldOut ? "#fde8e8" : "#e8f5e9", color: soldOut ? "#c0392b" : "var(--ok)" }}>
+                                  {soldOut ? "売切" : `残${stockCount}`}
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
                             {totalInCart > 0 && (
@@ -957,28 +1013,38 @@ export default function TablePage() {
                     const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
                     const hasHotIce = HOT_ICE_ITEMS.has(item.name);
                     const hasVariant = !!VARIANT_ITEMS[item.name];
+                    const isStockManaged = STOCK_MANAGED.has(item.name);
+                    const stockCount = isStockManaged ? (stock[item.name] ?? 0) : -1;
+                    const soldOut = isStockManaged && stockCount <= 0;
                     return (
                       <button
                         key={item.id}
-                        onClick={() => addToCart(item)}
+                        onClick={() => !soldOut && addToCart(item)}
+                        disabled={soldOut}
                         style={{
                           flex: "1 1 calc(50% - 4px)",
                           minWidth: 0,
                           padding: "10px 8px",
                           borderRadius: 10,
                           border: totalInCart ? "2px solid var(--accent)" : "1px solid var(--line)",
-                          background: totalInCart ? "var(--accent-weak)" : "var(--card)",
+                          background: soldOut ? "#f0ede8" : totalInCart ? "var(--accent-weak)" : "var(--card)",
                           textAlign: "left",
                           fontSize: 13,
                           fontWeight: 600,
-                          cursor: "pointer",
+                          cursor: soldOut ? "not-allowed" : "pointer",
                           position: "relative",
+                          opacity: soldOut ? 0.5 : 1,
                         }}
                       >
                         <div style={{ marginBottom: 2 }}>
                           {item.name}
                           {hasHotIce && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>H/I</span>}
                           {hasVariant && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 4 }}>味選択</span>}
+                          {isStockManaged && (
+                            <span style={{ fontSize: 10, marginLeft: 4, padding: "1px 5px", borderRadius: 4, fontWeight: 700, background: soldOut ? "#fde8e8" : "#e8f5e9", color: soldOut ? "#c0392b" : "var(--ok)" }}>
+                              {soldOut ? "売切" : `残${stockCount}`}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
                         {totalInCart > 0 && (
