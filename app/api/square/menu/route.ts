@@ -20,14 +20,32 @@ async function getLocationId(): Promise<string> {
   return data.locations?.[0]?.id || "";
 }
 
-// GET: Square上の既存カタログアイテム一覧
+// GET: Square上の既存カタログアイテム一覧（カテゴリ付き）
 export async function GET() {
   try {
-    const res = await fetch(`${SQUARE_API}/catalog/list?types=ITEM`, { headers: headers() });
-    const data = await res.json();
-    const items = (data.objects || []).map((obj: any) => ({
+    // カテゴリ一覧を取得
+    const catRes = await fetch(`${SQUARE_API}/catalog/list?types=CATEGORY`, { headers: headers() });
+    const catData = await catRes.json();
+    const catMap: Record<string, string> = {};
+    for (const obj of catData.objects || []) {
+      catMap[obj.id] = obj.category_data?.name || "";
+    }
+
+    // アイテム一覧を取得（ページネーション対応）
+    const allObjects: any[] = [];
+    let cursor: string | undefined;
+    do {
+      const url = `${SQUARE_API}/catalog/list?types=ITEM${cursor ? `&cursor=${cursor}` : ""}`;
+      const res = await fetch(url, { headers: headers() });
+      const data = await res.json();
+      allObjects.push(...(data.objects || []));
+      cursor = data.cursor;
+    } while (cursor);
+
+    const items = allObjects.map((obj: any) => ({
       id: obj.id,
       name: obj.item_data?.name,
+      category: catMap[obj.item_data?.category_id] || "",
       variations: (obj.item_data?.variations || []).map((v: any) => ({
         id: v.id,
         name: v.item_variation_data?.name,

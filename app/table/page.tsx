@@ -6,6 +6,7 @@ import Nav from "@/components/Nav";
 type MenuItem = {
   id: string;
   name: string;
+  category: string;
   variations: { id: string; name: string; price: number }[];
 };
 type OrderItem = { uid: string; name: string; qty: number; amount: number; catalog_object_id: string };
@@ -289,52 +290,89 @@ export default function TablePage() {
             </div>
           )}
 
-          {/* メニュー選択 */}
-          <div className="card">
-            <div className="cat-title">
-              {selected} {currentOrder ? "に追加" : "の注文"}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {menu.map((item) => {
-                const v = item.variations[0];
-                if (!v || v.price == null) return null;
-                const inCart = cart.find((c) => c.catalog_object_id === v.id);
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => addToCart(item)}
-                    style={{
-                      flex: "1 1 calc(50% - 4px)",
-                      minWidth: 0,
-                      padding: "10px 8px",
-                      borderRadius: 10,
-                      border: inCart ? "2px solid var(--accent)" : "1px solid var(--line)",
-                      background: inCart ? "var(--accent-weak)" : "var(--card)",
-                      textAlign: "left",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      position: "relative",
-                    }}
-                  >
-                    <div style={{ marginBottom: 2 }}>{item.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
-                    {inCart && (
-                      <span style={{
-                        position: "absolute", top: -6, right: -6,
-                        background: "var(--accent)", color: "#fff",
-                        borderRadius: "50%", width: 22, height: 22,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 12, fontWeight: 700,
-                      }}>
-                        {inCart.quantity}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {/* メニュー選択（カテゴリ別） */}
+          {(() => {
+            // カテゴリ名ベースのフォールバック分類
+            const FALLBACK: Record<string, string> = {};
+            const FOOD_NAMES = ["ガーデンメルト","クラシックメルト","ワッフル","マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
+            const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
+            const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー"];
+            const DESSERT_NAMES = ["アフォガート","チョコレートミルク","プロテインスムージー"];
+            const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
+            FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
+            ALCOHOL_NAMES.forEach(n => FALLBACK[n] = "🍺 アルコール");
+            CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
+            DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
+            SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
+
+            const validItems = menu.filter(item => {
+              const v = item.variations[0];
+              return v && v.price != null;
+            });
+
+            // カテゴリ分類
+            const grouped: Record<string, MenuItem[]> = {};
+            const CAT_ORDER = ["🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
+            for (const item of validItems) {
+              const cat = item.category || FALLBACK[item.name] || "その他";
+              if (!grouped[cat]) grouped[cat] = [];
+              grouped[cat].push(item);
+            }
+
+            // 順序付きカテゴリリスト
+            const cats = CAT_ORDER.filter(c => grouped[c]);
+            // CAT_ORDERに無いカテゴリも追加
+            for (const c of Object.keys(grouped)) {
+              if (!cats.includes(c)) cats.push(c);
+            }
+
+            return cats.map(cat => (
+              <div className="card" key={cat}>
+                <div className="cat-title">
+                  {cat}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {grouped[cat].map((item) => {
+                    const v = item.variations[0];
+                    const inCart = cart.find((c) => c.catalog_object_id === v.id);
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => addToCart(item)}
+                        style={{
+                          flex: "1 1 calc(50% - 4px)",
+                          minWidth: 0,
+                          padding: "10px 8px",
+                          borderRadius: 10,
+                          border: inCart ? "2px solid var(--accent)" : "1px solid var(--line)",
+                          background: inCart ? "var(--accent-weak)" : "var(--card)",
+                          textAlign: "left",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          position: "relative",
+                        }}
+                      >
+                        <div style={{ marginBottom: 2 }}>{item.name}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{fmt(v.price)}</div>
+                        {inCart && (
+                          <span style={{
+                            position: "absolute", top: -6, right: -6,
+                            background: "var(--accent)", color: "#fff",
+                            borderRadius: "50%", width: 22, height: 22,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 12, fontWeight: 700,
+                          }}>
+                            {inCart.quantity}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ));
+          })()}
 
           {/* カート */}
           {cart.length > 0 && (
