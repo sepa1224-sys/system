@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
       tendered: number;
       method?: string; // "cash" | "paypay"
     };
-    if (!order_id || !amount) {
+    if (!order_id) {
+      return NextResponse.json({ error: "order_id が必要" }, { status: 400 });
+    }
+    // card_close は注文を閉じるだけで決済しないため、金額は不要。
+    // （画面は amount:0 を送るので、!amount で弾くと必ず失敗していた）
+    if (method !== "card_close" && !amount) {
       return NextResponse.json({ error: "order_id と amount が必要" }, { status: 400 });
     }
 
@@ -44,28 +49,30 @@ export async function POST(req: NextRequest) {
 
     // カード決済後のOPEN注文クローズ（Square POSで決済済み）
     if (method === "card_close") {
-      // OPEN注文を取得してCANCELEDに
+      // CANCELEDへの更新にはversionが要るので、先に注文を取得する。
+      const getRes = await fetch(`${SQUARE_API}/orders/${order_id}`, { headers: hdrs() });
+      const getD = await getRes.json();
+      const ver = getD.order?.version;
+      if (!ver) {
+        return NextResponse.json(
+          { error: getD.errors?.[0]?.detail || "注文が見つかりません" },
+          { status: 404 },
+        );
+      }
       const closeRes = await fetch(`${SQUARE_API}/orders/${order_id}`, {
         method: "PUT",
         headers: hdrs(),
         body: JSON.stringify({
-          order: { state: "CANCELED", version: undefined },
+          order: { state: "CANCELED", version: ver },
           idempotency_key: idempKey,
         }),
       });
-      // versionが必要なので、まず取得
-      const getRes = await fetch(`${SQUARE_API}/orders/${order_id}`, { headers: hdrs() });
-      const getD = await getRes.json();
-      const ver = getD.order?.version;
-      if (ver) {
-        await fetch(`${SQUARE_API}/orders/${order_id}`, {
-          method: "PUT",
-          headers: hdrs(),
-          body: JSON.stringify({
-            order: { state: "CANCELED", version: ver },
-            idempotency_key: `cc${order_id.slice(-12)}${Date.now().toString(36)}`,
-          }),
-        });
+      const closeD = await closeRes.json();
+      if (!closeRes.ok) {
+        return NextResponse.json(
+          { error: closeD.errors?.[0]?.detail || "注文のクローズに失敗", details: closeD.errors },
+          { status: closeRes.status },
+        );
       }
       return NextResponse.json({ ok: true, method: "card_close" });
     }
