@@ -185,21 +185,24 @@ export async function PUT(req: NextRequest) {
 }
 
 // DELETE: 注文からアイテムを削除、または注文全体を削除
-// body: { order_id, version, item_uid? }
-// item_uid がある場合はそのアイテムだけ削除、ない場合は注文全体をキャンセル
+// body: { order_id, version, item_uid? | item_uids? }
+// item_uid / item_uids がある場合はそのアイテムだけ削除、ない場合は注文全体をキャンセル
+// 別会計で複数品目を切り出すときは、versionが1回しか使えないので item_uids でまとめて渡す。
 export async function DELETE(req: NextRequest) {
   try {
-    const { order_id, version, item_uid } = (await req.json()) as {
+    const { order_id, version, item_uid, item_uids } = (await req.json()) as {
       order_id: string;
       version: number;
       item_uid?: string;
+      item_uids?: string[];
     };
     if (!order_id) {
       return NextResponse.json({ error: "order_id が必要" }, { status: 400 });
     }
 
-    if (item_uid) {
-      // 特定アイテムを削除
+    const uids = item_uids?.length ? item_uids : item_uid ? [item_uid] : [];
+    if (uids.length > 0) {
+      // 指定アイテムをまとめて削除
       const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {
         method: "PUT",
         headers: hdrs(),
@@ -207,7 +210,7 @@ export async function DELETE(req: NextRequest) {
           order: {
             version,
           },
-          fields_to_clear: [`line_items[${item_uid}]`],
+          fields_to_clear: uids.map((u) => `line_items[${u}]`),
           idempotency_key: `del_${order_id.slice(-10)}_${Date.now().toString(36)}`,
         }),
       });

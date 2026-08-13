@@ -9,7 +9,7 @@ type MenuItem = {
   category: string;
   variations: { id: string; name: string; price: number }[];
 };
-type OrderItem = { uid: string; name: string; qty: number; amount: number; catalog_object_id: string };
+type OrderItem = { uid: string; name: string; qty: number; amount: number; catalog_object_id: string; note?: string };
 type Order = {
   id: string;
   ticket_name: string;
@@ -99,6 +99,10 @@ export default function TablePage() {
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
   const [squareAppId, setSquareAppId] = useState("");
   const [squareCallbackUrl, setSquareCallbackUrl] = useState("");
+  // 夜でもテイクアウトを受けられるように、カウンター注文の画面を夜モードでも開けるようにする
+  const [takeout, setTakeout] = useState(false);
+  // 別会計：会計する品目のuid。空なら注文全体を会計する
+  const [splitSel, setSplitSel] = useState<Set<string>>(new Set());
   // 昼モード: カウンター注文のstate
   const [dayOrderId, setDayOrderId] = useState<string | null>(null);
   const [dayVersion, setDayVersion] = useState(0);
@@ -197,6 +201,7 @@ export default function TablePage() {
   // テーブルタップ
   const tapTable = (tableId: string) => {
     setSelected(tableId);
+    setSplitSel(new Set());
     setCart([]);
     setErr("");
     setMsg("");
@@ -342,7 +347,7 @@ export default function TablePage() {
       const orderRes = await fetch("/api/square/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "カウンター", items }),
+        body: JSON.stringify({ table: takeout ? "テイクアウト" : "カウンター", items }),
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || "注文作成失敗");
@@ -358,7 +363,7 @@ export default function TablePage() {
           callback_url: squareCallbackUrl || `${window.location.origin}/table`,
           client_id: squareAppId,
           version: "1.3",
-          notes: "カウンター",
+          notes: takeout ? "テイクアウト" : "カウンター",
           options: { supported_tender_types: ["CREDIT_CARD"] },
         };
         const encoded = encodeURIComponent(JSON.stringify(posData));
@@ -392,13 +397,110 @@ export default function TablePage() {
   };
 
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0);
+  // 会計。別会計で品目が選ばれていれば、その分を新しい注文に切り出してから会計する。
+  // 元注文には残りの品目が残るので、続けて次の人の会計ができる。
+  const settle = async (method: "cash" | "card" | "paypay", tenderedAmt?: number) => {
+    const order = selected ? orders.find((o) => o.ticket_name === selected) : null;
+    if (!order) return;
+    const picked = order.items.filter((i) => splitSel.has(i.uid));
+    const split = picked.length > 0 && picked.length < order.items.length;
+    let targetId = order.id;
+    let amount = order.total;
+    setPaying(true);
+    setErr("");
+    try {
+      if (split) {
+        amount = picked.reduce((sum, i) => sum + i.amount, 0);
+        // 1) 選択分を新しい注文として作る
+        const res = await fetch("/api/square/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            table: `${order.ticket_name}分`,
+            items: picked.map((i) => ({
+              catalog_object_id: i.catalog_object_id,
+              quantity: i.qty,
+              note: i.note,
+            })),
+          }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "分割注文の作成に失敗");
+        targetId = d.order.id;
+
+        // 2) 元注文から選択分を外す。失敗したら作った注文を取り消して中断する
+        const delRes = await fetch("/api/square/order", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: order.id,
+            version: order.version,
+            item_uids: picked.map((i) => i.uid),
+          }),
+        });
+        if (!delRes.ok) {
+          const dd = await delRes.json().catch(() => ({}));
+          await fetch("/api/square/pay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_id: targetId, method: "card_close" }),
+          }).catch(() => {});
+          throw new Error(dd.error || "元の注文から品目を外せませんでした");
+        }
+      }
+
+      if (method === "card") {
+        if (!squareAppId) throw new Error("Square Application IDが未設定です");
+        sessionStorage.setItem("card_pending_order", targetId);
+        const posData = {
+          amount_money: { amount, currency_code: "JPY" },
+          callback_url: squareCallbackUrl || `${window.location.origin}/table`,
+          client_id: squareAppId,
+          version: "1.3",
+          notes: order.ticket_name || "",
+          options: { supported_tender_types: ["CREDIT_CARD"] },
+        };
+        window.location.href = `square-commerce-v1://payment/create?data=${encodeURIComponent(JSON.stringify(posData))}`;
+        return;
+      }
+
+      const payRes = await fetch("/api/square/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: targetId,
+          amount,
+          tendered: tenderedAmt || amount,
+          method: method === "paypay" ? "paypay" : undefined,
+        }),
+      });
+      const pd = await payRes.json();
+      if (!payRes.ok) throw new Error(pd.error || "会計に失敗");
+      setPayResult({ change: pd.payment?.change ?? (tenderedAmt || amount) - amount });
+      setSplitSel(new Set());
+      setPayMode(false);
+      setTendered("");
+      await loadOrders();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const currentOrder = selected ? orderFor(selected) : null;
+  // 別会計で選ばれている品目。1つも選ばれていなければ注文全体が対象。
+  const splitItems = currentOrder ? currentOrder.items.filter((i) => splitSel.has(i.uid)) : [];
+  const isSplit = splitItems.length > 0 && splitItems.length < (currentOrder?.items.length ?? 0);
+  const payTargetTotal = isSplit
+    ? splitItems.reduce((s, i) => s + i.amount, 0)
+    : currentOrder?.total ?? 0;
 
   return (
     <div className="wrap">
       <header>
         <h1>🛎️ 注文</h1>
-        <p>{mode === "day" ? "カウンター注文" : "テーブル注文"}</p>
+        <p>{takeout ? "テイクアウト注文" : mode === "day" ? "カウンター注文" : "テーブル注文"}</p>
       </header>
       <Nav />
 
@@ -438,9 +540,21 @@ export default function TablePage() {
         })}
       </div>
 
-      {/* ===== 昼モード ===== */}
-      {mode === "day" && (
+      {/* ===== 昼モード / 夜のテイクアウト ===== */}
+      {(mode === "day" || takeout) && (
         <>
+          {takeout && (
+            <button
+              onClick={() => { setTakeout(false); setCart([]); setPayMode(false); setPayResult(null); }}
+              style={{
+                width: "100%", padding: "10px 0", marginBottom: 10, borderRadius: 10,
+                border: "1px solid var(--line)", background: "#fff", fontSize: 14,
+                fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              ← テーブルに戻る
+            </button>
+          )}
           {/* 決済完了 */}
           {payResult && (
             <div className="card" style={{ textAlign: "center" }}>
@@ -620,7 +734,19 @@ export default function TablePage() {
       )}
 
       {/* ===== 夜モード ===== */}
-      {mode === "night" && (<>
+      {mode === "night" && !takeout && (<>
+
+      {/* テイクアウト（夜でも受けられる） */}
+      <button
+        onClick={() => { setTakeout(true); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}
+        style={{
+          width: "100%", padding: "14px 0", marginBottom: 12, borderRadius: 10,
+          border: "none", background: "#8e6f4e", color: "#fff",
+          fontSize: 15, fontWeight: 700, cursor: "pointer",
+        }}
+      >
+        🥡 テイクアウト注文
+      </button>
 
       {/* フロアマップ */}
       <div className="card" style={{ padding: 12, position: "relative", aspectRatio: "1.1", overflow: "hidden" }}>
@@ -750,6 +876,19 @@ export default function TablePage() {
               </div>
               {currentOrder.items.map((item, i) => (
                 <div key={i} className="result-row" style={{ alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={splitSel.has(item.uid)}
+                    onChange={(e) => {
+                      setSplitSel((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(item.uid);
+                        else next.delete(item.uid);
+                        return next;
+                      });
+                    }}
+                    style={{ width: 20, height: 20, marginRight: 10, flexShrink: 0 }}
+                  />
                   <span style={{ flex: 1 }}>
                     {item.name}
                     {item.qty > 1 && <span style={{ color: "var(--muted)", marginLeft: 4 }}>×{item.qty}</span>}
@@ -788,6 +927,30 @@ export default function TablePage() {
               <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--line)" }}>
                 合計 {fmt(currentOrder.total)}
               </div>
+              {splitSel.size > 0 && (
+                <div style={{
+                  marginTop: 8, padding: "8px 10px", borderRadius: 8,
+                  background: "#f4efe7", display: "flex", justifyContent: "space-between",
+                  alignItems: "center", fontSize: 14, fontWeight: 700,
+                }}>
+                  <span>
+                    別会計 {splitItems.length}点
+                    {!isSplit && <span style={{ color: "var(--muted)", fontWeight: 400 }}>（全部なので通常会計）</span>}
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {fmt(payTargetTotal)}
+                    <button
+                      onClick={() => setSplitSel(new Set())}
+                      style={{
+                        border: "1px solid var(--line)", background: "#fff", borderRadius: 6,
+                        fontSize: 12, padding: "4px 8px", cursor: "pointer", fontWeight: 600,
+                      }}
+                    >
+                      選択解除
+                    </button>
+                  </span>
+                </div>
+              )}
 
               {/* 会計ボタン */}
               {!payMode && !payResult && (
@@ -803,27 +966,8 @@ export default function TablePage() {
                     💴 現金
                   </button>
                   <button
-                    onClick={() => {
-                      if (!squareAppId) {
-                        setErr("Square Application IDが未設定です");
-                        return;
-                      }
-                      // Square POS APIでカード決済画面を開く
-                      const amount = currentOrder.total;
-                      sessionStorage.setItem("card_pending_order", currentOrder.id);
-                      const posData = {
-                        amount_money: { amount, currency_code: "JPY" },
-                        callback_url: squareCallbackUrl || `${window.location.origin}/table`,
-                        client_id: squareAppId,
-                        version: "1.3",
-                        notes: currentOrder.ticket_name || "",
-                        options: { supported_tender_types: ["CREDIT_CARD"] },
-                      };
-                      const jsonStr = JSON.stringify(posData);
-                      const encoded = encodeURIComponent(jsonStr);
-                      const url = `square-commerce-v1://payment/create?data=${encoded}`;
-                      window.location.href = url;
-                    }}
+                    onClick={() => settle("card")}
+                    disabled={paying}
                     style={{
                       flex: 1, padding: "14px 0", borderRadius: 10,
                       background: "#2980b9", color: "#fff", fontSize: 15, fontWeight: 700,
@@ -833,30 +977,9 @@ export default function TablePage() {
                     💳 カード
                   </button>
                   <button
-                    onClick={async () => {
-                      if (!confirm(`${selected} をPayPay支払い済みにしますか？`)) return;
-                      setPaying(true);
-                      setErr("");
-                      try {
-                        const res = await fetch("/api/square/pay", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            order_id: currentOrder.id,
-                            amount: currentOrder.total,
-                            tendered: currentOrder.total,
-                            method: "paypay",
-                          }),
-                        });
-                        const d = await res.json();
-                        if (!res.ok) throw new Error(d.error || "決済失敗");
-                        setPayResult({ change: 0 });
-                        await loadOrders();
-                      } catch (e: any) {
-                        setErr(e.message);
-                      } finally {
-                        setPaying(false);
-                      }
+                    onClick={() => {
+                      if (!confirm(`${isSplit ? `選択した${splitItems.length}点（${fmt(payTargetTotal)}）` : selected} をPayPay支払い済みにしますか？`)) return;
+                      settle("paypay");
                     }}
                     disabled={paying}
                     style={{
@@ -874,30 +997,30 @@ export default function TablePage() {
               {payMode && !payResult && (
                 <div style={{ marginTop: 12, borderTop: "2px solid var(--line)", paddingTop: 12 }}>
                   <div style={{ textAlign: "center", fontSize: 24, fontWeight: 800, marginBottom: 12 }}>
-                    {fmt(currentOrder.total)}
+                    {fmt(payTargetTotal)}
                   </div>
                   <label>お預かり金額</label>
                   <input
                     type="number"
                     value={tendered}
                     onChange={(e) => setTendered(e.target.value)}
-                    placeholder={String(currentOrder.total)}
+                    placeholder={String(payTargetTotal)}
                     style={{ textAlign: "right", fontSize: 20, fontWeight: 700 }}
                     autoFocus
                   />
-                  {tendered && Number(tendered) >= currentOrder.total && (
+                  {tendered && Number(tendered) >= payTargetTotal && (
                     <div style={{ textAlign: "center", marginTop: 8, fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>
-                      お釣り: {fmt(Number(tendered) - currentOrder.total)}
+                      お釣り: {fmt(Number(tendered) - payTargetTotal)}
                     </div>
                   )}
-                  {tendered && Number(tendered) < currentOrder.total && (
+                  {tendered && Number(tendered) < payTargetTotal && (
                     <div style={{ textAlign: "center", marginTop: 8, fontSize: 13, color: "#c0392b" }}>
                       金額が不足しています
                     </div>
                   )}
                   {/* よく使う金額ボタン */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                    {[currentOrder.total, 500, 1000, 2000, 3000, 5000, 10000].map((amt) => (
+                    {[payTargetTotal, 500, 1000, 2000, 3000, 5000, 10000].map((amt) => (
                       <button
                         key={amt}
                         onClick={() => setTendered(String(amt))}
@@ -907,7 +1030,7 @@ export default function TablePage() {
                           fontSize: 13, fontWeight: 600, cursor: "pointer",
                         }}
                       >
-                        {amt === currentOrder.total ? "ぴったり" : `¥${amt.toLocaleString()}`}
+                        {amt === payTargetTotal ? "ぴったり" : `¥${amt.toLocaleString()}`}
                       </button>
                     ))}
                   </div>
@@ -920,34 +1043,11 @@ export default function TablePage() {
                       キャンセル
                     </button>
                     <button
-                      disabled={paying || !tendered || Number(tendered) < currentOrder.total}
-                      onClick={async () => {
-                        setPaying(true);
-                        setErr("");
-                        try {
-                          const res = await fetch("/api/square/pay", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              order_id: currentOrder.id,
-                              amount: currentOrder.total,
-                              tendered: Number(tendered),
-                            }),
-                          });
-                          const d = await res.json();
-                          if (!res.ok) throw new Error(d.error || "決済失敗");
-                          setPayResult({ change: d.payment.change });
-                          setPayMode(false);
-                          await loadOrders();
-                        } catch (e: any) {
-                          setErr(e.message);
-                        } finally {
-                          setPaying(false);
-                        }
-                      }}
+                      disabled={paying || !tendered || Number(tendered) < payTargetTotal}
+                      onClick={() => settle("cash", Number(tendered))}
                       style={{
                         flex: 2, padding: "14px 0", borderRadius: 10,
-                        background: (!tendered || Number(tendered) < currentOrder.total) ? "#cbb9a8" : "var(--ok)",
+                        background: (!tendered || Number(tendered) < payTargetTotal) ? "#cbb9a8" : "var(--ok)",
                         color: "#fff", fontSize: 16, fontWeight: 700,
                         border: "none", cursor: "pointer",
                       }}
