@@ -8,6 +8,21 @@ export const maxDuration = 30;
 
 const COMPANY = Number(FREEE_COMPANY_ID);
 
+// 勘定科目をfreeeから名前で引く（現金など、IDを埋め込んでいない科目用）
+async function findAccountId(name: string): Promise<number | null> {
+  try {
+    const r = await freeeGet<{ account_items: { id: number; name: string }[] }>(
+      "/api/1/account_items",
+      { company_id: String(COMPANY) },
+    );
+    const exact = r.account_items?.find((a) => a.name === name);
+    if (exact) return exact.id;
+    return r.account_items?.find((a) => a.name.includes(name))?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // 立替えた人を取引先として解決（無ければ作成）
 async function resolvePartnerId(name: string): Promise<number | undefined> {
   if (!name) return undefined;
@@ -49,13 +64,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "日付・金額が不足しています" }, { status: 400 });
   }
 
-  const partnerId = await resolvePartnerId(r.payer);
+  // 支払い元によって貸方が変わる。
+  //   立替 / 労働枠 → 役員借入金（取引先＝立替えた人。あとで会社から返す）
+  //   現金          → 現金（会社の財布から。返す相手なし）
+  //   会社カード     → 普通預金（口座直結のデビット。返す相手なし）
+  const CREDIT_BY_KIND: Record<string, string> = { cash: "現金", card: "普通預金" };
+  const creditName = CREDIT_BY_KIND[r.expenseKind ?? "company"];
+
+  // 役員借入金のときだけ、誰に返すかを取引先として持たせる。
+  const partnerId = creditName ? undefined : await resolvePartnerId(r.payer);
+
+  let creditAccountId: number = YAKUIN_KARIIRE_ID;
+  if (creditName) {
+    const id = await findAccountId(creditName);
+    if (!id) {
+      return NextResponse.json(
+        { error: `freeeに勘定科目「${creditName}」が見つかりません。freee側で科目を確認してください。` },
+        { status: 400 },
+      );
+    }
+    creditAccountId = id;
+  }
   // 設立前(期首前)の支出はfreeeが受け付けないので、発生日を期首日に丸める。
   const { issueDate, adjusted, original } = clampIssueDate(r.date);
   const dateNote = adjusted ? `（原本日付${original}・設立前支出）` : "";
   const desc = ((r.memo || r.summary || r.vendor || "") + dateNote).slice(0, 100);
 
-  // 内訳（用途/科目ごと）→ 借方を複数行に。合計＝貸)役員借入金1行。
+  // 内訳（用途/科目ごと）→ 借方を複数行に。合計＝貸方1行。
   const lines = receiptLines(r);
   const debitDetails = lines.map((l) => {
     const m = mapCategory(l.category);
@@ -70,7 +105,7 @@ export async function POST(req: NextRequest) {
   });
   const total = lines.reduce((s, l) => s + l.amount, 0);
 
-  // 振替伝票: 借)科目（内訳分だけ複数行） / 貸)役員借入金（取引先＝立替えた人）
+  // 振替伝票: 借)科目（内訳分だけ複数行） / 貸)現金・普通預金・役員借入金のいずれか
   const journal = {
     company_id: COMPANY,
     issue_date: issueDate,
@@ -78,7 +113,7 @@ export async function POST(req: NextRequest) {
       ...debitDetails,
       {
         entry_side: "credit",
-        account_item_id: YAKUIN_KARIIRE_ID,
+        account_item_id: creditAccountId,
         tax_code: YAKUIN_KARIIRE_TAX,
         amount: total,
         ...(partnerId ? { partner_id: partnerId } : {}),
