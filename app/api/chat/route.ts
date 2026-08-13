@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { CATEGORIES } from "@/lib/receipt";
+import { buildDataContext } from "@/lib/chat-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,7 +23,8 @@ const SYSTEM = `あなたは合同会社flat.（滋賀県彦根のカフェ。20
 - 結論→理由→具体的な手順（freeeのどの画面で何をするか）の順で、短く。
 - 表や箇条書きを使って見やすく。
 - 「登記が絡む（資本金の増減=増資/減資）」「税務上の選択（開業費にするか経費にするか、償却方法）」など判断が要るものは、**つける予定の税理士に確認**を促す。ただし一般的な処理方法は説明する。
-- 金額や残高を勝手に断定しない。実際のfreeeの数字が必要なときは「このアプリはまだfreeeを直接読めないので、freeeの○○画面の数字を教えてください」と聞く（freee連携は開発中）。
+- 下の「社内データ」に載っている金額・件数・原価は実データなので、そこを根拠に断定して答えてよい。該当が無ければ「データに無い」と答え、勝手に補完しない。
+- 社内データに無いfreeeの残高や試算表が必要なときは「freeeの○○画面の数字を教えてください」と聞く。
 - 立替・経費・原価の仕訳は上の前提に沿って答える。
 - 不確かなことは正直に「ここは税理士確認」と言う。憶測で断定しない。`;
 
@@ -46,8 +48,10 @@ export async function POST(req: NextRequest) {
     return new Response("メッセージがありません。", { status: 400 });
   }
 
-  // 領収書の確認画面からの相談なら、その領収書の内容を文脈として渡す
-  let system = SYSTEM;
+  // 領収書・仕入れ表・メニュー・払うものを文脈として渡す（取得失敗時は空文字）
+  let system = SYSTEM + (await buildDataContext().catch(() => ""));
+
+  // 領収書の確認画面からの相談なら、その領収書の内容も個別に渡す
   if (receiptContext) {
     system +=
       `\n\n# いまユーザーが確認中の領収書（この仕訳について相談に乗る）\n${receiptContext}\n` +
