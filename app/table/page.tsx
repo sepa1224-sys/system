@@ -143,11 +143,26 @@ export default function TablePage() {
     loadStock();
     // Square App ID取得
     fetch("/api/square/config").then(r => r.json()).then(d => setSquareAppId(d.appId || "")).catch(() => {});
-    // Square POSからのコールバック検知
+    // Square POSからのコールバック検知。
+    // callback_urlはDeveloper Dashboardに登録したURLと完全一致させる必要があるため、
+    // クエリに注文IDを載せられない。遷移前にsessionStorageへ退避してある。
     const params = new URLSearchParams(window.location.search);
-    const cardOrderId = params.get("card_order");
-    const cardVer = params.get("card_ver");
-    if (cardOrderId) {
+    let cardOrderId = params.get("card_order"); // 旧形式（クエリ付きcallback_url）の互換
+    let posError = "";
+    if (params.has("data")) {
+      try {
+        const d = JSON.parse(params.get("data") || "{}") as { error_code?: string };
+        if (d.error_code) posError = d.error_code;
+      } catch {
+        /* パースできない場合はエラー扱いしない */
+      }
+      if (!cardOrderId) cardOrderId = sessionStorage.getItem("card_pending_order");
+    }
+    if (posError) {
+      setErr(`カード決済に失敗しました（${posError}）`);
+      sessionStorage.removeItem("card_pending_order");
+      window.history.replaceState({}, "", "/table");
+    } else if (cardOrderId) {
       // Square POSで決済完了 → OPEN注文をCOMPLETEDに
       fetch("/api/square/pay", {
         method: "POST",
@@ -159,11 +174,9 @@ export default function TablePage() {
           method: "card_close",
         }),
       }).catch(() => {}).finally(() => {
+        sessionStorage.removeItem("card_pending_order");
         loadOrders();
       });
-      window.history.replaceState({}, "", "/table");
-    } else if (params.has("data")) {
-      loadOrders();
       window.history.replaceState({}, "", "/table");
     }
     const iv = setInterval(loadOrders, 10000);
@@ -330,10 +343,12 @@ export default function TablePage() {
       const orderId = orderData.order.id;
 
       if (payMethod === "card") {
-        // カード: Square POSに飛ばす（callback_urlにorder_idを含める）
+        // カード: Square POSに飛ばす。
+        // callback_urlは登録済みURLと完全一致が必要なのでクエリを付けず、注文IDは退避しておく。
+        sessionStorage.setItem("card_pending_order", orderId);
         const posData = {
           amount_money: { amount: total, currency_code: "JPY" },
-          callback_url: `${window.location.origin}/table?card_order=${orderId}&card_ver=1`,
+          callback_url: `${window.location.origin}/table`,
           client_id: squareAppId,
           version: "1.3",
           notes: "カウンター",
@@ -788,9 +803,10 @@ export default function TablePage() {
                       }
                       // Square POS APIでカード決済画面を開く
                       const amount = currentOrder.total;
+                      sessionStorage.setItem("card_pending_order", currentOrder.id);
                       const posData = {
                         amount_money: { amount, currency_code: "JPY" },
-                        callback_url: `${window.location.origin}/table?card_order=${currentOrder.id}&card_ver=${currentOrder.version}`,
+                        callback_url: `${window.location.origin}/table`,
                         client_id: squareAppId,
                         version: "1.3",
                         notes: currentOrder.ticket_name || "",
