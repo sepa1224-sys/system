@@ -98,6 +98,7 @@ export default function TablePage() {
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
   const [squareAppId, setSquareAppId] = useState("");
+  const [squareCallbackUrl, setSquareCallbackUrl] = useState("");
   // 昼モード: カウンター注文のstate
   const [dayOrderId, setDayOrderId] = useState<string | null>(null);
   const [dayVersion, setDayVersion] = useState(0);
@@ -142,7 +143,13 @@ export default function TablePage() {
     loadMenu();
     loadStock();
     // Square App ID取得
-    fetch("/api/square/config").then(r => r.json()).then(d => setSquareAppId(d.appId || "")).catch(() => {});
+    fetch("/api/square/config")
+      .then(r => r.json())
+      .then(d => {
+        setSquareAppId(d.appId || "");
+        setSquareCallbackUrl(d.callbackUrl || "");
+      })
+      .catch(() => {});
     // Square POSからのコールバック検知。
     // callback_urlはDeveloper Dashboardに登録したURLと完全一致させる必要があるため、
     // クエリに注文IDを載せられない。遷移前にsessionStorageへ退避してある。
@@ -348,7 +355,7 @@ export default function TablePage() {
         sessionStorage.setItem("card_pending_order", orderId);
         const posData = {
           amount_money: { amount: total, currency_code: "JPY" },
-          callback_url: `${window.location.origin}/table`,
+          callback_url: squareCallbackUrl || `${window.location.origin}/table`,
           client_id: squareAppId,
           version: "1.3",
           notes: "カウンター",
@@ -806,7 +813,7 @@ export default function TablePage() {
                       sessionStorage.setItem("card_pending_order", currentOrder.id);
                       const posData = {
                         amount_money: { amount, currency_code: "JPY" },
-                        callback_url: `${window.location.origin}/table`,
+                        callback_url: squareCallbackUrl || `${window.location.origin}/table`,
                         client_id: squareAppId,
                         version: "1.3",
                         notes: currentOrder.ticket_name || "",
