@@ -27,7 +27,7 @@ export type SavedReceipt = {
   memo: string;
   savedAt: string;
   registered?: { journalId: number; at: string }; // freee登録済み
-  expenseKind?: "company" | "card" | "labor"; // 立替 / 会社カード支出 / 労働枠経費
+  expenseKind?: "company" | "card" | "labor" | "cash"; // 立替 / 会社カード支出 / 労働枠経費 / 現金支出
   laborMember?: string; // 労働枠のとき、誰の枠から引くか
   tags?: string[]; // 用途タグ（旧・レシート全体。互換用）
   lines?: RLine[]; // 内訳（用途/科目ごとに分割）。あればこちらを正とする

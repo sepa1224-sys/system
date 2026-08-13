@@ -17,7 +17,7 @@ type Receipt = {
   memo: string;
   savedAt: string;
   registered?: { journalId: number; at: string };
-  expenseKind?: "company" | "card" | "labor";
+  expenseKind?: "company" | "card" | "labor" | "cash";
   laborMember?: string;
   lines?: RLine[];
   tags?: string[];
@@ -28,6 +28,7 @@ const KIND_LABELS: Record<string, string> = {
   company: "立替",
   card: "会社カード",
   labor: "労働枠",
+  cash: "現金",
 };
 
 export default function Receipts() {
@@ -47,7 +48,7 @@ export default function Receipts() {
     vendor: string;
     payer: string;
     memo: string;
-    expenseKind: "company" | "card" | "labor";
+    expenseKind: "company" | "card" | "labor" | "cash";
     laborMember: string;
     lines: RLine[];
   } | null>(null);
@@ -365,9 +366,18 @@ export default function Receipts() {
                   onClick={() => setEditForm({ ...editForm, expenseKind: "labor" })}>
                   労働枠
                 </button>
+                <button type="button" className={`kind-btn ${editForm.expenseKind === "cash" ? "active" : ""}`}
+                  onClick={() => setEditForm({ ...editForm, expenseKind: "cash" })}>
+                  現金
+                </button>
               </div>
+              {editForm.expenseKind === "cash" && (
+                <p className="hint">
+                  💴 店の現金（レジ・小口）から払った経費。貸方は「現金」になり、誰かに返す必要はありません。
+                </p>
+              )}
 
-              {editForm.expenseKind !== "card" && (
+              {editForm.expenseKind !== "card" && editForm.expenseKind !== "cash" && (
                 <>
                   <label>立替えた人</label>
                   <select value={editForm.payer} onChange={(e) => setEditForm({ ...editForm, payer: e.target.value })}>
@@ -410,7 +420,9 @@ export default function Receipts() {
                     {r.date}・{r.category}
                     {r.expenseKind === "card"
                       ? <span className="hint-chip">💳 会社カード</span>
-                      : <>・{kindLabel}: {r.payer}</>}
+                      : r.expenseKind === "cash"
+                        ? <span className="hint-chip">💴 現金</span>
+                        : <>・{kindLabel}: {r.payer}</>}
                   </div>
                   {r.lines && r.lines.length > 0
                     ? r.lines.map((l, i) => (
@@ -476,7 +488,12 @@ export default function Receipts() {
                 {r.registered ? (
                   <div className="decided-box" style={{ margin: 0 }}>
                     ✓ freee登録済（振替伝票 #{r.registered.journalId}）／ 借)
-                    {r.category}・貸){r.expenseKind === "card" ? "普通預金" : `役員借入金（${r.payer}）`}
+                    {r.category}・貸)
+                    {r.expenseKind === "card"
+                      ? "普通預金"
+                      : r.expenseKind === "cash"
+                        ? "現金"
+                        : `役員借入金（${r.payer}）`}
                   </div>
                 ) : (
                   <button
@@ -489,7 +506,9 @@ export default function Receipts() {
                       ? <span className="spinner" />
                       : r.expenseKind === "card"
                         ? "freeeに登録（借)" + r.category + "／貸)普通預金）"
-                        : "freeeに登録（借)" + r.category + "／貸)役員借入金）"}
+                        : r.expenseKind === "cash"
+                          ? "freeeに登録（借)" + r.category + "／貸)現金）"
+                          : "freeeに登録（借)" + r.category + "／貸)役員借入金）"}
                   </button>
                 )}
               </div>

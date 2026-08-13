@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     payer?: string;
     memo?: string;
     image?: string;
-    expenseKind?: "company" | "card" | "labor";
+    expenseKind?: "company" | "card" | "labor" | "cash";
     laborMember?: string;
     tags?: string[];
     lines?: RLine[];

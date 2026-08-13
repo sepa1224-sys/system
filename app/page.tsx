@@ -17,7 +17,7 @@ type Form = {
   confidence: "high" | "medium" | "low";
   payer: string;
   memo: string;
-  expenseKind: "company" | "card" | "labor";
+  expenseKind: "company" | "card" | "labor" | "cash";
   laborMember: string;
   lines: Line[];
 };
@@ -115,7 +115,9 @@ export default function Home() {
         ? `労働枠から使う（${form.laborMember}の枠）`
         : form.expenseKind === "card"
           ? "会社カード支出（デビットカード）"
-          : "立替経費";
+          : form.expenseKind === "cash"
+            ? "現金支出（店のレジ・小口現金から）"
+            : "立替経費";
     return [
       `日付：${form.date || "未入力"}`,
       `店名・支払先：${form.vendor || "未入力"}`,
@@ -309,6 +311,16 @@ export default function Home() {
 
   const isPdf = image?.startsWith("data:application/pdf") ?? false;
   const multi = form.lines.length > 1;
+  // freee転記パネルの表示。区分ごとに貸方科目と取引先が変わる。
+  const kindPanel =
+    form.expenseKind === "card"
+      ? { title: "会社カード支出", credit: "普通預金", partnerLabel: "取引先", partnerValue: form.vendor, partnerHint: "支払先",
+          note: `貸方は「普通預金 ¥${total.toLocaleString()}」。デビットカードで直接支払い → 銀行明細と金額が一致するはず。` }
+      : form.expenseKind === "cash"
+        ? { title: "現金支出", credit: "現金", partnerLabel: "取引先", partnerValue: form.vendor, partnerHint: "支払先",
+            note: `貸方は「現金 ¥${total.toLocaleString()}」。店のレジ・小口から出ているので、誰かに返す必要はありません。／ 📥保存済みタブの「freeeに登録」ボタンなら自動で書き込めます。` }
+        : { title: "立替", credit: "役員借入金", partnerLabel: "取引先", partnerValue: form.payer, partnerHint: "立替えた人",
+            note: `貸方は「役員借入金 ¥${total.toLocaleString()}（取引先＝${form.payer}）」。／ 📥保存済みタブの「freeeに登録」ボタンなら自動で書き込めます。` };
 
   return (
     <div className="wrap">
@@ -499,7 +511,7 @@ export default function Home() {
           </button>
           <div className="rline-total">合計 ¥{total.toLocaleString()}</div>
 
-          {form.expenseKind !== "card" && (
+          {form.expenseKind !== "card" && form.expenseKind !== "cash" && (
             <div className="row" style={{ marginTop: 8 }}>
               <div>
                 <label>立替えた人</label>
@@ -545,7 +557,19 @@ export default function Home() {
             >
               労働枠
             </button>
+            <button
+              type="button"
+              className={`kind-btn ${form.expenseKind === "cash" ? "active" : ""}`}
+              onClick={() => setForm({ ...form, expenseKind: "cash" })}
+            >
+              現金
+            </button>
           </div>
+          {form.expenseKind === "cash" && (
+            <p className="hint">
+              💴 店の現金（レジ・小口）から払った経費。貸方は「現金」になり、誰かに返す必要はありません。
+            </p>
+          )}
           {form.expenseKind === "card" && (
             <p className="hint">
               💳 会社デビットカードで支払った経費。銀行口座の出金と自動マッチングされます。
@@ -695,53 +719,25 @@ export default function Home() {
 
       {status === "saved" && (
         <div className="card">
-          <div className="saved">
-            {form.expenseKind === "card"
-              ? "✅ 読み取り＆確認 OK（会社カード支出）"
-              : "✅ 読み取り＆確認 OK（立替）"}
-          </div>
+          <div className="saved">✅ 読み取り＆確認 OK（{kindPanel.title}）</div>
           <div className="freee-panel" style={{ marginTop: 12 }}>
-            {form.expenseKind === "card" ? (
-              <>
-                <div className="freee-panel-title">📋 freee登録用（会社カード支出＝借)科目／貸)普通預金）</div>
-                <CopyField label="発生日" value={form.date} />
-                <CopyField label="取引先" value={form.vendor} hint="支払先" />
-                {form.lines.map((l, i) => (
-                  <div key={i} className="freee-line-block">
-                    <div className="freee-line-no">
-                      借方 {i + 1}
-                      {multi ? "（freeeで「＋行を追加」）" : ""}
-                    </div>
-                    <CopyField label="勘定科目" value={l.category} />
-                    <CopyField label="金額" value={String(l.amount)} />
-                    {l.name ? <CopyField label="備考" value={l.name} /> : null}
-                  </div>
-                ))}
-                <div className="freee-note">
-                  貸方は「普通預金 ¥{total.toLocaleString()}」。デビットカードで直接支払い → 銀行明細と金額が一致するはず。
+            <div className="freee-panel-title">
+              📋 freee登録用（{kindPanel.title}＝借)科目／貸){kindPanel.credit}）
+            </div>
+            <CopyField label="発生日" value={form.date} />
+            <CopyField label={kindPanel.partnerLabel} value={kindPanel.partnerValue} hint={kindPanel.partnerHint} />
+            {form.lines.map((l, i) => (
+              <div key={i} className="freee-line-block">
+                <div className="freee-line-no">
+                  借方 {i + 1}
+                  {multi ? "（freeeで「＋行を追加」）" : ""}
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="freee-panel-title">📋 freee登録用（立替＝借)科目／貸)役員借入金）</div>
-                <CopyField label="発生日" value={form.date} />
-                <CopyField label="取引先" value={form.payer} hint="立替えた人" />
-                {form.lines.map((l, i) => (
-                  <div key={i} className="freee-line-block">
-                    <div className="freee-line-no">
-                      借方 {i + 1}
-                      {multi ? "（freeeで「＋行を追加」）" : ""}
-                    </div>
-                    <CopyField label="勘定科目" value={l.category} />
-                    <CopyField label="金額" value={String(l.amount)} />
-                    {l.name ? <CopyField label="備考" value={l.name} /> : null}
-                  </div>
-                ))}
-                <div className="freee-note">
-                  貸方は「役員借入金 ¥{total.toLocaleString()}（取引先＝{form.payer}）」。／ 📥保存済みタブの「freeeに登録」ボタンなら自動で書き込めます。
-                </div>
-              </>
-            )}
+                <CopyField label="勘定科目" value={l.category} />
+                <CopyField label="金額" value={String(l.amount)} />
+                {l.name ? <CopyField label="備考" value={l.name} /> : null}
+              </div>
+            ))}
+            <div className="freee-note">{kindPanel.note}</div>
           </div>
           <button className="primary" onClick={reset} style={{ marginTop: 12 }}>
             次の領収書を登録
