@@ -102,6 +102,8 @@ export default function TablePage() {
   const [squareCallbackUrl, setSquareCallbackUrl] = useState("");
   // 夜でもテイクアウトを受けられるように、カウンター注文の画面を夜モードでも開けるようにする
   const [takeout, setTakeout] = useState(false);
+  // 店内利用かテイクアウトか。伝票名になり、KDSにもこの名前で出る。
+  const [orderType, setOrderType] = useState<"店内" | "テイクアウト">("店内");
   // 別会計：会計する品目のuid。空なら注文全体を会計する
   const [splitSel, setSplitSel] = useState<Set<string>>(new Set());
   // 昼モード: カウンター注文のstate
@@ -354,7 +356,7 @@ export default function TablePage() {
       const orderRes = await fetch("/api/square/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: takeout ? "テイクアウト" : "カウンター", items }),
+        body: JSON.stringify({ table: orderType, items }),
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || "注文作成失敗");
@@ -370,7 +372,7 @@ export default function TablePage() {
           callback_url: squareCallbackUrl || `${window.location.origin}/table`,
           client_id: squareAppId,
           version: "1.3",
-          notes: takeout ? "テイクアウト" : "カウンター",
+          notes: orderType,
           options: { supported_tender_types: ["CREDIT_CARD"] },
         };
         const encoded = encodeURIComponent(JSON.stringify(posData));
@@ -507,13 +509,13 @@ export default function TablePage() {
     <div className="wrap">
       <header>
         <h1>🛎️ 注文</h1>
-        <p>{takeout ? "テイクアウト注文" : mode === "day" ? "カウンター注文" : "テーブル注文"}</p>
+        <p>{mode === "day" || takeout ? `カウンター注文（${orderType}）` : "テーブル注文"}</p>
       </header>
       <Nav />
 
       {/* 昼/夜 切替 */}
       <div className="sub-tabs" style={{ marginBottom: 12 }}>
-        <button className={`sub-tab ${mode === "day" ? "active" : ""}`} onClick={() => { setMode("day"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
+        <button className={`sub-tab ${mode === "day" ? "active" : ""}`} onClick={() => { setMode("day"); setTakeout(false); setOrderType("店内"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
           ☀️ 昼（カウンター）
         </button>
         <button className={`sub-tab ${mode === "night" ? "active" : ""}`} onClick={() => { setMode("night"); setCart([]); setPayMode(false); setPayResult(null); }}>
@@ -552,7 +554,7 @@ export default function TablePage() {
         <>
           {takeout && (
             <button
-              onClick={() => { setTakeout(false); setCart([]); setPayMode(false); setPayResult(null); }}
+              onClick={() => { setTakeout(false); setOrderType("店内"); setCart([]); setPayMode(false); setPayResult(null); }}
               style={{
                 width: "100%", padding: "10px 0", marginBottom: 10, borderRadius: 10,
                 border: "1px solid var(--line)", background: "#fff", fontSize: 14,
@@ -702,6 +704,32 @@ export default function TablePage() {
                   </div>
                   {err && <p className="err">{err}</p>}
 
+                  {/* 店内 / テイクアウト（伝票名になりKDSに出る） */}
+                  {!payMode && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, fontWeight: 600 }}>
+                        提供方法
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {(["店内", "テイクアウト"] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setOrderType(t)}
+                            style={{
+                              flex: 1, padding: "12px 0", borderRadius: 10,
+                              border: orderType === t ? "2px solid var(--ok)" : "1px solid var(--line)",
+                              background: orderType === t ? "#eaf6ec" : "#fff",
+                              color: orderType === t ? "var(--ok)" : "var(--ink)",
+                              fontSize: 15, fontWeight: 700, cursor: "pointer",
+                            }}
+                          >
+                            {t === "店内" ? "🍽 店内" : "🥡 テイクアウト"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 現金会計モード */}
                   {payMode ? (
                     <div style={{ marginTop: 10 }}>
@@ -745,7 +773,7 @@ export default function TablePage() {
 
       {/* テイクアウト（夜でも受けられる） */}
       <button
-        onClick={() => { setTakeout(true); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}
+        onClick={() => { setTakeout(true); setOrderType("テイクアウト"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}
         style={{
           width: "100%", padding: "14px 0", marginBottom: 12, borderRadius: 10,
           border: "none", background: "#8e6f4e", color: "#fff",

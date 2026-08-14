@@ -21,9 +21,14 @@ async function getLocationId(): Promise<string> {
   return data.locations?.[0]?.id || "";
 }
 
-// GET: OPEN状態の注文一覧（テーブルマップ・KDS用）
-export async function GET() {
+// GET: 注文一覧
+//   既定           … OPEN のみ（テーブルマップ用。会計済みは消える）
+//   ?since_minutes=N … 直近N分に作られた OPEN + COMPLETED（KDS用）
+// カウンター/テイクアウトは「作成→即会計」で1秒以内に閉じるため、
+// OPENだけを見ているとKDSに一度も出ない。KDSはこのパラメータを使う。
+export async function GET(req: NextRequest) {
   try {
+    const sinceMinutes = parseInt(req.nextUrl.searchParams.get("since_minutes") || "0", 10);
     const locationId = await getLocationId();
     if (!locationId) return NextResponse.json({ error: "ロケーション未設定" }, { status: 500 });
 
@@ -34,7 +39,18 @@ export async function GET() {
         location_ids: [locationId],
         query: {
           filter: {
-            state_filter: { states: ["OPEN"] },
+            state_filter: {
+              states: sinceMinutes > 0 ? ["OPEN", "COMPLETED"] : ["OPEN"],
+            },
+            ...(sinceMinutes > 0
+              ? {
+                  date_time_filter: {
+                    created_at: {
+                      start_at: new Date(Date.now() - sinceMinutes * 60_000).toISOString(),
+                    },
+                  },
+                }
+              : {}),
           },
           sort: { sort_field: "CREATED_AT", sort_order: "ASC" },
         },

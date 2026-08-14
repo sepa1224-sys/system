@@ -55,7 +55,9 @@ export default function KitchenPage() {
   // 注文取得
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/square/order");
+      // 会計済みでも作成から90分は表示する。
+      // カウンター/テイクアウトは即会計で閉じるため、OPENだけだとKDSに出ない。
+      const res = await fetch("/api/square/order?since_minutes=90");
       const data = await res.json();
       if (res.ok) {
         const newOrders: Order[] = data.orders || [];
@@ -124,7 +126,7 @@ export default function KitchenPage() {
   // 完了済みから消えたOrder（会計済み）のアイテムを自動クリーンアップ
   useEffect(() => {
     const activeOrderIds = new Set(orders.map((o) => o.id));
-    setDone((prev) => prev.filter((i) => activeOrderIds.has(i.orderId) || Date.now() - i.receivedAt < 3600000));
+    setDone((prev) => prev.filter((i) => activeOrderIds.has(i.orderId) || Date.now() - i.receivedAt < 90 * 60_000));
   }, [orders]);
 
   // タップで完了
