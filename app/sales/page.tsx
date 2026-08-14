@@ -14,7 +14,11 @@ type OrderRow = {
   items: { name: string; qty: number; amount: number }[];
 };
 type SalesData = {
-  summary: { totalSales: number; totalTax: number; orderCount: number };
+  summary: {
+    totalSales: number; totalTax: number; orderCount: number;
+    cashTotal?: number; untendered?: number;
+  };
+  byTender?: Record<string, { count: number; amount: number }>;
   byProduct: ProductRow[];
   byHour: HourRow[];
   orders: OrderRow[];
@@ -35,7 +39,11 @@ export default function SalesPage() {
   const [data, setData] = useState<SalesData | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [tab, setTab] = useState<"summary" | "products" | "hours" | "orders">(
+  // レジ締め。釣銭準備金と実際に数えた金額を入れて過不足を出す。
+  const [floatCash, setFloatCash] = useState("30000");
+  const [countedCash, setCountedCash] = useState("");
+  const [cashOut, setCashOut] = useState("0");
+  const [tab, setTab] = useState<"summary" | "close" | "products" | "hours" | "orders">(
     "summary"
   );
 
@@ -187,6 +195,7 @@ export default function SalesPage() {
             {(
               [
                 ["summary", "概要"],
+                ["close", "レジ締め"],
                 ["products", "商品別"],
                 ["hours", "時間帯"],
                 ["orders", "明細"],
@@ -201,6 +210,74 @@ export default function SalesPage() {
               </button>
             ))}
           </div>
+
+          {/* レジ締め */}
+          {tab === "close" && (() => {
+            const cash = data.summary.cashTotal ?? 0;
+            const fl = Number(floatCash) || 0;
+            const out = Number(cashOut) || 0;
+            const should = fl + cash - out;
+            const counted = Number(countedCash) || 0;
+            const diff = countedCash === "" ? null : counted - should;
+            return (
+              <div className="card">
+                <div style={{ fontWeight: 700, marginBottom: 10 }}>💰 レジ締め（{date}）</div>
+
+                <label>釣銭準備金（開始時）</label>
+                <input type="number" value={floatCash} onChange={(e) => setFloatCash(e.target.value)}
+                  style={{ textAlign: "right", fontSize: 18 }} />
+
+                <label style={{ marginTop: 10 }}>レジから払った現金支出</label>
+                <input type="number" value={cashOut} onChange={(e) => setCashOut(e.target.value)}
+                  style={{ textAlign: "right", fontSize: 18 }} />
+
+                <div style={{ margin: "14px 0", padding: "12px 14px", borderRadius: 10, background: "var(--card)", border: "1px solid var(--line)" }}>
+                  {[
+                    ["釣銭準備金", fl, ""],
+                    ["＋ 現金売上", cash, `${data.byTender?.["現金"]?.count ?? 0}件`],
+                    ["－ 現金支出", -out, ""],
+                  ].map(([l, v, note]) => (
+                    <div key={String(l)} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 14 }}>
+                      <span>{l}{note ? <span style={{ color: "var(--muted)", marginLeft: 6, fontSize: 12 }}>{note}</span> : null}</span>
+                      <span className="mono">¥{fmt(Math.abs(Number(v)))}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, marginTop: 6, borderTop: "2px solid var(--line)", fontWeight: 700, fontSize: 16 }}>
+                    <span>あるべき金額</span><span className="mono">¥{fmt(should)}</span>
+                  </div>
+                </div>
+
+                <label>実際に数えた金額</label>
+                <input type="number" value={countedCash} onChange={(e) => setCountedCash(e.target.value)}
+                  placeholder={String(should)} style={{ textAlign: "right", fontSize: 22, fontWeight: 700 }} />
+
+                {diff !== null && (
+                  <div style={{
+                    marginTop: 12, padding: "14px 0", borderRadius: 10, textAlign: "center",
+                    background: diff === 0 ? "#eaf6ec" : "#fdeceb",
+                    color: diff === 0 ? "var(--ok)" : "#c0392b", fontSize: 20, fontWeight: 800,
+                  }}>
+                    {diff === 0 ? "✅ 一致" : `${diff > 0 ? "＋" : "−"}¥${fmt(Math.abs(diff))} ${diff > 0 ? "過剰" : "不足"}`}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>支払方法別</div>
+                  {Object.entries(data.byTender || {}).sort((a, b) => b[1].amount - a[1].amount).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 14 }}>
+                      <span>{k} <span style={{ color: "var(--muted)", fontSize: 12 }}>{v.count}件</span></span>
+                      <span className="mono">¥{fmt(v.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="hint" style={{ marginTop: 12 }}>
+                  ※Squareの「現金管理（ドロワー）」はPOSアプリで打った分しか数えません。
+                  このアプリからの現金会計は売上には入りますがドロワーには入らないため、こちらで締めてください。
+                </p>
+              </div>
+            );
+          })()}
 
           {/* 概要 */}
           {tab === "summary" && (
