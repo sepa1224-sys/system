@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrementStock } from "@/lib/stock";
+import { buildTaxes, type OrderType } from "@/lib/tax";
 
 export const runtime = "nodejs";
 
@@ -86,12 +87,15 @@ export async function GET(req: NextRequest) {
 }
 
 // POST: 新規注文作成（OPEN状態）
-// body: { table: "A1", items: [{ catalog_object_id, quantity, note? }] }
+// body: { table: "A1", orderType?: "店内"|"テイクアウト", items: [{ catalog_object_id, quantity, note?, name? }] }
+// orderType と品目名から消費税（店内10% / 持ち帰り8%・酒類は10%）を内税で乗せる。
+// 夜のテーブル注文は orderType 省略で店内扱い。
 export async function POST(req: NextRequest) {
   try {
-    const { table, items } = (await req.json()) as {
+    const { table, items, orderType } = (await req.json()) as {
       table: string;
-      items: { catalog_object_id: string; quantity: number; note?: string }[];
+      orderType?: OrderType;
+      items: { catalog_object_id: string; quantity: number; note?: string; name?: string }[];
     };
     if (!table || !items?.length) {
       return NextResponse.json({ error: "table と items が必要" }, { status: 400 });
@@ -100,10 +104,19 @@ export async function POST(req: NextRequest) {
     const locationId = await getLocationId();
     if (!locationId) return NextResponse.json({ error: "ロケーション未設定" }, { status: 500 });
 
-    const lineItems = items.map((it) => ({
+    // 品目名から税率を決める。名前が来ていない場合は店内扱い（10%）に倒す。
+    const kind: OrderType =
+      orderType === "テイクアウト" || table === "テイクアウト" ? "テイクアウト" : "店内";
+    const { taxes, appliedTaxUids } = buildTaxes(
+      items.map((it) => it.name || ""),
+      kind,
+    );
+
+    const lineItems = items.map((it, i) => ({
       catalog_object_id: it.catalog_object_id,
       quantity: String(it.quantity),
       ...(it.note ? { note: it.note } : {}),
+      applied_taxes: [{ tax_uid: appliedTaxUids[i] }],
     }));
 
     const res = await fetch(`${SQUARE_API}/orders`, {
@@ -114,6 +127,7 @@ export async function POST(req: NextRequest) {
           location_id: locationId,
           ticket_name: table,
           line_items: lineItems,
+          taxes,
           state: "OPEN",
         },
         idempotency_key: `order_${table}_${Date.now()}`,

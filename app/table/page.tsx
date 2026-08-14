@@ -306,6 +306,7 @@ export default function TablePage() {
         catalog_object_id: c.catalog_object_id,
         quantity: c.quantity,
         note: c.note || undefined,
+        name: c.name, // 消費税（店内10%/持ち帰り8%・酒類10%）の判定に使う
       }));
 
       let res;
@@ -354,6 +355,7 @@ export default function TablePage() {
         catalog_object_id: c.catalog_object_id,
         quantity: c.quantity,
         note: c.note || undefined,
+        name: c.name, // 消費税（店内10%/持ち帰り8%・酒類10%）の判定に使う
       }));
       const total = cart.reduce((s, c) => s + c.price * c.quantity, 0);
 
@@ -361,7 +363,7 @@ export default function TablePage() {
       const orderRes = await fetch("/api/square/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: orderType, items }),
+        body: JSON.stringify({ table: orderType, orderType, items }),
       });
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || "注文作成失敗");
@@ -435,6 +437,7 @@ export default function TablePage() {
               catalog_object_id: i.catalog_object_id,
               quantity: i.qty,
               note: i.note,
+              name: i.name, // 消費税の判定に使う
             })),
           }),
         });
