@@ -20,9 +20,14 @@ type Order = {
 };
 type CartItem = { catalog_object_id: string; name: string; price: number; quantity: number; note?: string };
 
+// 注文画面に出さないメニュー。
+// ソイラテはSquareのカタログに独立商品として残っているが、
+// 実際はカフェラテのソイオプション(+50円)なので、ここで隠す。
+const HIDDEN_ITEMS = new Set(["ソイラテ"]);
+
 // Hot/Ice 選択可能なメニュー
 const HOT_ICE_ITEMS = new Set([
-  "コーヒー", "アメリカーノ", "カフェラテ", "ソイラテ",
+  "コーヒー", "アメリカーノ", "カフェラテ",
   "抹茶ラテ", "チョコレートミルク", "ドリップコーヒー",
 ]);
 
@@ -128,7 +133,7 @@ export default function TablePage() {
     try {
       const res = await fetch("/api/square/menu");
       const data = await res.json();
-      if (res.ok) setMenu(data.items || []);
+      if (res.ok) setMenu((data.items || []).filter((i: MenuItem) => !HIDDEN_ITEMS.has(i.name)));
     } catch {}
   }, []);
 
