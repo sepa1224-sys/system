@@ -70,6 +70,13 @@ export async function GET(req: NextRequest) {
       created_at: o.created_at,
       version: o.version,
       total: o.total_money?.amount || 0,
+      // 内税の消費税額。税率ごとの区分は taxes に入る（店内10% / 持ち帰り8%）。
+      tax: o.total_tax_money?.amount ?? o.net_amounts?.tax_money?.amount ?? 0,
+      taxes: (o.taxes || []).map((t: any) => ({
+        name: t.name,
+        percentage: t.percentage,
+        type: t.type,
+      })),
       items: (o.line_items || []).map((li: any) => ({
         uid: li.uid,
         name: li.name || "",
@@ -77,6 +84,7 @@ export async function GET(req: NextRequest) {
         amount: li.total_money?.amount || 0,
         catalog_object_id: li.catalog_object_id || "",
         note: li.note || "",
+        tax: li.total_tax_money?.amount ?? 0,
       })),
     }));
 
