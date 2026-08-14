@@ -21,9 +21,9 @@ type Order = {
 type CartItem = { catalog_object_id: string; name: string; price: number; quantity: number; note?: string };
 
 // 注文画面に出さないメニュー。
-// ソイラテはSquareのカタログに独立商品として残っているが、
-// 実際はカフェラテのソイオプション(+50円)なので、ここで隠す。
-const HIDDEN_ITEMS = new Set(["ソイラテ"]);
+// ソイラテ・オーツラテはSquareのカタログに独立商品として残っているが、
+// 実際はカフェラテのミルク変更オプション(+50円)なので、ここで隠す。
+const HIDDEN_ITEMS = new Set(["ソイラテ", "オーツラテ（Ice/Hot）"]);
 
 // Hot/Ice 選択可能なメニュー
 const HOT_ICE_ITEMS = new Set([
@@ -50,7 +50,7 @@ const STOCK_MANAGED = new Set(["ガーデンメルト", "クラシックメル�
 
 // ソイ変更可能なラテ系（+50円）
 const SOY_ITEMS = new Set([
-  "カフェラテ", "抹茶ラテ", "チョコレートミルク", "オーツラテ（Ice/Hot）",
+  "カフェラテ", "抹茶ラテ", "チョコレートミルク",
 ]);
 
 // 座標はキッチンから見た向き（元の配置を左に90度回転した状態）
