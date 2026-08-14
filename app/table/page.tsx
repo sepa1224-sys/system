@@ -48,24 +48,25 @@ const SOY_ITEMS = new Set([
   "カフェラテ", "抹茶ラテ", "チョコレートミルク", "オーツラテ（Ice/Hot）",
 ]);
 
+// 座標はキッチンから見た向き（元の配置を左に90度回転した状態）
 const TABLES = [
-  // A: 壁側テーブル（上段、右から）
-  { id: "A1", label: "A1", area: "A", x: 78, y: 8, w: 16, h: 14 },
-  { id: "A2", label: "A2", area: "A", x: 60, y: 8, w: 16, h: 14 },
-  { id: "A3", label: "A3", area: "A", x: 42, y: 8, w: 16, h: 14 },
-  { id: "A4", label: "A4", area: "A", x: 24, y: 8, w: 16, h: 14 },
+  // A: 壁側テーブル
+  { id: "A1", label: "A1", area: "A", x: 8, y: 6, w: 14, h: 16 },
+  { id: "A2", label: "A2", area: "A", x: 8, y: 24, w: 14, h: 16 },
+  { id: "A3", label: "A3", area: "A", x: 8, y: 42, w: 14, h: 16 },
+  { id: "A4", label: "A4", area: "A", x: 8, y: 60, w: 14, h: 16 },
   // B: 右壁ソファ（右側、上から）
-  { id: "B1", label: "B1", area: "B", x: 80, y: 26, w: 16, h: 12 },
-  { id: "B2", label: "B2", area: "B", x: 80, y: 40, w: 16, h: 12 },
-  { id: "B3", label: "B3", area: "B", x: 80, y: 54, w: 16, h: 12 },
-  { id: "B4", label: "B4", area: "B", x: 80, y: 68, w: 16, h: 12 },
+  { id: "B1", label: "B1", area: "B", x: 26, y: 4, w: 12, h: 16 },
+  { id: "B2", label: "B2", area: "B", x: 40, y: 4, w: 12, h: 16 },
+  { id: "B3", label: "B3", area: "B", x: 54, y: 4, w: 12, h: 16 },
+  { id: "B4", label: "B4", area: "B", x: 68, y: 4, w: 12, h: 16 },
   // C: 中央ソファ
-  { id: "C1", label: "C1", area: "C", x: 55, y: 32, w: 18, h: 12 },
-  { id: "C2", label: "C2", area: "C", x: 55, y: 46, w: 18, h: 12 },
-  { id: "C3", label: "C3", area: "C", x: 55, y: 60, w: 18, h: 12 },
-  { id: "C4", label: "C4", area: "C", x: 55, y: 74, w: 18, h: 12 },
+  { id: "C1", label: "C1", area: "C", x: 32, y: 27, w: 12, h: 18 },
+  { id: "C2", label: "C2", area: "C", x: 46, y: 27, w: 12, h: 18 },
+  { id: "C3", label: "C3", area: "C", x: 60, y: 27, w: 12, h: 18 },
+  { id: "C4", label: "C4", area: "C", x: 74, y: 27, w: 12, h: 18 },
   // T: 畳
-  { id: "T1", label: "T1", area: "T", x: 10, y: 55, w: 30, h: 22 },
+  { id: "T1", label: "T1", area: "T", x: 55, y: 60, w: 22, h: 30 },
 ];
 
 const fmt = (n: number) => `¥${n.toLocaleString()}`;
@@ -749,10 +750,10 @@ export default function TablePage() {
       </button>
 
       {/* フロアマップ */}
-      <div className="card" style={{ padding: 12, position: "relative", aspectRatio: "1.1", overflow: "hidden" }}>
+      <div className="card" style={{ padding: 12, position: "relative", aspectRatio: "0.91", overflow: "hidden" }}>
         {/* キッチン */}
         <div style={{
-          position: "absolute", left: "2%", top: "2%", width: "20%", height: "40%",
+          position: "absolute", left: "2%", top: "78%", width: "40%", height: "20%",
           background: "#f0ede8", borderRadius: 8, display: "flex", alignItems: "center",
           justifyContent: "center", fontSize: 12, color: "var(--muted)", border: "1px dashed var(--line)",
         }}>
@@ -761,15 +762,15 @@ export default function TablePage() {
 
         {/* 入口 */}
         <div style={{
-          position: "absolute", left: "38%", bottom: "1%", fontSize: 11, color: "var(--muted)",
+          position: "absolute", right: "1%", top: "60%", fontSize: 11, color: "var(--muted)",
           textAlign: "center",
         }}>
-          ▲ 入口
+          入口 ▶
         </div>
 
         {/* レジ */}
         <div style={{
-          position: "absolute", left: "5%", bottom: "2%", fontSize: 11, color: "var(--muted)",
+          position: "absolute", right: "2%", bottom: "4%", fontSize: 11, color: "var(--muted)",
         }}>
           💰 レジ
         </div>
