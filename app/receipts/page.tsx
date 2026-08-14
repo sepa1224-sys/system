@@ -31,7 +31,44 @@ const KIND_LABELS: Record<string, string> = {
   cash: "現金",
 };
 
+type BulkIssue = { level: "error" | "warn"; message: string };
+type BulkRow = {
+  id: string; date: string; vendor: string; total: number;
+  expenseKind: string; payer: string; issues: BulkIssue[]; blocked: boolean;
+};
+type BulkResult = {
+  dryRun: boolean;
+  summary: { target: number; ready: number; blocked: number; warned: number; readyAmount: number; registered?: number; failed?: number };
+  checked?: BulkRow[];
+  results?: { id: string; ok: boolean; error?: string }[];
+  blocked?: BulkRow[];
+};
+
 export default function Receipts() {
+  const [bulk, setBulk] = useState<BulkResult | null>(null);
+  const [bulkBusy, setBulkBusy] = useState<"" | "check" | "run">("");
+  const [bulkErr, setBulkErr] = useState("");
+
+  const runBulk = async (dryRun: boolean) => {
+    setBulkBusy(dryRun ? "check" : "run");
+    setBulkErr("");
+    try {
+      const res = await fetch("/api/receipts/register-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "失敗");
+      setBulk(d);
+      if (!dryRun) location.reload();
+    } catch (e) {
+      setBulkErr(e instanceof Error ? e.message : "失敗");
+    } finally {
+      setBulkBusy("");
+    }
+  };
+
   const [receipts, setReceipts] = useState<Receipt[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -277,6 +314,53 @@ export default function Receipts() {
         <p>アップした立替領収書。freeeに登録（借)科目／貸)役員借入金）できます</p>
       </header>
       <Nav />
+
+      {/* 一括登録（先に検証、問題なければ実行） */}
+      <div className="card" style={{ padding: 14 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="rc-toggle" disabled={!!bulkBusy} onClick={() => runBulk(true)}>
+            {bulkBusy === "check" ? "点検中..." : "🔍 未登録をまとめて点検"}
+          </button>
+          {bulk?.dryRun && bulk.summary.ready > 0 && (
+            <button
+              className="pay-btn"
+              disabled={!!bulkBusy}
+              onClick={() => {
+                if (!confirm(`${bulk.summary.ready}件・¥${bulk.summary.readyAmount.toLocaleString()} をfreeeに登録します。よろしいですか？`)) return;
+                runBulk(false);
+              }}
+            >
+              {bulkBusy === "run" ? "登録中..." : `${bulk.summary.ready}件をfreeeに一括登録`}
+            </button>
+          )}
+        </div>
+        {bulkErr && <p className="err">{bulkErr}</p>}
+        {bulk && (
+          <div style={{ marginTop: 10, fontSize: 13 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>
+              対象{bulk.summary.target}件 ／ 登録可 {bulk.summary.ready}件（¥{bulk.summary.readyAmount.toLocaleString()}）
+              ／ 要注意 {bulk.summary.warned}件 ／ 登録不可 {bulk.summary.blocked}件
+              {bulk.summary.registered !== undefined && ` ／ 登録済 ${bulk.summary.registered}件・失敗 ${bulk.summary.failed}件`}
+            </div>
+            {(bulk.checked || []).filter((c) => c.issues.length > 0).map((c) => (
+              <div key={c.id} style={{
+                borderLeft: `3px solid ${c.blocked ? "#c0392b" : "#e0a63c"}`,
+                paddingLeft: 8, marginBottom: 6,
+              }}>
+                <div style={{ fontWeight: 600 }}>
+                  {c.blocked ? "❌" : "⚠️"} {c.date} {c.vendor} ¥{(c.total || 0).toLocaleString()}
+                </div>
+                {c.issues.map((i, n) => (
+                  <div key={n} style={{ color: "var(--muted)", fontSize: 12 }}>・{i.message}</div>
+                ))}
+              </div>
+            ))}
+            {(bulk.results || []).filter((r) => !r.ok).map((r) => (
+              <div key={r.id} style={{ color: "#c0392b", fontSize: 12 }}>❌ {r.id}: {r.error}</div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {msg && <p className="hint" style={{ textAlign: "center" }}>{msg}</p>}
 
