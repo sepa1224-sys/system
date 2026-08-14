@@ -213,7 +213,13 @@ export default function TablePage() {
 
   // カートに追加
   const addToCart = (item: MenuItem, tempNote?: string) => {
-    const v = item.variations[0];
+    // 選んだバリエーション（チョコ/抹茶/Hot/Ice等）に対応する価格・カタログIDを使う。
+    // 以前は常に variations[0] を使っていたため、チョコ・抹茶を選んでも
+    // プレーンの価格(¥400)とIDで登録されていた。
+    // note は "Ice/ソイ" のように連結されることがあるので includes で判定する。
+    const v =
+      (tempNote ? item.variations.find((x) => x.name && tempNote.includes(x.name)) : undefined) ||
+      item.variations[0];
     if (!v) return;
     // バリエーション選択が必要
     if (VARIANT_ITEMS[item.name] && !tempNote) {
