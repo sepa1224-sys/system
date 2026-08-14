@@ -144,6 +144,13 @@ export async function GET(req: NextRequest) {
         hour: createdJST.getHours(),
         total: o.total_money?.amount || 0,
         tax: o.total_tax_money?.amount || 0,
+        // 支払方法。ドロワーを締めるとき現金の合計が要る。
+        // CASH=現金、CARD=カード、OTHER=PayPay等の「その他のお支払い」
+        tenders: (o.tenders || []).map((t: any) => ({
+          type: t.type,
+          amount: t.amount_money?.amount || 0,
+          note: t.note || t.other_details?.source || "",
+        })),
         items: (o.line_items || []).map((li: any) => ({
           name: catalogMap[li.catalog_object_id] || li.name || "不明",
           qty: parseInt(li.quantity) || 1,
@@ -156,6 +163,27 @@ export async function GET(req: NextRequest) {
     const totalSales = orders.reduce((s, o) => s + o.total, 0);
     const totalTax = orders.reduce((s, o) => s + o.tax, 0);
     const orderCount = orders.length;
+
+    // 支払方法別。Squareのドロワー（現金管理）はPOSアプリで打った分しか数えないため、
+    // このアプリから現金決済したぶんは別途ここで突き合わせる必要がある。
+    const byTender: Record<string, { count: number; amount: number }> = {};
+    let untendered = 0;
+    for (const o of orders) {
+      if (!o.tenders.length) {
+        untendered += o.total;
+        continue;
+      }
+      for (const t of o.tenders) {
+        const key =
+          t.type === "CASH" ? "現金"
+          : t.type === "CARD" ? "カード"
+          : t.note || "その他";
+        byTender[key] = byTender[key] || { count: 0, amount: 0 };
+        byTender[key].count += 1;
+        byTender[key].amount += t.amount;
+      }
+    }
+    const cashTotal = byTender["現金"]?.amount || 0;
 
     // 商品別集計
     const productMap: Record<string, { qty: number; amount: number }> = {};
@@ -183,7 +211,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       period: { begin: beginAt, end: endAt },
-      summary: { totalSales, totalTax, orderCount },
+      summary: { totalSales, totalTax, orderCount, cashTotal, untendered },
+      byTender,
       byProduct,
       byHour,
       orders,
