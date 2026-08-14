@@ -57,7 +57,12 @@ export default function KitchenPage() {
     try {
       // 会計済みでも作成から90分は表示する。
       // カウンター/テイクアウトは即会計で閉じるため、OPENだけだとKDSに出ない。
-      const res = await fetch("/api/square/order?since_minutes=90");
+      const [res, doneRes] = await Promise.all([
+        fetch("/api/square/order?since_minutes=90"),
+        // 作り終えた品目はサーバー(KV)に持つ。画面のstateだけだとリロードで復活する。
+        fetch("/api/kds/done").then((r) => r.json()).catch(() => ({ keys: [] })),
+      ]);
+      const doneKeys: Set<string> = new Set(doneRes?.keys || []);
       const data = await res.json();
       if (res.ok) {
         const newOrders: Order[] = data.orders || [];
@@ -70,7 +75,7 @@ export default function KitchenPage() {
           for (const item of o.items) {
             const key = `${o.id}_${item.uid}`;
             newKeys.add(key);
-            if (!prevKeysRef.current.has(key)) {
+            if (!prevKeysRef.current.has(key) && !doneKeys.has(key)) {
               newItems.push({
                 key,
                 orderId: o.id,
@@ -97,8 +102,8 @@ export default function KitchenPage() {
           });
         }
 
-        // 注文から消えたアイテム（キャンセル・削除）をKDSからも除去
-        setInProgress((prev) => prev.filter((i) => newKeys.has(i.key)));
+        // 注文から消えたアイテム（キャンセル・削除）と、サーバー上で完了済みのものを除去
+        setInProgress((prev) => prev.filter((i) => newKeys.has(i.key) && !doneKeys.has(i.key)));
         setDone((prev) => prev.filter((i) => newKeys.has(i.key)));
 
         prevKeysRef.current = newKeys;
@@ -131,6 +136,11 @@ export default function KitchenPage() {
 
   // タップで完了
   const markDone = (key: string) => {
+    fetch("/api/kds/done", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys: [key] }),
+    }).catch(() => {});
     setInProgress((prev) => {
       const item = prev.find((i) => i.key === key);
       if (item) {
@@ -140,8 +150,27 @@ export default function KitchenPage() {
     });
   };
 
+  // 表示中のものを一括で完了にする（古い注文の掃除用）
+  const markAllDone = async () => {
+    const keys = inProgress.map((i) => i.key);
+    if (keys.length === 0) return;
+    if (!confirm(`表示中の${keys.length}件をすべて完了にしますか？`)) return;
+    await fetch("/api/kds/done", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys }),
+    }).catch(() => {});
+    setDone((d) => [...inProgress, ...d]);
+    setInProgress([]);
+  };
+
   // 完了済みからin progressに戻す
   const markUndo = (key: string) => {
+    fetch("/api/kds/done", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys: [key] }),
+    }).catch(() => {});
     setDone((prev) => {
       const item = prev.find((i) => i.key === key);
       if (item) {
@@ -210,6 +239,18 @@ export default function KitchenPage() {
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {inProgress.length > 0 && (
+            <button
+              onClick={markAllDone}
+              style={{
+                padding: "8px 12px", borderRadius: 8, border: "1px solid #555",
+                background: "#2b2b2b", color: "#ddd", fontSize: 13,
+                fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              全部完了
+            </button>
+          )}
           <button
             onClick={() => {
               const next = !soundEnabled;
