@@ -13,6 +13,11 @@ type OrderRow = {
   tax: number;
   items: { name: string; qty: number; amount: number }[];
 };
+type CashClose = {
+  date: string; floatCash: number; cashSales: number; cashOut: number;
+  expected: number; counted: number; diff: number; note?: string; closedAt: string;
+};
+
 type SalesData = {
   summary: {
     totalSales: number; totalTax: number; orderCount: number;
@@ -43,6 +48,30 @@ export default function SalesPage() {
   const [floatCash, setFloatCash] = useState("30000");
   const [countedCash, setCountedCash] = useState("");
   const [cashOut, setCashOut] = useState("0");
+  const [closeNote, setCloseNote] = useState("");
+  const [closes, setCloses] = useState<CashClose[]>([]);
+  const [closing, setClosing] = useState(false);
+  const [closeMsg, setCloseMsg] = useState("");
+
+  const loadCloses = useCallback(async () => {
+    try {
+      const r = await fetch("/api/cash-close");
+      const d = await r.json();
+      setCloses(d.closes || []);
+    } catch { /* 履歴が取れなくても締め自体はできる */ }
+  }, []);
+  useEffect(() => { loadCloses(); }, [loadCloses]);
+
+  // 同じ営業日の締めがあれば入力欄に復元する（締め直し用）
+  useEffect(() => {
+    const hit = closes.find((c) => c.date === date);
+    if (hit) {
+      setFloatCash(String(hit.floatCash));
+      setCashOut(String(hit.cashOut));
+      setCountedCash(String(hit.counted));
+      setCloseNote(hit.note || "");
+    }
+  }, [closes, date]);
   const [tab, setTab] = useState<"summary" | "close" | "products" | "hours" | "orders">(
     "summary"
   );
@@ -270,6 +299,53 @@ export default function SalesPage() {
                     </div>
                   ))}
                 </div>
+
+                <label style={{ marginTop: 12 }}>メモ（差異の理由など）</label>
+                <input value={closeNote} onChange={(e) => setCloseNote(e.target.value)}
+                  placeholder="例：原因不明の過剰" />
+
+                <button
+                  className="primary"
+                  style={{ width: "100%", marginTop: 12 }}
+                  disabled={closing || countedCash === ""}
+                  onClick={async () => {
+                    setClosing(true); setCloseMsg("");
+                    try {
+                      const r = await fetch("/api/cash-close", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          date, floatCash: fl, cashSales: cash, cashOut: out,
+                          counted, note: closeNote,
+                        }),
+                      });
+                      const d = await r.json();
+                      if (!r.ok) throw new Error(d.error || "保存に失敗");
+                      setCloseMsg("✅ 締めを保存しました");
+                      await loadCloses();
+                    } catch (e) {
+                      setCloseMsg(e instanceof Error ? e.message : "保存に失敗");
+                    } finally { setClosing(false); }
+                  }}
+                >
+                  {closing ? "保存中..." : closes.some((c) => c.date === date) ? "この内容で締め直す" : "レジを締める"}
+                </button>
+                {closeMsg && <p className="hint" style={{ textAlign: "center" }}>{closeMsg}</p>}
+
+                {closes.length > 0 && (
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>締めの履歴</div>
+                    {closes.slice(0, 10).map((c) => (
+                      <div key={c.date} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13, borderBottom: "1px solid var(--line)" }}>
+                        <span>{c.date}</span>
+                        <span className="mono">現金¥{fmt(c.cashSales)}</span>
+                        <span className="mono" style={{ color: c.diff === 0 ? "var(--ok)" : "#c0392b", fontWeight: 700 }}>
+                          {c.diff === 0 ? "一致" : `${c.diff > 0 ? "＋" : "−"}¥${fmt(Math.abs(c.diff))}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <p className="hint" style={{ marginTop: 12 }}>
                   ※Squareの「現金管理（ドロワー）」はPOSアプリで打った分しか数えません。
