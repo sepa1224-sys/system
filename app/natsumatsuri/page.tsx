@@ -10,7 +10,16 @@ const LINE_ADD_URL = "https://line.me/R/ti/p/@391wpozk";
 // プラン文字列はサーバー(ALL_PLANS)と一致させること
 const PLAN_HANABI_NOMIHODAI = "🎆 花火＋パーティ（飲み放題）¥4,000";
 const PLAN_HANABI_3 = "🎆 花火＋パーティ（3杯）¥3,000";
-const PLAN_HANABI_ONLY = "🎆 花火のみ ¥1,500";
+const PLAN_HANABI_NONAL = "🎆 花火＋パーティ（ノンアル飲み放題）¥2,500";
+const PLAN_HANABI_ENTRY = "🎆 花火＋パーティ（入場のみ）¥1,500";
+const HANABI_PARTY_PLANS = [
+  PLAN_HANABI_NOMIHODAI,
+  PLAN_HANABI_3,
+  PLAN_HANABI_NONAL,
+  PLAN_HANABI_ENTRY,
+];
+const PLAN_HANABI_ONLY = "🎆 花火のみ ¥1,000";
+const PLAN_CHILL_ONLY = "🌅 サンセットchillのみ（無料）";
 const PARTY_PLANS = [
   "🪩 パーティのみ（飲み放題）¥3,500",
   "🪩 パーティのみ（ほろ酔い3杯）¥2,500",
@@ -205,18 +214,21 @@ export default function Natsumatsuri() {
 
   const evening = chill || hanabi;
   const anySelected = chill || hanabi || party;
-  const bothForShuttle = chill && hanabi;
   const eveningClosed = deadlines.hanabiClosed || (status ? !status.hanabiOpen : false);
 
   // 参加費（プラン）
+  // サンセットchillのみ（花火に行かない）は場所代がかからないので無料。
+  const chillOnly = chill && !hanabi && !party;
   let plan = "";
   let needDrink = false;
-  if (evening && party) {
+  if (chillOnly) {
+    plan = PLAN_CHILL_ONLY;
+  } else if (hanabi && party) {
     needDrink = true;
-    plan = [PLAN_HANABI_NOMIHODAI, PLAN_HANABI_3].includes(drink) ? drink : "";
-  } else if (evening && !party) {
+    plan = HANABI_PARTY_PLANS.includes(drink) ? drink : "";
+  } else if (hanabi && !party) {
     plan = PLAN_HANABI_ONLY;
-  } else if (!evening && party) {
+  } else if (!hanabi && party) {
     needDrink = true;
     plan = PARTY_PLANS.includes(drink) ? drink : "";
   }
@@ -255,11 +267,7 @@ export default function Natsumatsuri() {
   const validateStep = (id: StepId): string => {
     if (id === "events" && !anySelected) return "1つ以上選んでください";
     if (id === "plan" && needDrink && !plan) return "プランを選んでください";
-    if (id === "transport") {
-      if (!transport) return "移動方法を選んでください";
-      if (transport === SHUTTLE && !bothForShuttle)
-        return "送迎はサンセットchillと花火大会の両方に参加する方が対象です🙏";
-    }
+    if (id === "transport" && !transport) return "移動方法を選んでください";
     if (id === "meet" && !chillMeet) return "集合場所を選んでください";
     if (id === "hotsand" && !hotsand) return "どれか選んでください";
     if (id === "contact") {
@@ -437,13 +445,23 @@ export default function Natsumatsuri() {
 
           {step === "plan" && (
             <>
-              {evening && party && (
-                <Radio options={[PLAN_HANABI_NOMIHODAI, PLAN_HANABI_3]} value={drink} onChange={setDrink} />
+              {chillOnly && (
+                <Info>
+                  サンセットchillのみのご参加は <b>無料</b> です🌅<br />
+                  <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                    ※送迎をご希望の場合は、花火大会にもご参加いただきます（次のページで選べます）
+                  </span>
+                </Info>
               )}
-              {evening && !party && (
-                <Info>参加費は <b>¥1,500</b>（サンセットchill・花火大会）です</Info>
+              {hanabi && party && (
+                <Radio options={HANABI_PARTY_PLANS} value={drink} onChange={setDrink} />
               )}
-              {!evening && party && <Radio options={PARTY_PLANS} value={drink} onChange={setDrink} />}
+              {hanabi && !party && (
+                <Info>
+                  参加費は <b>¥1,000</b>（手持ち花火大会{chill ? "・サンセットchill" : ""}）です
+                </Info>
+              )}
+              {!hanabi && party && <Radio options={PARTY_PLANS} value={drink} onChange={setDrink} />}
             </>
           )}
 
@@ -452,12 +470,24 @@ export default function Natsumatsuri() {
               <Radio
                 options={transports}
                 value={transport}
-                onChange={setTransport}
-                disabled={(o) => o === SHUTTLE && (!bothForShuttle || (status ? !status.shuttleOpen : false))}
-                disabledNote={(o) =>
-                  o === SHUTTLE && !bothForShuttle ? "chillと花火の両方参加の方のみ" : "満員御礼🙏"
-                }
+                onChange={(v) => {
+                  setTransport(v);
+                  // 送迎は花火大会まで一緒に動く前提。chillだけ選んでいたら花火も参加にする
+                  if (v === SHUTTLE && chill && !hanabi) setHanabi(true);
+                }}
+                disabled={(o) => o === SHUTTLE && (status ? !status.shuttleOpen : false)}
+                disabledNote={() => "満員御礼🙏"}
               />
+              {transport === SHUTTLE && chill && hanabi && (
+                <div style={{ marginTop: 10 }}>
+                  <Info>
+                    🚌 送迎は花火大会まで一緒に動くので、<b>手持ち花火大会にも参加</b>となります🎆<br />
+                    <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                      サンセットchillだけ参加したい場合は、車・自転車・徒歩でお願いします
+                    </span>
+                  </Info>
+                </div>
+              )}
               <p className="hint" style={{ margin: "8px 0 0" }}>
                 お友達と一緒に参加される場合は乗り合わせにご協力ください🙏
                 パーティで飲む方は、お車をflat.の駐車場に翌日まで置いてOKです
@@ -670,10 +700,14 @@ export default function Natsumatsuri() {
       {/* 料金 */}
       <S title="【参加費】">
         <div style={{ fontSize: 14 }}>
-          <p style={{ margin: "2px 0", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ 花火・chillから参加</p>
+          <p style={{ margin: "2px 0", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ サンセットchillのみ</p>
+          <div className="result-row"><span>サンセットchillのみ</span><span className="mono">無料</span></div>
+          <p style={{ margin: "10px 0 2px", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ 花火大会から参加（chillからでも同額）</p>
           <div className="result-row"><span>花火＋パーティ（飲み放題）</span><span className="mono">¥4,000</span></div>
           <div className="result-row"><span>花火＋パーティ（3杯）</span><span className="mono">¥3,000</span></div>
-          <div className="result-row"><span>花火のみ</span><span className="mono">¥1,500</span></div>
+          <div className="result-row"><span>花火＋パーティ（ノンアル飲み放題）</span><span className="mono">¥2,500</span></div>
+          <div className="result-row"><span>花火＋パーティ（入場のみ）</span><span className="mono">¥1,500</span></div>
+          <div className="result-row"><span>花火のみ</span><span className="mono">¥1,000</span></div>
           <p style={{ margin: "10px 0 2px", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ パーティのみ参加（21:00〜）</p>
           <div className="result-row"><span>飲み放題</span><span className="mono">¥3,500</span></div>
           <div className="result-row"><span>ほろ酔いプラン（3杯）</span><span className="mono">¥2,500</span></div>
@@ -686,9 +720,9 @@ export default function Natsumatsuri() {
       <S title="【🚗 移動・送迎について】">
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
           <li>送迎は事前申込制です（先着16名・このフォームから）</li>
-          <li>送迎の対象は「サンセットchill＋花火大会」の両方に参加する方です</li>
+          <li>送迎は花火大会まで一緒に動くので、サンセットchillから送迎を使う方は花火大会にもご参加いただきます🎆</li>
           <li>お車の方はご自身の車での移動をお願いします。お友達と一緒に参加される場合は、乗り合わせにご協力いただけると助かります🙏</li>
-          <li>車・友達の車で来られる方は、chillか花火の片方だけの参加もOKです</li>
+          <li>車・友達の車・自転車・徒歩の方は、chillか花火の片方だけの参加もOKです（サンセットchillのみなら無料🌅）</li>
           <li>駐車場はflat.にあります</li>
         </ul>
       </S>

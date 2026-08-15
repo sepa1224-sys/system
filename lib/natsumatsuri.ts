@@ -32,8 +32,14 @@ export function partyDeadlinePassed(): boolean {
 export const HANABI_PLANS = [
   "🎆 花火＋パーティ（飲み放題）¥4,000",
   "🎆 花火＋パーティ（3杯）¥3,000",
-  "🎆 花火のみ ¥1,500",
+  "🎆 花火＋パーティ（ノンアル飲み放題）¥2,500",
+  "🎆 花火＋パーティ（入場のみ）¥1,500",
+  "🎆 花火のみ ¥1,000",
 ];
+
+// サンセットchillのみ（花火に行かない）＝ 場所代がかからないので無料。
+// ただし送迎を使う場合は花火大会にも参加してもらう（送迎の都合）。
+export const CHILL_ONLY_PLAN = "🌅 サンセットchillのみ（無料）";
 
 export const PARTY_PLANS = [
   "🪩 パーティのみ（飲み放題）¥3,500",
@@ -42,7 +48,7 @@ export const PARTY_PLANS = [
   "🪩 パーティのみ（入場のみ）¥500",
 ];
 
-export const ALL_PLANS = [...HANABI_PLANS, ...PARTY_PLANS];
+export const ALL_PLANS = [...HANABI_PLANS, ...PARTY_PLANS, CHILL_ONLY_PLAN];
 
 export const SHUTTLE_OPTION = "🚌 送迎を希望する（先着16名・flat. 17:45集合）";
 
