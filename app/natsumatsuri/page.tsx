@@ -30,6 +30,8 @@ const MEET_POINTS = [
   "🎆 彦根市立図書館前に 19:40（花火大会から）",
   "🪩 flat. に 21:00（パーティから）",
 ];
+const LINE_ADD_URL = "https://line.me/R/ti/p/@391wpozk";
+
 const HOTSAND = [
   "予約する：1つ（¥800・当日flat.でお渡し）",
   "予約する：2つ（¥1,600・当日flat.でお渡し）",
@@ -185,9 +187,31 @@ export default function Natsumatsuri() {
         <h1>申込完了！</h1>
         <p style={{ color: "var(--muted)" }}>
           {name} さん、お申し込みありがとうございます！<br />
-          当日お会いできるのを楽しみにしています🏮<br />
-          変更・キャンセルはflat.のLINEまでご連絡ください。
+          当日お会いできるのを楽しみにしています🏮
         </p>
+        <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
+          <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
+            📱 当日の連絡・雨天時のお知らせは公式LINEで行います
+          </p>
+          <a
+            href={LINE_ADD_URL}
+            style={{
+              display: "inline-block",
+              background: "#06C755",
+              color: "#fff",
+              fontWeight: 700,
+              padding: "12px 28px",
+              borderRadius: 999,
+              textDecoration: "none",
+              fontSize: 15,
+            }}
+          >
+            flat. を友だち追加する
+          </a>
+          <p className="hint" style={{ margin: "8px 0 0" }}>
+            変更・キャンセルもLINEでご連絡ください
+          </p>
+        </div>
         <div className="card" style={{ textAlign: "left", marginTop: 24 }}>
           <div className="result-row"><span>プラン</span><span>{plan}</span></div>
           <div className="result-row"><span>集合</span><span style={{ textAlign: "right" }}>{meetPoint}</span></div>
@@ -383,6 +407,27 @@ export default function Natsumatsuri() {
           style={{ width: "100%" }}
         />
       </S>
+
+      <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
+        <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 700 }}>
+          📱 当日の連絡・雨天時のお知らせは公式LINEで行います
+        </p>
+        <a
+          href={LINE_ADD_URL}
+          style={{
+            display: "inline-block",
+            background: "#06C755",
+            color: "#fff",
+            fontWeight: 700,
+            padding: "10px 22px",
+            borderRadius: 999,
+            textDecoration: "none",
+            fontSize: 14,
+          }}
+        >
+          flat. を友だち追加する
+        </a>
+      </div>
 
       <S title="写真掲載の確認 *">
         <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, cursor: "pointer" }}>
