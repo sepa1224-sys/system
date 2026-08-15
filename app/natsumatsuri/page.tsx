@@ -164,7 +164,6 @@ export default function Natsumatsuri() {
   const [chillMeet, setChillMeet] = useState("");
   const [mode, setMode] = useState<TransportMode>("");
   const [carDrink, setCarDrink] = useState(""); // 車の人：お酒を飲むか
-  const [carSeats, setCarSeats] = useState(""); // 車の人：友達を乗せられるか
   const [hotsand, setHotsand] = useState("");
   const [djRequest, setDjRequest] = useState("");
   const [photoOk, setPhotoOk] = useState(false);
@@ -269,7 +268,7 @@ export default function Natsumatsuri() {
     mode === "shuttle"
       ? SHUTTLE
       : mode === "own_car"
-        ? `🚗 自分の車${carDrink ? `（${carDrink}）` : ""}${carSeats === "yes" ? "＋お友達を乗せられます！" : ""}`
+        ? `🚗 自分の車${carDrink ? `（${carDrink}）` : ""}`
         : mode === "friend_car"
           ? "🚘 友達の車に乗せてもらう"
           : mode === "walk"
@@ -282,7 +281,7 @@ export default function Natsumatsuri() {
     const l: StepId[] = ["contact", "events"];
     if (anySelected) {
       l.push("transport");
-      if (mode === "own_car") l.push("car");
+      if (mode === "own_car" && party) l.push("car");
       l.push("plan");
       if (chill && mode !== "shuttle") l.push("meet");
       if (chill) l.push("hotsand");
@@ -296,10 +295,7 @@ export default function Natsumatsuri() {
     if (id === "events" && !anySelected) return "1つ以上選んでください";
     if (id === "plan" && needDrink && !plan) return "プランを選んでください";
     if (id === "transport" && !mode) return "移動方法を選んでください";
-    if (id === "car") {
-      if (party && !carDrink) return "お酒を飲むかどうかを選んでください";
-      if (!carSeats) return "お友達を乗せられるか選んでください";
-    }
+    if (id === "car" && !carDrink) return "お酒を飲むかどうかを選んでください";
     if (id === "meet" && !chillMeet) return "集合場所を選んでください";
     if (id === "hotsand" && !hotsand) return "どれか選んでください";
     if (id === "contact") {
@@ -550,35 +546,20 @@ export default function Natsumatsuri() {
 
           {step === "car" && (
             <>
-              {party && (
-                <>
-                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
-                    パーティでお酒を飲みますか？🍻
-                  </p>
-                  <Radio
-                    options={[
-                      "飲むので、車はflat.の駐車場に翌日まで置いて帰る",
-                      "飲まないので、運転して帰る",
-                    ]}
-                    value={carDrink}
-                    onChange={setCarDrink}
-                  />
-                  <p className="hint" style={{ margin: "6px 0 14px" }}>
-                    flat. の駐車場は翌日まで置いていってOKです🚗
-                    {evening && " ※サンセットchill・花火の時間の運転がある方はノンアルでお願いします"}
-                  </p>
-                </>
-              )}
               <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
-                お友達を乗せてあげられますか？🚘
+                パーティでお酒を飲みますか？🍻
               </p>
               <Radio
-                options={["乗せられます！", "自分たちだけで乗ります"]}
-                value={carSeats}
-                onChange={setCarSeats}
+                options={[
+                  "飲むので、車はflat.の駐車場に翌日まで置いて帰る",
+                  "飲まないので、運転して帰る",
+                ]}
+                value={carDrink}
+                onChange={setCarDrink}
               />
               <p className="hint" style={{ margin: "6px 0 0" }}>
-                乗り合わせにご協力いただけると助かります🙏
+                flat. の駐車場は翌日まで置いていってOKです🚗
+                {evening && " ※サンセットchill・花火の時間に運転される方はノンアルでお願いします"}
               </p>
             </>
           )}
@@ -809,7 +790,7 @@ export default function Natsumatsuri() {
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
           <li>送迎は事前申込制です（先着16名・このフォームから）</li>
           <li>送迎は花火大会まで一緒に動くので、サンセットchillから送迎を使う方は花火大会にもご参加いただきます🎆</li>
-          <li>お車の方はご自身の車での移動をお願いします。お友達と一緒に参加される場合は、乗り合わせにご協力いただけると助かります🙏</li>
+          <li>お車の方はご自身の車での移動をお願いします🚗</li>
           <li>車・友達の車・自転車・徒歩の方は、chillか花火の片方だけの参加もOKです（サンセットchillのみなら無料🌅）</li>
           <li>flat. から花火の会場（金亀公園）までは徒歩で15分ほどかかります🚶</li>
           <li>駐車場はflat.にあります</li>
