@@ -106,6 +106,10 @@ const S = ({ title, children }: { title: string; children: React.ReactNode }) =>
 export default function Natsumatsuri() {
   const [name, setName] = useState("");
   const [lineName, setLineName] = useState("");
+  const [email, setEmail] = useState("");
+  const [contact, setContact] = useState<"" | "line" | "email">("");
+  const [mailSent, setMailSent] = useState(false);
+  const [viaLiff, setViaLiff] = useState(false);
   const [plan, setPlan] = useState("");
   const [meetPoint, setMeetPoint] = useState("");
   const [transport, setTransport] = useState("");
@@ -146,6 +150,8 @@ export default function Natsumatsuri() {
         if (!window.liff!.isLoggedIn()) return;
         const p = await window.liff!.getProfile();
         setLineName((prev) => prev || p.displayName);
+        setContact("line");
+        setViaLiff(true);
       } catch {
         /* LIFF外はスキップ */
       }
@@ -156,7 +162,9 @@ export default function Natsumatsuri() {
   const submit = async () => {
     setErr("");
     if (!name.trim()) return setErr("お名前を入力してください");
-    if (!lineName.trim()) return setErr("LINEの名前を入力してください");
+    if (!contact) return setErr("連絡方法（LINE か メール）を選んでください");
+    if (contact === "email" && !email.trim()) return setErr("メールアドレスを入力してください");
+    if (contact === "line" && !lineName.trim()) return setErr("LINEの名前を入力してください");
     if (!plan) return setErr("参加プランを選んでください");
     if (!meetPoint) return setErr("集合場所を選んでください");
     if (!transport) return setErr("移動方法を選んでください");
@@ -167,10 +175,16 @@ export default function Natsumatsuri() {
       const res = await fetch("/api/natsumatsuri", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, lineName, plan, meetPoint, transport, hotsand, djRequest, photoOk, note }),
+        body: JSON.stringify({
+          name,
+          lineName: contact === "line" ? lineName : "",
+          email: contact === "email" ? email : "",
+          plan, meetPoint, transport, hotsand, djRequest, photoOk, note,
+        }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "申込に失敗しました");
+      setMailSent(!!d.mailSent);
       setDone(true);
       window.scrollTo(0, 0);
     } catch (e) {
@@ -189,9 +203,17 @@ export default function Natsumatsuri() {
           {name} さん、お申し込みありがとうございます！<br />
           当日お会いできるのを楽しみにしています🏮
         </p>
+        {contact === "email" && (
+          <p style={{ fontSize: 13, color: mailSent ? "var(--ok)" : "#c0392b" }}>
+            {mailSent
+              ? "✉️ 申込完了メールをお送りしました（届かない場合は迷惑メールフォルダをご確認ください）"
+              : "⚠️ 確認メールの送信に失敗しましたが、申込は完了しています"}
+          </p>
+        )}
         <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
           <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
-            📱 当日の連絡・雨天時のお知らせは公式LINEで行います
+            📷 写真データの共有・当日の連絡は公式LINEで行います<br />
+            写真がほしい方はLINE登録をお忘れなく！
           </p>
           <a
             href={LINE_ADD_URL}
@@ -361,9 +383,80 @@ export default function Natsumatsuri() {
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" style={{ width: "100%" }} />
       </S>
 
-      <S title="LINEの名前 *">
-        <input value={lineName} onChange={(e) => setLineName(e.target.value)} placeholder="LINEで表示される名前" style={{ width: "100%" }} />
-        <p className="hint" style={{ margin: "6px 0 0" }}>当日の連絡・写真データの共有に使います</p>
+      <S title="連絡方法 *">
+        <p className="hint" style={{ margin: "0 0 8px" }}>
+          当日の連絡のため、LINEかメールのどちらかをお願いします。
+          📷 撮影した写真データの共有は<b>LINEのみ</b>なので、写真がほしい方はLINEがおすすめです！
+        </p>
+        {!viaLiff && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {([
+              ["line", "📱 LINEで申し込む（写真の共有もこちら！）"],
+              ["email", "✉️ メールアドレスで申し込む"],
+            ] as const).map(([k, label]) => (
+              <label
+                key={k}
+                style={{
+                  display: "flex", gap: 8, alignItems: "flex-start",
+                  padding: "10px 12px",
+                  border: `1.5px solid ${contact === k ? "var(--accent)" : "var(--line)"}`,
+                  background: contact === k ? "var(--accent-weak)" : "var(--card)",
+                  borderRadius: 10, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                <input type="radio" checked={contact === k} onChange={() => setContact(k)} style={{ marginTop: 3 }} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {contact === "line" && (
+          <div style={{ marginTop: 10 }}>
+            {!viaLiff && (
+              <div style={{ textAlign: "center", marginBottom: 10 }}>
+                <a
+                  href={LINE_ADD_URL}
+                  style={{
+                    display: "inline-block", background: "#06C755", color: "#fff",
+                    fontWeight: 700, padding: "10px 22px", borderRadius: 999,
+                    textDecoration: "none", fontSize: 14,
+                  }}
+                >
+                  ① flat. を友だち追加する
+                </a>
+                <p className="hint" style={{ margin: "6px 0 0" }}>
+                  追加するとLINEに申込ページが届きます。そちらから申込し直してもいいし、
+                  このままここで続けてもOKです👇
+                </p>
+              </div>
+            )}
+            <input
+              value={lineName}
+              onChange={(e) => setLineName(e.target.value)}
+              placeholder="LINEで表示される名前"
+              style={{ width: "100%" }}
+            />
+            <p className="hint" style={{ margin: "6px 0 0" }}>
+              {viaLiff ? "LINEから取得しました。違う場合は直してください" : "② あなたのLINEの表示名を入力"}
+            </p>
+          </div>
+        )}
+
+        {contact === "email" && (
+          <div style={{ marginTop: 10 }}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@email.com"
+              style={{ width: "100%" }}
+            />
+            <p className="hint" style={{ margin: "6px 0 0" }}>
+              申込完了メールをお送りします
+            </p>
+          </div>
+        )}
       </S>
 
       <S title="参加プラン *">
@@ -410,7 +503,8 @@ export default function Natsumatsuri() {
 
       <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
         <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 700 }}>
-          📱 当日の連絡・雨天時のお知らせは公式LINEで行います
+          📷 写真データの共有・当日の連絡は公式LINEで行います<br />
+          写真がほしい方はLINE登録もお願いします！
         </p>
         <a
           href={LINE_ADD_URL}

@@ -9,6 +9,7 @@ type Entry = {
   id: string;
   name: string;
   lineName: string;
+  email?: string;
   plan: string;
   meetPoint: string;
   transport: string;
@@ -127,7 +128,7 @@ export default function NatsumatsuriKanri() {
           <thead>
             <tr style={{ borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>
               <th style={{ textAlign: "left", padding: 4 }}>名前</th>
-              <th style={{ textAlign: "left", padding: 4 }}>LINE名</th>
+              <th style={{ textAlign: "left", padding: 4 }}>連絡先</th>
               <th style={{ textAlign: "left", padding: 4 }}>プラン</th>
               <th style={{ textAlign: "left", padding: 4 }}>集合</th>
               <th style={{ textAlign: "left", padding: 4 }}>移動</th>
@@ -141,7 +142,10 @@ export default function NatsumatsuriKanri() {
                   {e.name}
                   {e.note && <div style={{ color: "var(--muted)", fontSize: 11 }}>{e.note}</div>}
                 </td>
-                <td style={{ padding: 4 }}>{e.lineName}</td>
+                <td style={{ padding: 4 }}>
+                  {e.lineName && <span>📱 {e.lineName}</span>}
+                  {e.email && <div style={{ fontSize: 11 }}>✉️ {e.email}</div>}
+                </td>
                 <td style={{ padding: 4 }}>{e.plan.replace(/（.*/, "").replace(/¥.*/, "")}</td>
                 <td style={{ padding: 4 }}>{e.meetPoint.slice(0, e.meetPoint.indexOf("（") > 0 ? e.meetPoint.indexOf("（") : undefined)}</td>
                 <td style={{ padding: 4 }}>{e.transport.slice(0, 6)}</td>

@@ -49,7 +49,8 @@ export const SHUTTLE_OPTION = "🚌 送迎を希望する（先着16名・flat. 
 export type NatsumatsuriEntry = {
   id: string;
   name: string; // 本名
-  lineName: string; // LINEの名前（連絡・写真共有用）
+  lineName: string; // LINEの名前（LINE経由の申込。メール申込では空でもよい）
+  email?: string; // メール申込の場合の連絡先。完了メールを送る
   plan: string;
   meetPoint: string;
   transport: string;

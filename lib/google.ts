@@ -3,7 +3,7 @@
 
 const TOKEN_KEY = "google:tokens";
 const SCOPE =
-  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets openid email profile";
+  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/spreadsheets openid email profile";
 
 function env(name: string): string {
   const raw = process.env[name] ?? "";
@@ -188,6 +188,28 @@ export async function gmailSearch(query: string, max = 4): Promise<Mail[]> {
     });
   }
   return mails;
+}
+
+/** 接続中のGmailアカウントからメールを送る（夏祭り申込の確認メール等） */
+export async function gmailSend(to: string, subject: string, body: string): Promise<void> {
+  const token = await getAccessToken();
+  const raw = [
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(body, "utf-8").toString("base64"),
+  ].join("\r\n");
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      raw: Buffer.from(raw, "utf-8").toString("base64url"),
+    }),
+  });
+  if (!res.ok) throw new Error(`Gmail送信失敗(${res.status}): ${(await res.text()).slice(0, 300)}`);
 }
 
 // --- Google Sheets 読み書き ---
