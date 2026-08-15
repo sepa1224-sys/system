@@ -329,6 +329,15 @@ select {
   color: var(--ink);
 }
 
+input[type="radio"],
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
 input:focus,
 select:focus {
   outline: 2px solid var(--accent-weak);
