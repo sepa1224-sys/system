@@ -110,6 +110,7 @@ export default function Natsumatsuri() {
   const [contact, setContact] = useState<"" | "line" | "email">("");
   const [mailSent, setMailSent] = useState(false);
   const [viaLiff, setViaLiff] = useState(false);
+  const [inLine, setInLine] = useState(false); // LINEアプリ内ブラウザ/LIFFで開いているか
   const [plan, setPlan] = useState("");
   const [meetPoint, setMeetPoint] = useState("");
   const [transport, setTransport] = useState("");
@@ -132,6 +133,13 @@ export default function Natsumatsuri() {
   });
 
   useEffect(() => {
+    // LINEアプリ内で開いていれば、LIFFの読み込みを待たずにLINE申込モードにする
+    // （LINEの中で「友だち追加」ボタンを見せると再びLINEに飛ばされてループするため）
+    if (navigator.userAgent.includes("Line/")) {
+      setInLine(true);
+      setContact("line");
+    }
+
     fetch("/api/natsumatsuri")
       .then((r) => r.json())
       .then((d) => {
@@ -388,7 +396,7 @@ export default function Natsumatsuri() {
           当日の連絡のため、LINEかメールのどちらかをお願いします。
           📷 撮影した写真データの共有は<b>LINEのみ</b>なので、写真がほしい方はLINEがおすすめです！
         </p>
-        {!viaLiff && (
+        {!viaLiff && !inLine && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {([
               ["line", "📱 LINEで申し込む（写真の共有もこちら！）"],
@@ -413,7 +421,7 @@ export default function Natsumatsuri() {
 
         {contact === "line" && (
           <div style={{ marginTop: 10 }}>
-            {!viaLiff && (
+            {!viaLiff && !inLine && (
               <div style={{ textAlign: "center", marginBottom: 10 }}>
                 <a
                   href={LINE_ADD_URL}
@@ -438,7 +446,11 @@ export default function Natsumatsuri() {
               style={{ width: "100%" }}
             />
             <p className="hint" style={{ margin: "6px 0 0" }}>
-              {viaLiff ? "LINEから取得しました。違う場合は直してください" : "② あなたのLINEの表示名を入力"}
+              {viaLiff
+                ? "LINEから取得しました。違う場合は直してください"
+                : inLine
+                  ? "あなたのLINEの表示名を入力してください"
+                  : "② あなたのLINEの表示名を入力"}
             </p>
           </div>
         )}
@@ -501,6 +513,7 @@ export default function Natsumatsuri() {
         />
       </S>
 
+      {!inLine && (
       <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
         <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 700 }}>
           📷 写真データの共有・当日の連絡は公式LINEで行います<br />
@@ -522,6 +535,7 @@ export default function Natsumatsuri() {
           flat. を友だち追加する
         </a>
       </div>
+      )}
 
       <S title="写真掲載の確認 *">
         <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, cursor: "pointer" }}>
