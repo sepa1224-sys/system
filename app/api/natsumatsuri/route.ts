@@ -8,6 +8,8 @@ import {
   ALL_PLANS,
   HANABI_PLANS,
   SHUTTLE_OPTION,
+  hanabiDeadlinePassed,
+  partyDeadlinePassed,
   type NatsumatsuriEntry,
 } from "@/lib/natsumatsuri";
 
@@ -19,10 +21,14 @@ export async function GET(req: NextRequest) {
   try {
     const entries = await getEntries();
     const c = counts(entries);
+    const deadlines = {
+      hanabiClosed: hanabiDeadlinePassed(),
+      allClosed: partyDeadlinePassed(),
+    };
     if (req.nextUrl.searchParams.get("list") === "1") {
-      return NextResponse.json({ counts: c, caps: CAPS, entries });
+      return NextResponse.json({ counts: c, caps: CAPS, deadlines, entries });
     }
-    return NextResponse.json({ counts: c, caps: CAPS });
+    return NextResponse.json({ counts: c, caps: CAPS, deadlines });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "取得に失敗" },
@@ -49,6 +55,19 @@ export async function POST(req: NextRequest) {
   if (!b.photoOk) return NextResponse.json({ error: "写真掲載の確認にチェックしてください" }, { status: 400 });
 
   try {
+    // 期限チェック
+    if (partyDeadlinePassed()) {
+      return NextResponse.json(
+        { error: "申込は締め切りました🙏 参加のご相談はflat.のLINEへどうぞ" },
+        { status: 409 },
+      );
+    }
+    if (HANABI_PLANS.includes(b.plan) && hanabiDeadlinePassed()) {
+      return NextResponse.json(
+        { error: "花火から参加の申込は8/18（火）で締め切りました🙏 パーティのみのプランは8/20（木）まで受付中です" },
+        { status: 409 },
+      );
+    }
     // 枠チェック（保存直前にサーバー側で数える）
     const c = counts(await getEntries());
     if (HANABI_PLANS.includes(b.plan) && !c.hanabiOpen) {

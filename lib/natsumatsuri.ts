@@ -14,6 +14,20 @@ async function kv() {
 
 export const CAPS = { shuttle: 16, hanabi: 30 };
 
+// 申込期限（JST）。花火を含むプランは火曜まで、パーティのみは木曜まで。
+export const DEADLINES = {
+  hanabi: "2026-08-19T00:00:00+09:00", // 8/18(火) 23:59まで
+  party: "2026-08-21T00:00:00+09:00", // 8/20(木) 23:59まで
+};
+
+export function hanabiDeadlinePassed(): boolean {
+  return Date.now() >= new Date(DEADLINES.hanabi).getTime();
+}
+
+export function partyDeadlinePassed(): boolean {
+  return Date.now() >= new Date(DEADLINES.party).getTime();
+}
+
 // 花火大会に参加するプラン（30人枠の対象）
 export const HANABI_PLANS = [
   "🎆 花火＋パーティ（飲み放題）¥4,000",

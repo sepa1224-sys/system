@@ -120,11 +120,18 @@ export default function Natsumatsuri() {
     shuttle: number;
     hanabi: number;
   } | null>(null);
+  const [deadlines, setDeadlines] = useState<{ hanabiClosed: boolean; allClosed: boolean }>({
+    hanabiClosed: false,
+    allClosed: false,
+  });
 
   useEffect(() => {
     fetch("/api/natsumatsuri")
       .then((r) => r.json())
-      .then((d) => d.counts && setStatus(d.counts))
+      .then((d) => {
+        if (d.counts) setStatus(d.counts);
+        if (d.deadlines) setDeadlines(d.deadlines);
+      })
       .catch(() => {});
 
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID_NATSUMATSURI;
@@ -267,11 +274,29 @@ export default function Natsumatsuri() {
       </S>
 
       {/* ==== 申込フォーム ==== */}
+      {deadlines.allClosed ? (
+        <div className="card" style={{ textAlign: "center", padding: 28 }}>
+          <div style={{ fontSize: 40 }}>🙏</div>
+          <h2 style={{ margin: "4px 0" }}>申込は締め切りました</h2>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>
+            参加のご相談はflat.のLINEへメッセージをどうぞ。
+          </p>
+        </div>
+      ) : (
+      <>
       <div style={{ textAlign: "center", margin: "28px 0 12px" }}>
         <h2 style={{ margin: 0 }}>📝 参加申込</h2>
+        <p className="hint" style={{ marginTop: 4 }}>
+          申込期限：花火から参加は 8/18（火）／パーティのみは 8/20（木）まで
+        </p>
         {status && (
-          <p className="hint" style={{ marginTop: 4 }}>
+          <p className="hint" style={{ marginTop: 2 }}>
             花火大会 残り{Math.max(0, 30 - status.hanabi)}名 ／ 送迎 残り{Math.max(0, 16 - status.shuttle)}席
+          </p>
+        )}
+        {deadlines.hanabiClosed && (
+          <p className="hint" style={{ marginTop: 2, color: "#c0392b" }}>
+            花火から参加の申込は締め切りました。パーティのみのプランは受付中です！
           </p>
         )}
       </div>
@@ -290,7 +315,10 @@ export default function Natsumatsuri() {
           options={[...HANABI_PLANS, ...PARTY_PLANS]}
           value={plan}
           onChange={setPlan}
-          disabled={(o) => (status ? HANABI_PLANS.includes(o) && !status.hanabiOpen : false)}
+          disabled={(o) =>
+            HANABI_PLANS.includes(o) &&
+            (deadlines.hanabiClosed || (status ? !status.hanabiOpen : false))
+          }
         />
       </S>
 
@@ -342,6 +370,8 @@ export default function Natsumatsuri() {
           {busy ? "送信中..." : "🎆 申し込む"}
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }
