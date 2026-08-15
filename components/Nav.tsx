@@ -24,6 +24,7 @@ export default function Nav() {
     { href: "/table", label: "🛎️ 注文" },
     { href: "/kitchen", label: "🍳 KDS" },
     { href: "/accounting", label: "📊 経営" },
+    { href: "/bunseki", label: "🔍 分析" },
     { href: "/sales", label: "📈 売上" },
     { href: "/soudan", label: "💬 相談" },
   ];
