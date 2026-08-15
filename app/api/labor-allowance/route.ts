@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getReceipts } from "@/lib/receipts";
 import { isGoogleConnected, sheetsGet } from "@/lib/google";
+import { getKintai, toRows } from "@/lib/kintai";
 import {
   computeHours,
   HOURLY_RATE,
@@ -13,11 +14,15 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function GET() {
-  if (!(await isGoogleConnected())) {
-    return NextResponse.json({ connected: false });
-  }
   try {
-    const rows = await sheetsGet(KINTAI_SHEET_ID, KINTAI_RANGE);
+    // 勤怠はKV（/kintai）が正。KVが空のときだけ旧Googleシートを読む（移行前の保険）。
+    let rows: (string | number)[][] = [];
+    const kintai = await getKintai();
+    if (kintai.length > 0) {
+      rows = toRows(kintai);
+    } else if (await isGoogleConnected()) {
+      rows = await sheetsGet(KINTAI_SHEET_ID, KINTAI_RANGE);
+    }
     const hours = computeHours(rows);
 
     const receipts = await getReceipts();

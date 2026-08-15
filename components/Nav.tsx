@@ -15,6 +15,7 @@ export default function Nav() {
     { href: "/payables", label: "💰 払うもの" },
     { href: "/bills", label: "🔁 定期請求" },
     { href: "/labor", label: "🕒 労働枠" },
+    { href: "/kintai", label: "⏰ 勤怠" },
     { href: "/report", label: "📊 用途別" },
     { href: "/zeirishi", label: "🧑‍💼 税理士" },
     { href: "/menu", label: "🍽️ メニュー" },
