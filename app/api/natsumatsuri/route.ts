@@ -104,7 +104,11 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-    if (HANABI_PLANS.includes(b.plan) && hanabiDeadlinePassed()) {
+    const joinsEvening =
+      (b.events && b.events.length
+        ? b.events.includes("hanabi") || b.events.includes("chill")
+        : HANABI_PLANS.includes(b.plan));
+    if (joinsEvening && hanabiDeadlinePassed()) {
       return NextResponse.json(
         { error: "花火から参加の申込は8/18（火）で締め切りました🙏 パーティのみのプランは8/20（木）まで受付中です" },
         { status: 409 },
@@ -112,7 +116,9 @@ export async function POST(req: NextRequest) {
     }
     // 枠チェック（保存直前にサーバー側で数える）
     const c = counts(await getEntries());
-    if (HANABI_PLANS.includes(b.plan) && !c.hanabiOpen) {
+    const joinsHanabiEvent =
+      b.events && b.events.length ? b.events.includes("hanabi") : HANABI_PLANS.includes(b.plan);
+    if (joinsHanabiEvent && !c.hanabiOpen) {
       return NextResponse.json(
         { error: "ごめんなさい、花火大会が定員に達しました🙏 パーティのみのプランでのご参加をご検討ください" },
         { status: 409 },
@@ -131,6 +137,7 @@ export async function POST(req: NextRequest) {
       lineName,
       email,
       lineUserId: (b.lineUserId || "").trim(),
+      events: b.events || [],
       plan: b.plan,
       meetPoint: b.meetPoint,
       transport: b.transport,

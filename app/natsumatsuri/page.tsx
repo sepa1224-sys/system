@@ -3,41 +3,35 @@
 import { useState, useEffect } from "react";
 
 // 夏祭り2026の案内＋申込ページ（お客さん向け・LIFF対応）。
-// 内部ツールのNavは付けない。LINEで開くとLINE名が自動で入る。
+// 最初にイベント詳細と料金を見せて「申し込みへ進む」→ 1問ずつ進むウィザード形式。
 
-const HANABI_PLANS = [
-  "🎆 花火＋パーティ（飲み放題）¥4,000",
-  "🎆 花火＋パーティ（3杯）¥3,000",
-  "🎆 花火のみ ¥1,500",
-];
+const LINE_ADD_URL = "https://line.me/R/ti/p/@391wpozk";
+
+// プラン文字列はサーバー(ALL_PLANS)と一致させること
+const PLAN_HANABI_NOMIHODAI = "🎆 花火＋パーティ（飲み放題）¥4,000";
+const PLAN_HANABI_3 = "🎆 花火＋パーティ（3杯）¥3,000";
+const PLAN_HANABI_ONLY = "🎆 花火のみ ¥1,500";
 const PARTY_PLANS = [
   "🪩 パーティのみ（飲み放題）¥3,500",
   "🪩 パーティのみ（ほろ酔い3杯）¥2,500",
   "🪩 パーティのみ（ノンアル飲み放題）¥2,000",
   "🪩 パーティのみ（入場のみ）¥500",
 ];
+
 const SHUTTLE = "🚌 送迎を希望する（先着16名・flat. 17:45集合）";
-const TRANSPORTS = [
-  SHUTTLE,
-  "🚗 自分の車で移動する（パーティではお酒を飲まない）",
-  "🚗 自分の車で移動する（飲むので車は翌日まで置いて帰る）",
-  "🚗 自分の車で移動する＋お友達を乗せられます！",
-  "🚶 自転車・徒歩・現地集合（送迎不要）",
-];
-const MEET_POINTS = [
-  "🌅 flat. に 17:45（サンセットchillから・送迎の方）",
-  "🌅 松原水泳場に 18:20（サンセットchillから・現地集合）",
-  "🎆 彦根市立図書館前に 19:40（花火大会から）",
-  "🪩 flat. に 21:00（パーティから）",
-];
-const LINE_ADD_URL = "https://line.me/R/ti/p/@391wpozk";
+const MEET_FLAT_1745 = "🌅 flat. に 17:45（サンセットchillから・送迎の方）";
+const MEET_MATSUBARA = "🌅 松原水泳場に 18:20（サンセットchillから・現地集合）";
+const MEET_LIBRARY = "🎆 彦根市立図書館前に 19:40（花火大会から）";
+const MEET_FLAT_2100 = "🪩 flat. に 21:00（パーティから）";
 
 const HOTSAND = [
   "予約する：1つ（¥800・当日flat.でお渡し）",
   "予約する：2つ（¥1,600・当日flat.でお渡し）",
   "いらない（食べてくる・持ってくる）",
-  "パーティのみ参加なので不要",
 ];
+const HOTSAND_NONE = "いらない（食べてくる・持ってくる）";
+
+type StepId = "events" | "plan" | "transport" | "meet" | "hotsand" | "dj" | "contact" | "confirm";
 
 declare global {
   interface Window {
@@ -55,11 +49,13 @@ function Radio({
   value,
   onChange,
   disabled,
+  disabledNote,
 }: {
   options: string[];
   value: string;
   onChange: (v: string) => void;
   disabled?: (o: string) => boolean;
+  disabledNote?: (o: string) => string;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -72,7 +68,7 @@ function Radio({
               display: "flex",
               gap: 8,
               alignItems: "flex-start",
-              padding: "10px 12px",
+              padding: "12px",
               border: `1.5px solid ${value === o ? "var(--accent)" : "var(--line)"}`,
               background: value === o ? "var(--accent-weak)" : "var(--card)",
               borderRadius: 10,
@@ -88,7 +84,10 @@ function Radio({
               onChange={() => onChange(o)}
               style={{ marginTop: 3 }}
             />
-            <span>{o}{off ? "（満員御礼🙏）" : ""}</span>
+            <span>
+              {o}
+              {off ? `（${disabledNote?.(o) || "受付終了"}）` : ""}
+            </span>
           </label>
         );
       })}
@@ -103,17 +102,56 @@ const S = ({ title, children }: { title: string; children: React.ReactNode }) =>
   </div>
 );
 
+const Info = ({ children }: { children: React.ReactNode }) => (
+  <div
+    style={{
+      padding: "12px",
+      background: "var(--accent-weak)",
+      borderRadius: 10,
+      fontSize: 14,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const LineButton = ({ label }: { label: string }) => (
+  <a
+    href={LINE_ADD_URL}
+    style={{
+      display: "inline-block",
+      background: "#06C755",
+      color: "#fff",
+      fontWeight: 700,
+      padding: "10px 22px",
+      borderRadius: 999,
+      textDecoration: "none",
+      fontSize: 14,
+    }}
+  >
+    {label}
+  </a>
+);
+
 export default function Natsumatsuri() {
+  const [phase, setPhase] = useState<"info" | "form" | "done">("info");
+  const [step, setStep] = useState<StepId>("events");
+
   const [name, setName] = useState("");
   const [lineName, setLineName] = useState("");
   const [email, setEmail] = useState("");
   const [contact, setContact] = useState<"" | "line" | "email">("");
   const [mailSent, setMailSent] = useState(false);
   const [viaLiff, setViaLiff] = useState(false);
-  const [inLine, setInLine] = useState(false); // LINEアプリ内ブラウザ/LIFFで開いているか
+  const [inLine, setInLine] = useState(false);
   const [lineUserId, setLineUserId] = useState("");
-  const [plan, setPlan] = useState("");
-  const [meetPoint, setMeetPoint] = useState("");
+
+  const [chill, setChill] = useState(false);
+  const [hanabi, setHanabi] = useState(false);
+  const [party, setParty] = useState(false);
+
+  const [drink, setDrink] = useState("");
+  const [chillMeet, setChillMeet] = useState("");
   const [transport, setTransport] = useState("");
   const [hotsand, setHotsand] = useState("");
   const [djRequest, setDjRequest] = useState("");
@@ -121,7 +159,6 @@ export default function Natsumatsuri() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState(false);
   const [status, setStatus] = useState<{
     shuttleOpen: boolean;
     hanabiOpen: boolean;
@@ -134,13 +171,10 @@ export default function Natsumatsuri() {
   });
 
   useEffect(() => {
-    // LINEアプリ内で開いていれば、LIFFの読み込みを待たずにLINE申込モードにする
-    // （LINEの中で「友だち追加」ボタンを見せると再びLINEに飛ばされてループするため）
     if (navigator.userAgent.includes("Line/")) {
       setInLine(true);
       setContact("line");
     }
-
     fetch("/api/natsumatsuri")
       .then((r) => r.json())
       .then((d) => {
@@ -169,19 +203,108 @@ export default function Natsumatsuri() {
     document.head.appendChild(s);
   }, []);
 
-  const submit = async () => {
+  const evening = chill || hanabi;
+  const anySelected = chill || hanabi || party;
+  const bothForShuttle = chill && hanabi;
+  const eveningClosed = deadlines.hanabiClosed || (status ? !status.hanabiOpen : false);
+
+  // 参加費（プラン）
+  let plan = "";
+  let needDrink = false;
+  if (evening && party) {
+    needDrink = true;
+    plan = [PLAN_HANABI_NOMIHODAI, PLAN_HANABI_3].includes(drink) ? drink : "";
+  } else if (evening && !party) {
+    plan = PLAN_HANABI_ONLY;
+  } else if (!evening && party) {
+    needDrink = true;
+    plan = PARTY_PLANS.includes(drink) ? drink : "";
+  }
+
+  // 集合場所
+  let meetPoint = "";
+  if (transport === SHUTTLE) meetPoint = MEET_FLAT_1745;
+  else if (chill) meetPoint = chillMeet;
+  else if (hanabi) meetPoint = MEET_LIBRARY;
+  else if (party) meetPoint = MEET_FLAT_2100;
+
+  const effectiveHotsand = chill ? hotsand : HOTSAND_NONE;
+
+  const transports = [
+    ...(evening ? [SHUTTLE] : []),
+    "🚗 自分の車で移動する（お酒は飲まない）",
+    "🚗 自分の車で移動する（飲むので車は翌日まで置いて帰る）",
+    "🚗 自分の車で移動する＋お友達を乗せられます！",
+    "🚘 友達の車に乗せてもらう",
+    "🚶 自転車・徒歩など（車なし）",
+  ];
+
+  // ウィザードの順番（選択内容でスキップが変わる）
+  const stepList = (): StepId[] => {
+    const l: StepId[] = ["events"];
+    if (anySelected) {
+      l.push("plan", "transport");
+      if (chill && transport !== SHUTTLE) l.push("meet");
+      if (chill) l.push("hotsand");
+      if (party) l.push("dj");
+    }
+    l.push("contact", "confirm");
+    return l;
+  };
+
+  const validateStep = (id: StepId): string => {
+    if (id === "events" && !anySelected) return "1つ以上選んでください";
+    if (id === "plan" && needDrink && !plan) return "プランを選んでください";
+    if (id === "transport") {
+      if (!transport) return "移動方法を選んでください";
+      if (transport === SHUTTLE && !bothForShuttle)
+        return "送迎はサンセットchillと花火大会の両方に参加する方が対象です🙏";
+    }
+    if (id === "meet" && !chillMeet) return "集合場所を選んでください";
+    if (id === "hotsand" && !hotsand) return "どれか選んでください";
+    if (id === "contact") {
+      if (!name.trim()) return "お名前を入力してください";
+      if (!contact) return "連絡方法（LINE か メール）を選んでください";
+      if (contact === "email" && !email.trim()) return "メールアドレスを入力してください";
+      if (contact === "line" && !lineName.trim()) return "LINEの名前を入力してください";
+    }
+    return "";
+  };
+
+  const list = stepList();
+  const idx = list.indexOf(step);
+
+  const next = () => {
+    const v = validateStep(step);
+    if (v) { setErr(v); return; }
     setErr("");
-    if (!name.trim()) return setErr("お名前を入力してください");
-    if (!contact) return setErr("連絡方法（LINE か メール）を選んでください");
-    if (contact === "email" && !email.trim()) return setErr("メールアドレスを入力してください");
-    if (contact === "line" && !lineName.trim()) return setErr("LINEの名前を入力してください");
-    if (!plan) return setErr("参加プランを選んでください");
-    if (!meetPoint) return setErr("集合場所を選んでください");
-    if (!transport) return setErr("移動方法を選んでください");
-    if (!hotsand) return setErr("ホットサンドの項目を選んでください");
-    if (!photoOk) return setErr("写真掲載の確認にチェックをお願いします");
+    const l = stepList();
+    const i = l.indexOf(step);
+    if (i < l.length - 1) {
+      setStep(l[i + 1]);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const back = () => {
+    setErr("");
+    const l = stepList();
+    const i = l.indexOf(step);
+    if (i <= 0) setPhase("info");
+    else setStep(l[i - 1]);
+    window.scrollTo(0, 0);
+  };
+
+  const submit = async () => {
+    if (!photoOk) { setErr("写真掲載の確認にチェックをお願いします"); return; }
+    setErr("");
     setBusy(true);
     try {
+      const events = [
+        ...(chill ? ["chill"] : []),
+        ...(hanabi ? ["hanabi"] : []),
+        ...(party ? ["party"] : []),
+      ];
       const res = await fetch("/api/natsumatsuri", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,13 +313,20 @@ export default function Natsumatsuri() {
           lineName: contact === "line" ? lineName : "",
           email: contact === "email" ? email : "",
           lineUserId: contact === "line" ? lineUserId : "",
-          plan, meetPoint, transport, hotsand, djRequest, photoOk, note,
+          plan,
+          meetPoint,
+          transport,
+          hotsand: effectiveHotsand,
+          djRequest: party ? djRequest : "",
+          photoOk,
+          note,
+          events,
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "申込に失敗しました");
       setMailSent(!!d.mailSent);
-      setDone(true);
+      setPhase("done");
       window.scrollTo(0, 0);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "申込に失敗しました");
@@ -205,7 +335,8 @@ export default function Natsumatsuri() {
     }
   };
 
-  if (done) {
+  /* ============ 完了画面 ============ */
+  if (phase === "done") {
     return (
       <div className="wrap" style={{ textAlign: "center", paddingTop: 60 }}>
         <div style={{ fontSize: 56 }}>🎆</div>
@@ -221,43 +352,256 @@ export default function Natsumatsuri() {
               : "⚠️ 確認メールの送信に失敗しましたが、申込は完了しています"}
           </p>
         )}
-        <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
-          <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
-            📷 写真データの共有・当日の連絡は公式LINEで行います<br />
-            写真がほしい方はLINE登録をお忘れなく！
-          </p>
-          <a
-            href={LINE_ADD_URL}
-            style={{
-              display: "inline-block",
-              background: "#06C755",
-              color: "#fff",
-              fontWeight: 700,
-              padding: "12px 28px",
-              borderRadius: 999,
-              textDecoration: "none",
-              fontSize: 15,
-            }}
-          >
-            flat. を友だち追加する
-          </a>
-          <p className="hint" style={{ margin: "8px 0 0" }}>
-            変更・キャンセルもLINEでご連絡ください
-          </p>
-        </div>
         <div className="card" style={{ textAlign: "left", marginTop: 24 }}>
-          <div className="result-row"><span>プラン</span><span>{plan}</span></div>
+          <div className="result-row"><span>参加費</span><span>{plan}</span></div>
           <div className="result-row"><span>集合</span><span style={{ textAlign: "right" }}>{meetPoint}</span></div>
           <div className="result-row"><span>移動</span><span style={{ textAlign: "right" }}>{transport}</span></div>
-          <div className="result-row"><span>ホットサンド</span><span style={{ textAlign: "right" }}>{hotsand}</span></div>
+          <div className="result-row"><span>ホットサンド</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>
+        </div>
+        {!inLine && (
+          <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
+              📷 写真データの共有・当日の連絡は公式LINEで行います<br />
+              写真がほしい方はLINE登録をお忘れなく！
+            </p>
+            <LineButton label="flat. を友だち追加する" />
+            <p className="hint" style={{ margin: "8px 0 0" }}>変更・キャンセルもLINEでご連絡ください</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ============ 申込ウィザード ============ */
+  if (phase === "form") {
+    const titles: Record<StepId, string> = {
+      events: "どれに参加する？（あてはまるもの全部）",
+      plan: "参加費",
+      transport: "🚗 移動について",
+      meet: "集合場所",
+      hotsand: "🍞 ホットサンドのテイクアウト予約",
+      dj: "🎧 DJへのリクエスト曲（任意）",
+      contact: "お名前と連絡方法",
+      confirm: "最終確認",
+    };
+    return (
+      <div className="wrap">
+        <div style={{ textAlign: "center", padding: "14px 0 4px" }}>
+          <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>🎆 夏祭り2026 参加申込</h1>
+          <p className="hint" style={{ margin: 0 }}>
+            {idx + 1} / {list.length}
+          </p>
+          <div style={{ background: "var(--line)", borderRadius: 4, height: 6, margin: "8px 24px 16px", overflow: "hidden" }}>
+            <div style={{ width: `${((idx + 1) / list.length) * 100}%`, height: "100%", background: "var(--accent)", transition: "width .25s" }} />
+          </div>
+        </div>
+
+        <S title={titles[step]}>
+          {step === "events" && (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {([
+                  [chill, setChill, "🌅 サンセットchill", "18:30〜 @松原水泳場"],
+                  [hanabi, setHanabi, "🎆 手持ち花火大会", "19:50〜 @金亀公園"],
+                  [party, setParty, "🪩 盆踊りパーティー", "21:00〜24:00 @flat.（DJ🎧）"],
+                ] as const).map(([val, set, label, time], i) => {
+                  const off = i < 2 && eveningClosed;
+                  return (
+                    <label
+                      key={label}
+                      style={{
+                        display: "flex", gap: 10, alignItems: "center", padding: "14px 12px",
+                        border: `1.5px solid ${val ? "var(--accent)" : "var(--line)"}`,
+                        background: val ? "var(--accent-weak)" : "var(--card)",
+                        borderRadius: 10, fontSize: 15,
+                        opacity: off ? 0.45 : 1, cursor: off ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      <input type="checkbox" checked={val} disabled={off} onChange={(e) => set(e.target.checked)} />
+                      <span style={{ fontWeight: 700 }}>
+                        {label}
+                        <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 12, marginLeft: 8 }}>
+                          {time}{off ? "（受付終了）" : ""}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="hint" style={{ margin: "8px 0 0" }}>
+                🚌 送迎を使いたい方は「サンセットchill」と「花火大会」の両方にチェック
+                （車・友達の車の方は片方だけでもOK）
+              </p>
+            </>
+          )}
+
+          {step === "plan" && (
+            <>
+              {evening && party && (
+                <Radio options={[PLAN_HANABI_NOMIHODAI, PLAN_HANABI_3]} value={drink} onChange={setDrink} />
+              )}
+              {evening && !party && (
+                <Info>参加費は <b>¥1,500</b>（サンセットchill・花火大会）です</Info>
+              )}
+              {!evening && party && <Radio options={PARTY_PLANS} value={drink} onChange={setDrink} />}
+            </>
+          )}
+
+          {step === "transport" && (
+            <>
+              <Radio
+                options={transports}
+                value={transport}
+                onChange={setTransport}
+                disabled={(o) => o === SHUTTLE && (!bothForShuttle || (status ? !status.shuttleOpen : false))}
+                disabledNote={(o) =>
+                  o === SHUTTLE && !bothForShuttle ? "chillと花火の両方参加の方のみ" : "満員御礼🙏"
+                }
+              />
+              <p className="hint" style={{ margin: "8px 0 0" }}>
+                お友達と一緒に参加される場合は乗り合わせにご協力ください🙏
+                パーティで飲む方は、お車をflat.の駐車場に翌日まで置いてOKです
+              </p>
+            </>
+          )}
+
+          {step === "meet" && (
+            <Radio options={[MEET_FLAT_1745, MEET_MATSUBARA]} value={chillMeet} onChange={setChillMeet} />
+          )}
+
+          {step === "hotsand" && (
+            <>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                chillから参加すると夜ごはんの時間が取れません。食べてくるか、持ってくるか、ホットサンドをどうぞ！
+              </p>
+              <Radio options={HOTSAND} value={hotsand} onChange={setHotsand} />
+            </>
+          )}
+
+          {step === "dj" && (
+            <textarea
+              value={djRequest}
+              onChange={(e) => setDjRequest(e.target.value)}
+              rows={4}
+              placeholder="聞きたい夏の曲、DJに渡します！曲名とアーティスト名をどうぞ（何曲でもOK・空欄でもOK）"
+              style={{ width: "100%" }}
+            />
+          )}
+
+          {step === "contact" && (
+            <>
+              <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 4px" }}>お名前</p>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" style={{ width: "100%" }} />
+
+              <p style={{ fontWeight: 600, fontSize: 14, margin: "14px 0 4px" }}>連絡方法</p>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                📷 撮影した写真データの共有は<b>LINEのみ</b>。写真がほしい方はLINEがおすすめ！
+              </p>
+              {!viaLiff && !inLine && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {([
+                    ["line", "📱 LINEで申し込む（写真の共有もこちら！）"],
+                    ["email", "✉️ メールアドレスで申し込む"],
+                  ] as const).map(([k, label]) => (
+                    <label
+                      key={k}
+                      style={{
+                        display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 12px",
+                        border: `1.5px solid ${contact === k ? "var(--accent)" : "var(--line)"}`,
+                        background: contact === k ? "var(--accent-weak)" : "var(--card)",
+                        borderRadius: 10, fontSize: 14, cursor: "pointer",
+                      }}
+                    >
+                      <input type="radio" checked={contact === k} onChange={() => setContact(k)} style={{ marginTop: 3 }} />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {contact === "line" && (
+                <div style={{ marginTop: 10 }}>
+                  {!viaLiff && !inLine && (
+                    <div style={{ textAlign: "center", marginBottom: 10 }}>
+                      <LineButton label="① flat. を友だち追加する" />
+                      <p className="hint" style={{ margin: "6px 0 0" }}>
+                        追加するとLINEに申込ページが届きます。このままここで続けてもOK👇
+                      </p>
+                    </div>
+                  )}
+                  <input
+                    value={lineName}
+                    onChange={(e) => setLineName(e.target.value)}
+                    placeholder="LINEで表示される名前"
+                    style={{ width: "100%" }}
+                  />
+                  <p className="hint" style={{ margin: "6px 0 0" }}>
+                    {viaLiff ? "LINEから取得しました。違う場合は直してください" : "あなたのLINEの表示名を入力"}
+                  </p>
+                </div>
+              )}
+              {contact === "email" && (
+                <div style={{ marginTop: 10 }}>
+                  <input
+                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="example@email.com" style={{ width: "100%" }}
+                  />
+                  <p className="hint" style={{ margin: "6px 0 0" }}>申込完了メールをお送りします</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === "confirm" && (
+            <>
+              <div style={{ fontSize: 14 }}>
+                <div className="result-row"><span>お名前</span><span>{name}</span></div>
+                <div className="result-row">
+                  <span>連絡</span>
+                  <span>{contact === "line" ? `📱 ${lineName}` : `✉️ ${email}`}</span>
+                </div>
+                <div className="result-row">
+                  <span>参加</span>
+                  <span>{[chill && "🌅chill", hanabi && "🎆花火", party && "🪩パーティ"].filter(Boolean).join(" / ")}</span>
+                </div>
+                <div className="result-row"><span>参加費</span><span>{plan}</span></div>
+                <div className="result-row"><span>移動</span><span style={{ textAlign: "right" }}>{transport}</span></div>
+                <div className="result-row"><span>集合</span><span style={{ textAlign: "right" }}>{meetPoint}</span></div>
+                {chill && <div className="result-row"><span>🍞</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>}
+                {party && djRequest && <div className="result-row"><span>🎧</span><span style={{ textAlign: "right" }}>{djRequest}</span></div>}
+              </div>
+
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, cursor: "pointer", marginTop: 14 }}>
+                <input type="checkbox" checked={photoOk} onChange={(e) => setPhotoOk(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>イベント中の顔が映った写真をflat.のSNSに掲載してOKです（参加条件です）</span>
+              </label>
+
+              <p style={{ fontWeight: 600, fontSize: 13, margin: "12px 0 4px" }}>その他・質問（任意）</p>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} style={{ width: "100%" }} />
+            </>
+          )}
+        </S>
+
+        {err && <p className="err" style={{ textAlign: "center" }}>{err}</p>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", margin: "16px 0 40px" }}>
+          <button className="ghost" onClick={back} disabled={busy}>← 戻る</button>
+          {step === "confirm" ? (
+            <button className="primary" onClick={submit} disabled={busy} style={{ fontSize: 16, padding: "12px 36px" }}>
+              {busy ? "送信中..." : "🎆 申し込む"}
+            </button>
+          ) : (
+            <button className="primary" onClick={next} style={{ fontSize: 16, padding: "12px 36px" }}>
+              次へ →
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
+  /* ============ イベント詳細（最初の画面） ============ */
   return (
     <div className="wrap">
-      {/* ヘッダー */}
       <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
         <div style={{ fontSize: 44 }}>🎆🏮</div>
         <h1 style={{ fontSize: 26, margin: "4px 0" }}>flat. 夏祭り2026</h1>
@@ -286,11 +630,8 @@ export default function Natsumatsuri() {
           <div
             key={title}
             style={{
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-              padding: "10px 4px",
-              borderBottom: "1px solid var(--line)",
+              display: "flex", gap: 12, alignItems: "center",
+              padding: "10px 4px", borderBottom: "1px solid var(--line)",
             }}
           >
             <span style={{ fontSize: 30 }}>{emoji}</span>
@@ -321,8 +662,23 @@ export default function Natsumatsuri() {
           21:00　flat. にて盆踊りパーティー（〜24:00）<br />
           21:15　乾杯🍻<br />
           <span style={{ color: "var(--muted)" }}>
-            DJも入ります🎧 リクエスト曲はこのフォームで募集中！何曲でもOK！出入り自由！
+            DJも入ります🎧 リクエスト曲は申込フォームで募集中！何曲でもOK！出入り自由！
           </span>
+        </div>
+      </S>
+
+      {/* 料金 */}
+      <S title="【参加費】">
+        <div style={{ fontSize: 14 }}>
+          <p style={{ margin: "2px 0", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ 花火・chillから参加</p>
+          <div className="result-row"><span>花火＋パーティ（飲み放題）</span><span className="mono">¥4,000</span></div>
+          <div className="result-row"><span>花火＋パーティ（3杯）</span><span className="mono">¥3,000</span></div>
+          <div className="result-row"><span>花火のみ</span><span className="mono">¥1,500</span></div>
+          <p style={{ margin: "10px 0 2px", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>◆ パーティのみ参加（21:00〜）</p>
+          <div className="result-row"><span>飲み放題</span><span className="mono">¥3,500</span></div>
+          <div className="result-row"><span>ほろ酔いプラン（3杯）</span><span className="mono">¥2,500</span></div>
+          <div className="result-row"><span>ノンアル飲み放題</span><span className="mono">¥2,000</span></div>
+          <div className="result-row"><span>入場のみ</span><span className="mono">¥500</span></div>
         </div>
       </S>
 
@@ -330,9 +686,9 @@ export default function Natsumatsuri() {
       <S title="【🚗 移動・送迎について】">
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
           <li>送迎は事前申込制です（先着16名・このフォームから）</li>
-          <li>送迎の対象は「サンセットchill＋花火大会」に参加する方です</li>
+          <li>送迎の対象は「サンセットchill＋花火大会」の両方に参加する方です</li>
           <li>お車の方はご自身の車での移動をお願いします。お友達と一緒に参加される場合は、乗り合わせにご協力いただけると助かります🙏</li>
-          <li>サンセットchillのみ参加（花火に来ない）の方は送迎ができません。車・自転車・徒歩でのご移動をお願いします</li>
+          <li>車・友達の車で来られる方は、chillか花火の片方だけの参加もOKです</li>
           <li>駐車場はflat.にあります</li>
         </ul>
       </S>
@@ -344,7 +700,7 @@ export default function Natsumatsuri() {
         </p>
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
           <li>集合前に食べてくる</li>
-          <li>flat. のホットサンドをテイクアウト（1つ¥800・このフォームで予約）</li>
+          <li>flat. のホットサンドをテイクアウト（1つ¥800・申込フォームで予約）</li>
           <li>サンセットchill中に食べられるものを持ってくる</li>
         </ul>
       </S>
@@ -353,6 +709,7 @@ export default function Natsumatsuri() {
       <S title="【詳細】">
         <div style={{ fontSize: 13.5, lineHeight: 1.9 }}>
           <b>定員</b>：Sunset chill 定員なし（送迎は先着16名）／花火大会 30人（先着順）／パーティ 定員なし ※混み合ってきたら締め切ります<br />
+          <b>申込期限</b>：花火・chillから参加は 8/18（火）／パーティのみは 8/20（木）まで<br />
           <b>雨天時</b>：大雨の場合、サンセットchill・花火大会は中止です。その場合はそのままflat.で別企画をやります、お楽しみに🎉<br />
           <b>参加条件</b>：flat. のSNSに顔が映った写真を掲載してもOKな方<br />
           <b>ドレスコード</b>：浴衣／甚平（必須ではありません！私服でもOK）👘<br />
@@ -362,203 +719,29 @@ export default function Natsumatsuri() {
         </div>
       </S>
 
-      {/* ==== 申込フォーム ==== */}
+      {/* 申込へ */}
       {deadlines.allClosed ? (
         <div className="card" style={{ textAlign: "center", padding: 28 }}>
           <div style={{ fontSize: 40 }}>🙏</div>
           <h2 style={{ margin: "4px 0" }}>申込は締め切りました</h2>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>
-            参加のご相談はflat.のLINEへメッセージをどうぞ。
-          </p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>参加のご相談はflat.のLINEへどうぞ。</p>
         </div>
       ) : (
-      <>
-      <div style={{ textAlign: "center", margin: "28px 0 12px" }}>
-        <h2 style={{ margin: 0 }}>📝 参加申込</h2>
-        <p className="hint" style={{ marginTop: 4 }}>
-          申込期限：花火から参加は 8/18（火）／パーティのみは 8/20（木）まで
-        </p>
-        {status && (
-          <p className="hint" style={{ marginTop: 2 }}>
-            花火大会 残り{Math.max(0, 30 - status.hanabi)}名 ／ 送迎 残り{Math.max(0, 16 - status.shuttle)}席
-          </p>
-        )}
-        {deadlines.hanabiClosed && (
-          <p className="hint" style={{ marginTop: 2, color: "#c0392b" }}>
-            花火から参加の申込は締め切りました。パーティのみのプランは受付中です！
-          </p>
-        )}
-      </div>
-
-      <S title="お名前 *">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" style={{ width: "100%" }} />
-      </S>
-
-      <S title="連絡方法 *">
-        <p className="hint" style={{ margin: "0 0 8px" }}>
-          当日の連絡のため、LINEかメールのどちらかをお願いします。
-          📷 撮影した写真データの共有は<b>LINEのみ</b>なので、写真がほしい方はLINEがおすすめです！
-        </p>
-        {!viaLiff && !inLine && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {([
-              ["line", "📱 LINEで申し込む（写真の共有もこちら！）"],
-              ["email", "✉️ メールアドレスで申し込む"],
-            ] as const).map(([k, label]) => (
-              <label
-                key={k}
-                style={{
-                  display: "flex", gap: 8, alignItems: "flex-start",
-                  padding: "10px 12px",
-                  border: `1.5px solid ${contact === k ? "var(--accent)" : "var(--line)"}`,
-                  background: contact === k ? "var(--accent-weak)" : "var(--card)",
-                  borderRadius: 10, fontSize: 14, cursor: "pointer",
-                }}
-              >
-                <input type="radio" checked={contact === k} onChange={() => setContact(k)} style={{ marginTop: 3 }} />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        {contact === "line" && (
-          <div style={{ marginTop: 10 }}>
-            {!viaLiff && !inLine && (
-              <div style={{ textAlign: "center", marginBottom: 10 }}>
-                <a
-                  href={LINE_ADD_URL}
-                  style={{
-                    display: "inline-block", background: "#06C755", color: "#fff",
-                    fontWeight: 700, padding: "10px 22px", borderRadius: 999,
-                    textDecoration: "none", fontSize: 14,
-                  }}
-                >
-                  ① flat. を友だち追加する
-                </a>
-                <p className="hint" style={{ margin: "6px 0 0" }}>
-                  追加するとLINEに申込ページが届きます。そちらから申込し直してもいいし、
-                  このままここで続けてもOKです👇
-                </p>
-              </div>
-            )}
-            <input
-              value={lineName}
-              onChange={(e) => setLineName(e.target.value)}
-              placeholder="LINEで表示される名前"
-              style={{ width: "100%" }}
-            />
-            <p className="hint" style={{ margin: "6px 0 0" }}>
-              {viaLiff
-                ? "LINEから取得しました。違う場合は直してください"
-                : inLine
-                  ? "あなたのLINEの表示名を入力してください"
-                  : "② あなたのLINEの表示名を入力"}
+        <div style={{ textAlign: "center", margin: "24px 0 40px" }}>
+          {status && (
+            <p className="hint" style={{ marginBottom: 8 }}>
+              花火大会 残り{Math.max(0, 30 - status.hanabi)}名 ／ 送迎 残り{Math.max(0, 16 - status.shuttle)}席<br />
+              申込期限：花火・chillから参加は 8/18（火）／パーティのみは 8/20（木）
             </p>
-          </div>
-        )}
-
-        {contact === "email" && (
-          <div style={{ marginTop: 10 }}>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@email.com"
-              style={{ width: "100%" }}
-            />
-            <p className="hint" style={{ margin: "6px 0 0" }}>
-              申込完了メールをお送りします
-            </p>
-          </div>
-        )}
-      </S>
-
-      <S title="参加プラン *">
-        <Radio
-          options={[...HANABI_PLANS, ...PARTY_PLANS]}
-          value={plan}
-          onChange={setPlan}
-          disabled={(o) =>
-            HANABI_PLANS.includes(o) &&
-            (deadlines.hanabiClosed || (status ? !status.hanabiOpen : false))
-          }
-        />
-      </S>
-
-      <S title="集合場所 *">
-        <Radio options={MEET_POINTS} value={meetPoint} onChange={setMeetPoint} />
-      </S>
-
-      <S title="🚗 移動について *">
-        <Radio
-          options={TRANSPORTS}
-          value={transport}
-          onChange={setTransport}
-          disabled={(o) => (status ? o === SHUTTLE && !status.shuttleOpen : false)}
-        />
-        <p className="hint" style={{ margin: "6px 0 0" }}>
-          お友達と一緒に参加される場合は、乗り合わせにご協力いただけると助かります🙏
-        </p>
-      </S>
-
-      <S title="🍞 ホットサンドのテイクアウト予約 *">
-        <Radio options={HOTSAND} value={hotsand} onChange={setHotsand} />
-      </S>
-
-      <S title="🎧 DJへのリクエスト曲（任意）">
-        <textarea
-          value={djRequest}
-          onChange={(e) => setDjRequest(e.target.value)}
-          rows={3}
-          placeholder="聞きたい夏の曲、DJに渡します！曲名とアーティスト名をどうぞ（何曲でもOK）"
-          style={{ width: "100%" }}
-        />
-      </S>
-
-      {!inLine && (
-      <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
-        <p style={{ margin: "0 0 8px", fontSize: 13.5, fontWeight: 700 }}>
-          📷 写真データの共有・当日の連絡は公式LINEで行います<br />
-          写真がほしい方はLINE登録もお願いします！
-        </p>
-        <a
-          href={LINE_ADD_URL}
-          style={{
-            display: "inline-block",
-            background: "#06C755",
-            color: "#fff",
-            fontWeight: 700,
-            padding: "10px 22px",
-            borderRadius: 999,
-            textDecoration: "none",
-            fontSize: 14,
-          }}
-        >
-          flat. を友だち追加する
-        </a>
-      </div>
-      )}
-
-      <S title="写真掲載の確認 *">
-        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, cursor: "pointer" }}>
-          <input type="checkbox" checked={photoOk} onChange={(e) => setPhotoOk(e.target.checked)} style={{ marginTop: 3 }} />
-          <span>イベント中の顔が映った写真をflat.のSNSに掲載してOKです（参加条件です）</span>
-        </label>
-      </S>
-
-      <S title="その他・質問（任意）">
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} style={{ width: "100%" }} />
-      </S>
-
-      {err && <p className="err" style={{ textAlign: "center" }}>{err}</p>}
-
-      <div style={{ textAlign: "center", margin: "16px 0 40px" }}>
-        <button className="primary" onClick={submit} disabled={busy} style={{ fontSize: 17, padding: "14px 42px" }}>
-          {busy ? "送信中..." : "🎆 申し込む"}
-        </button>
-      </div>
-      </>
+          )}
+          <button
+            className="primary"
+            onClick={() => { setPhase("form"); setStep("events"); window.scrollTo(0, 0); }}
+            style={{ fontSize: 18, padding: "16px 48px" }}
+          >
+            📝 申し込みへ進む
+          </button>
+        </div>
       )}
     </div>
   );

@@ -52,6 +52,7 @@ export type NatsumatsuriEntry = {
   lineName: string; // LINEの名前（LINE経由の申込。メール申込では空でもよい）
   email?: string; // メール申込の場合の連絡先。完了メールを送る
   lineUserId?: string; // LIFF経由の申込で取得。botからの個別連絡に使える
+  events?: string[]; // 参加するもの: chill / hanabi / party
   plan: string;
   meetPoint: string;
   transport: string;
@@ -84,10 +85,18 @@ export async function deleteEntry(id: string): Promise<void> {
   await store.set(KEY, list.filter((e) => e.id !== id));
 }
 
+/** 花火大会(30人枠)に参加する申込か。eventsがあればそれを、無ければプラン名で判定 */
+export function joinsHanabi(e: NatsumatsuriEntry): boolean {
+  if (e.events && e.events.length) return e.events.includes("hanabi");
+  return HANABI_PLANS.includes(e.plan);
+}
+
 export function counts(entries: NatsumatsuriEntry[]) {
   const shuttle = entries.filter((e) => e.transport === SHUTTLE_OPTION).length;
-  const hanabi = entries.filter((e) => HANABI_PLANS.includes(e.plan)).length;
-  const party = entries.filter((e) => e.plan.includes("パーティ")).length;
+  const hanabi = entries.filter(joinsHanabi).length;
+  const party = entries.filter((e) =>
+    e.events && e.events.length ? e.events.includes("party") : e.plan.includes("パーティ"),
+  ).length;
   const hotsand = entries.reduce(
     (s, e) => s + (e.hotsand.includes("2つ") ? 2 : e.hotsand.includes("1つ") ? 1 : 0),
     0,
