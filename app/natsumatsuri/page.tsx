@@ -45,7 +45,7 @@ declare global {
       init: (c: { liffId: string }) => Promise<void>;
       isLoggedIn: () => boolean;
       login: () => void;
-      getProfile: () => Promise<{ displayName: string }>;
+      getProfile: () => Promise<{ displayName: string; userId: string }>;
     };
   }
 }
@@ -111,6 +111,7 @@ export default function Natsumatsuri() {
   const [mailSent, setMailSent] = useState(false);
   const [viaLiff, setViaLiff] = useState(false);
   const [inLine, setInLine] = useState(false); // LINEアプリ内ブラウザ/LIFFで開いているか
+  const [lineUserId, setLineUserId] = useState("");
   const [plan, setPlan] = useState("");
   const [meetPoint, setMeetPoint] = useState("");
   const [transport, setTransport] = useState("");
@@ -158,6 +159,7 @@ export default function Natsumatsuri() {
         if (!window.liff!.isLoggedIn()) return;
         const p = await window.liff!.getProfile();
         setLineName((prev) => prev || p.displayName);
+        setLineUserId(p.userId || "");
         setContact("line");
         setViaLiff(true);
       } catch {
@@ -187,6 +189,7 @@ export default function Natsumatsuri() {
           name,
           lineName: contact === "line" ? lineName : "",
           email: contact === "email" ? email : "",
+          lineUserId: contact === "line" ? lineUserId : "",
           plan, meetPoint, transport, hotsand, djRequest, photoOk, note,
         }),
       });

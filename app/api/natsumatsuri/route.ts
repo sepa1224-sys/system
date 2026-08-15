@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
       name: b.name.trim(),
       lineName,
       email,
+      lineUserId: (b.lineUserId || "").trim(),
       plan: b.plan,
       meetPoint: b.meetPoint,
       transport: b.transport,

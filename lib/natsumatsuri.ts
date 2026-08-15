@@ -51,6 +51,7 @@ export type NatsumatsuriEntry = {
   name: string; // 本名
   lineName: string; // LINEの名前（LINE経由の申込。メール申込では空でもよい）
   email?: string; // メール申込の場合の連絡先。完了メールを送る
+  lineUserId?: string; // LIFF経由の申込で取得。botからの個別連絡に使える
   plan: string;
   meetPoint: string;
   transport: string;
