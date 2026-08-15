@@ -443,7 +443,7 @@ export default function Natsumatsuri() {
                 {([
                   [chill, setChill, "🌅 サンセットchill", "18:30〜 @松原水泳場"],
                   [hanabi, setHanabi, "🎆 手持ち花火大会", "19:50〜 @金亀公園"],
-                  [party, setParty, "🪩 盆踊りパーティー", "21:00〜24:00 @flat.（DJ🎧）"],
+                  [party, setParty, "🪩 盆踊りパーティー", "21:00〜24:00 @flat.（踊らない人も大歓迎🍻）"],
                 ] as const).map(([val, set, label, time], i) => {
                   const locked = false;
                   const off = i < 2 && eveningClosed;
@@ -730,7 +730,7 @@ export default function Natsumatsuri() {
         {[
           ["🌅", "サンセットchill", "琵琶湖の夕日を眺めてチル＆写真撮影", "@松原水泳場"],
           ["🎆", "手持ち花火大会", "彦根城のふもとで夏の思い出づくり", "@金亀公園"],
-          ["🪩", "盆踊りパーティー", "DJ入りで24時まで踊り明かす", "@flat."],
+          ["🪩", "盆踊りパーティー", "DJ入り！踊らない人も大歓迎、みんなでワイワイ🍻", "@flat."],
         ].map(([emoji, title, desc, place]) => (
           <div
             key={title}
@@ -767,7 +767,8 @@ export default function Natsumatsuri() {
           21:00　flat. にて盆踊りパーティー（〜24:00）<br />
           21:15　乾杯🍻<br />
           <span style={{ color: "var(--muted)" }}>
-            DJも入ります🎧 リクエスト曲は申込フォームで募集中！何曲でもOK！出入り自由！
+            DJも入ります🎧 リクエスト曲は申込フォームで募集中！何曲でもOK！出入り自由！<br />
+            踊らない人も大歓迎です！みんなでワイワイしましょう🍻
           </span>
         </div>
       </S>
