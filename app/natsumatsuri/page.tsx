@@ -40,7 +40,8 @@ const HOTSAND = [
 ];
 const HOTSAND_NONE = "いらない（食べてくる・持ってくる）";
 
-type StepId = "events" | "plan" | "transport" | "meet" | "hotsand" | "dj" | "contact" | "confirm";
+type StepId = "contact" | "events" | "transport" | "car" | "plan" | "meet" | "hotsand" | "dj" | "confirm";
+type TransportMode = "" | "shuttle" | "own_car" | "friend_car" | "walk";
 
 declare global {
   interface Window {
@@ -161,7 +162,9 @@ export default function Natsumatsuri() {
 
   const [drink, setDrink] = useState("");
   const [chillMeet, setChillMeet] = useState("");
-  const [transport, setTransport] = useState("");
+  const [mode, setMode] = useState<TransportMode>("");
+  const [carDrink, setCarDrink] = useState(""); // 車の人：お酒を飲むか
+  const [carSeats, setCarSeats] = useState(""); // 車の人：友達を乗せられるか
   const [hotsand, setHotsand] = useState("");
   const [djRequest, setDjRequest] = useState("");
   const [photoOk, setPhotoOk] = useState(false);
@@ -235,29 +238,53 @@ export default function Natsumatsuri() {
 
   // 集合場所
   let meetPoint = "";
-  if (transport === SHUTTLE) meetPoint = MEET_FLAT_1745;
+  if (mode === "shuttle") meetPoint = MEET_FLAT_1745;
   else if (chill) meetPoint = chillMeet;
   else if (hanabi) meetPoint = MEET_LIBRARY;
   else if (party) meetPoint = MEET_FLAT_2100;
 
   const effectiveHotsand = chill ? hotsand : HOTSAND_NONE;
 
-  const transports = [
-    SHUTTLE,
-    "🚗 自分の車で移動する（お酒は飲まない）",
-    "🚗 自分の車で移動する（飲むので車は翌日まで置いて帰る）",
-    "🚗 自分の車で移動する＋お友達を乗せられます！",
-    "🚘 友達の車に乗せてもらう",
-    "🚶 自転車・徒歩など（車なし）",
+  // 移動手段の選択肢。パーティのみの人には送迎は出さない（移動が発生しないため）
+  const modeOptions: { key: TransportMode; label: string; off?: boolean; note?: string }[] = [
+    ...(evening
+      ? [
+          {
+            key: "shuttle" as TransportMode,
+            label: "🚌 送迎してほしい（flat. 17:45集合・先着16名）",
+            off: !hanabi || (status ? !status.shuttleOpen : false),
+            note: !hanabi
+              ? "花火大会に参加する方のみ（前の画面で🎆にチェック）"
+              : "満員御礼🙏",
+          },
+        ]
+      : []),
+    { key: "own_car", label: "🚗 自分の車で行く" },
+    { key: "friend_car", label: "🚘 友達の車に乗せてもらう" },
+    { key: "walk", label: "🚶 自転車・徒歩・電車など" },
   ];
 
+  // 保存用の移動手段テキスト
+  const transport =
+    mode === "shuttle"
+      ? SHUTTLE
+      : mode === "own_car"
+        ? `🚗 自分の車${carDrink ? `（${carDrink}）` : ""}${carSeats === "yes" ? "＋お友達を乗せられます！" : ""}`
+        : mode === "friend_car"
+          ? "🚘 友達の車に乗せてもらう"
+          : mode === "walk"
+            ? "🚶 自転車・徒歩・電車など"
+            : "";
+
   // ウィザードの順番（選択内容でスキップが変わる）
-  // 名前・連絡方法 → 移動手段（送迎の有無で参加できるものが変わる）→ 参加するもの…の順
+  // 名前 → 参加するもの → 移動手段 →（車なら詳細）→ 参加費 → …
   const stepList = (): StepId[] => {
-    const l: StepId[] = ["contact", "transport", "events"];
+    const l: StepId[] = ["contact", "events"];
     if (anySelected) {
+      l.push("transport");
+      if (mode === "own_car") l.push("car");
       l.push("plan");
-      if (chill && transport !== SHUTTLE) l.push("meet");
+      if (chill && mode !== "shuttle") l.push("meet");
       if (chill) l.push("hotsand");
       if (party) l.push("dj");
     }
@@ -268,7 +295,11 @@ export default function Natsumatsuri() {
   const validateStep = (id: StepId): string => {
     if (id === "events" && !anySelected) return "1つ以上選んでください";
     if (id === "plan" && needDrink && !plan) return "プランを選んでください";
-    if (id === "transport" && !transport) return "移動方法を選んでください";
+    if (id === "transport" && !mode) return "移動方法を選んでください";
+    if (id === "car") {
+      if (party && !carDrink) return "お酒を飲むかどうかを選んでください";
+      if (!carSeats) return "お友達を乗せられるか選んでください";
+    }
     if (id === "meet" && !chillMeet) return "集合場所を選んでください";
     if (id === "hotsand" && !hotsand) return "どれか選んでください";
     if (id === "contact") {
@@ -287,11 +318,8 @@ export default function Natsumatsuri() {
     const v = validateStep(step);
     if (v) { setErr(v); return; }
     setErr("");
-    // 送迎は花火大会まで一緒に動く前提なので、chill+花火を参加扱いにする
-    if (step === "transport" && transport === SHUTTLE) {
-      setChill(true);
-      setHanabi(true);
-    }
+    // 送迎はflat.→松原→金亀公園と一緒に動くので、サンセットchillも参加になる
+    if (step === "transport" && mode === "shuttle" && !chill) setChill(true);
     const l = stepList();
     const i = l.indexOf(step);
     if (i < l.length - 1) {
@@ -392,6 +420,7 @@ export default function Natsumatsuri() {
       events: "どれに参加する？（あてはまるもの全部）",
       plan: "参加費",
       transport: "🚗 当日の移動はどうしますか？",
+      car: "🚗 お車について",
       meet: "集合場所",
       hotsand: "🍞 ホットサンドのテイクアウト予約",
       dj: "🎧 DJへのリクエスト曲（任意）",
@@ -419,9 +448,8 @@ export default function Natsumatsuri() {
                   [hanabi, setHanabi, "🎆 手持ち花火大会", "19:50〜 @金亀公園"],
                   [party, setParty, "🪩 盆踊りパーティー", "21:00〜24:00 @flat.（DJ🎧）"],
                 ] as const).map(([val, set, label, time], i) => {
-                  // 送迎の方は chill+花火 が確定（外せない）
-                  const locked = transport === SHUTTLE && i < 2;
-                  const off = (i < 2 && eveningClosed) || locked;
+                  const locked = false;
+                  const off = i < 2 && eveningClosed;
                   return (
                     <label
                       key={label}
@@ -446,9 +474,9 @@ export default function Natsumatsuri() {
                 })}
               </div>
               <p className="hint" style={{ margin: "8px 0 0" }}>
-                {transport === SHUTTLE
-                  ? "🚌 送迎をご希望のため、サンセットchillと花火大会は参加で確定しています。盆踊りパーティーは自由に選べます🪩"
-                  : "🌅 サンセットchillのみのご参加は無料です。パーティだけ、花火だけの参加もOK！"}
+                🌅 サンセットchillのみのご参加は無料です。パーティだけ、花火だけの参加もOK！<br />
+                🚌 送迎をご希望の方は「手持ち花火大会」にもチェックをお願いします
+                （送迎は花火の会場まで一緒に動くため）
               </p>
             </>
           )}
@@ -481,27 +509,76 @@ export default function Natsumatsuri() {
                 会場は flat.（パーティ）・松原水泳場（chill）・金亀公園（花火）に分かれています。
                 <b>flat. から花火の会場までは徒歩で15分ほど</b>かかります🚶
               </p>
-              <Radio
-                options={transports}
-                value={transport}
-                onChange={setTransport}
-                disabled={(o) => o === SHUTTLE && (status ? !status.shuttleOpen : false)}
-                disabledNote={() => "満員御礼🙏"}
-              />
-              {transport === SHUTTLE && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {modeOptions.map((m) => (
+                  <label
+                    key={m.key}
+                    style={{
+                      display: "flex", gap: 8, alignItems: "flex-start", padding: "12px",
+                      border: `1.5px solid ${mode === m.key ? "var(--accent)" : "var(--line)"}`,
+                      background: mode === m.key ? "var(--accent-weak)" : "var(--card)",
+                      borderRadius: 10, fontSize: 14,
+                      opacity: m.off ? 0.45 : 1, cursor: m.off ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio" checked={mode === m.key} disabled={m.off}
+                      onChange={() => setMode(m.key)} style={{ marginTop: 3 }}
+                    />
+                    <span>
+                      {m.label}
+                      {m.off && <span style={{ fontSize: 12 }}>（{m.note}）</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {mode === "shuttle" && (
                 <div style={{ marginTop: 10 }}>
                   <Info>
                     🚌 送迎は flat. 17:45集合 → 松原水泳場 → 金亀公園 → flat. と一緒に動きます。
-                    そのため<b>サンセットchillと手持ち花火大会の両方に参加</b>となります🌅🎆<br />
-                    <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                      片方だけ参加したい場合は、車・自転車・徒歩を選んでください
-                    </span>
+                    そのため<b>サンセットchillにも参加</b>となります🌅
                   </Info>
                 </div>
               )}
-              <p className="hint" style={{ margin: "8px 0 0" }}>
-                お友達と一緒に参加される場合は乗り合わせにご協力ください🙏
-                パーティで飲む方は、お車をflat.の駐車場に翌日まで置いてOKです
+              {!evening && (
+                <p className="hint" style={{ margin: "8px 0 0" }}>
+                  パーティのみのご参加なので、送迎はありません（flat. に直接お越しください）
+                </p>
+              )}
+            </>
+          )}
+
+          {step === "car" && (
+            <>
+              {party && (
+                <>
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
+                    パーティでお酒を飲みますか？🍻
+                  </p>
+                  <Radio
+                    options={[
+                      "飲むので、車はflat.の駐車場に翌日まで置いて帰る",
+                      "飲まないので、運転して帰る",
+                    ]}
+                    value={carDrink}
+                    onChange={setCarDrink}
+                  />
+                  <p className="hint" style={{ margin: "6px 0 14px" }}>
+                    flat. の駐車場は翌日まで置いていってOKです🚗
+                    {evening && " ※サンセットchill・花火の時間の運転がある方はノンアルでお願いします"}
+                  </p>
+                </>
+              )}
+              <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
+                お友達を乗せてあげられますか？🚘
+              </p>
+              <Radio
+                options={["乗せられます！", "自分たちだけで乗ります"]}
+                value={carSeats}
+                onChange={setCarSeats}
+              />
+              <p className="hint" style={{ margin: "6px 0 0" }}>
+                乗り合わせにご協力いただけると助かります🙏
               </p>
             </>
           )}
