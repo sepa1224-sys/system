@@ -35,7 +35,7 @@ declare global {
       init: (c: { liffId: string }) => Promise<void>;
       isLoggedIn: () => boolean;
       login: () => void;
-      getProfile: () => Promise<{ displayName: string }>;
+      getProfile: () => Promise<{ displayName: string; userId: string }>;
     };
   }
 }
