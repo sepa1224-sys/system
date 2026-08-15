@@ -144,7 +144,7 @@ const LineButton = ({ label }: { label: string }) => (
 
 export default function Natsumatsuri() {
   const [phase, setPhase] = useState<"info" | "form" | "done">("info");
-  const [step, setStep] = useState<StepId>("events");
+  const [step, setStep] = useState<StepId>("contact");
 
   const [name, setName] = useState("");
   const [lineName, setLineName] = useState("");
@@ -782,7 +782,7 @@ export default function Natsumatsuri() {
           )}
           <button
             className="primary"
-            onClick={() => { setPhase("form"); setStep("events"); window.scrollTo(0, 0); }}
+            onClick={() => { setPhase("form"); setStep("contact"); window.scrollTo(0, 0); }}
             style={{ fontSize: 18, padding: "16px 48px" }}
           >
             📝 申し込みへ進む
