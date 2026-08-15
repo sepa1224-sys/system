@@ -251,10 +251,13 @@ export default function Natsumatsuri() {
           {
             key: "shuttle" as TransportMode,
             label: "🚌 送迎してほしい（flat. 17:45集合・先着16名）",
-            off: !hanabi || (status ? !status.shuttleOpen : false),
+            // 送迎は flat.→松原水泳場→金亀公園→flat. と一緒に動くので、chill＋花火の両方参加が条件
+            off: !(chill && hanabi) || (status ? !status.shuttleOpen : false),
             note: !hanabi
-              ? "花火大会に参加する方のみ（前の画面で🎆にチェック）"
-              : "満員御礼🙏",
+              ? "🎆手持ち花火大会にも参加する方のみ（前の画面でチェック）"
+              : !chill
+                ? "🌅サンセットchillにも参加する方のみ（前の画面でチェック）"
+                : "満員御礼🙏",
           },
         ]
       : []),
@@ -314,8 +317,6 @@ export default function Natsumatsuri() {
     const v = validateStep(step);
     if (v) { setErr(v); return; }
     setErr("");
-    // 送迎はflat.→松原→金亀公園と一緒に動くので、サンセットchillも参加になる
-    if (step === "transport" && mode === "shuttle" && !chill) setChill(true);
     const l = stepList();
     const i = l.indexOf(step);
     if (i < l.length - 1) {
@@ -471,8 +472,8 @@ export default function Natsumatsuri() {
               </div>
               <p className="hint" style={{ margin: "8px 0 0" }}>
                 🌅 サンセットchillのみのご参加は無料です。パーティだけ、花火だけの参加もOK！<br />
-                🚌 送迎をご希望の方は「手持ち花火大会」にもチェックをお願いします
-                （送迎は花火の会場まで一緒に動くため）
+                🚌 送迎をご希望の方は「サンセットchill」と「手持ち花火大会」の<b>両方</b>にチェックをお願いします
+                （送迎は両方の会場をまわるため）
               </p>
             </>
           )}
@@ -531,10 +532,15 @@ export default function Natsumatsuri() {
               {mode === "shuttle" && (
                 <div style={{ marginTop: 10 }}>
                   <Info>
-                    🚌 送迎は flat. 17:45集合 → 松原水泳場 → 金亀公園 → flat. と一緒に動きます。
-                    そのため<b>サンセットchillにも参加</b>となります🌅
+                    🚌 送迎は flat. 17:45集合 → 松原水泳場 → 金亀公園 → flat. と一緒に動きます🚗
                   </Info>
                 </div>
+              )}
+              {evening && !(chill && hanabi) && (
+                <p className="hint" style={{ margin: "10px 0 0", color: "#c0392b" }}>
+                  🚌 送迎をご希望の場合は、前の画面で<b>サンセットchillと手持ち花火大会の両方</b>にチェックしてください
+                  （送迎は両方の会場をまわるため）
+                </p>
               )}
               {!evening && (
                 <p className="hint" style={{ margin: "8px 0 0" }}>
@@ -789,7 +795,7 @@ export default function Natsumatsuri() {
       <S title="【🚗 移動・送迎について】">
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
           <li>送迎は事前申込制です（先着16名・このフォームから）</li>
-          <li>送迎は花火大会まで一緒に動くので、サンセットchillから送迎を使う方は花火大会にもご参加いただきます🎆</li>
+          <li>送迎は flat.→松原水泳場→金亀公園→flat. と一緒にまわるので、<b>サンセットchillと手持ち花火大会の両方に参加する方</b>が対象です🌅🎆</li>
           <li>お車の方はご自身の車での移動をお願いします🚗</li>
           <li>車・友達の車・自転車・徒歩の方は、chillか花火の片方だけの参加もOKです（サンセットchillのみなら無料🌅）</li>
           <li>flat. から花火の会場（金亀公園）までは徒歩で15分ほどかかります🚶</li>
