@@ -216,6 +216,38 @@ export default function Natsumatsuri() {
         </p>
       </div>
 
+      {/* やること3本立て */}
+      <div className="card" style={{ padding: 16 }}>
+        <div style={{ fontWeight: 700, textAlign: "center", marginBottom: 10, fontSize: 16 }}>
+          やること🎇
+        </div>
+        {[
+          ["🌅", "サンセットchill", "琵琶湖の夕日を眺めてチル＆写真撮影", "@松原水泳場"],
+          ["🎆", "手持ち花火大会", "彦根城のふもとで夏の思い出づくり", "@金亀公園"],
+          ["🪩", "盆踊りパーティー", "DJ入りで24時まで踊り明かす", "@flat."],
+        ].map(([emoji, title, desc, place]) => (
+          <div
+            key={title}
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              padding: "10px 4px",
+              borderBottom: "1px solid var(--line)",
+            }}
+          >
+            <span style={{ fontSize: 30 }}>{emoji}</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>
+                {title}{" "}
+                <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 12 }}>{place}</span>
+              </div>
+              <div style={{ color: "var(--muted)", fontSize: 12.5 }}>{desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* 当日の流れ */}
       <S title="【当日の流れ】✨ どのタイミングからでも参加できます！">
         <div style={{ fontSize: 13.5, lineHeight: 1.9 }}>
