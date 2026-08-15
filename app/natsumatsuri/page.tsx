@@ -243,7 +243,7 @@ export default function Natsumatsuri() {
   const effectiveHotsand = chill ? hotsand : HOTSAND_NONE;
 
   const transports = [
-    ...(evening ? [SHUTTLE] : []),
+    SHUTTLE,
     "🚗 自分の車で移動する（お酒は飲まない）",
     "🚗 自分の車で移動する（飲むので車は翌日まで置いて帰る）",
     "🚗 自分の車で移動する＋お友達を乗せられます！",
@@ -252,15 +252,16 @@ export default function Natsumatsuri() {
   ];
 
   // ウィザードの順番（選択内容でスキップが変わる）
+  // 名前・連絡方法 → 移動手段（送迎の有無で参加できるものが変わる）→ 参加するもの…の順
   const stepList = (): StepId[] => {
-    const l: StepId[] = ["events"];
+    const l: StepId[] = ["contact", "transport", "events"];
     if (anySelected) {
-      l.push("plan", "transport");
+      l.push("plan");
       if (chill && transport !== SHUTTLE) l.push("meet");
       if (chill) l.push("hotsand");
       if (party) l.push("dj");
     }
-    l.push("contact", "confirm");
+    l.push("confirm");
     return l;
   };
 
@@ -286,6 +287,11 @@ export default function Natsumatsuri() {
     const v = validateStep(step);
     if (v) { setErr(v); return; }
     setErr("");
+    // 送迎は花火大会まで一緒に動く前提なので、chill+花火を参加扱いにする
+    if (step === "transport" && transport === SHUTTLE) {
+      setChill(true);
+      setHanabi(true);
+    }
     const l = stepList();
     const i = l.indexOf(step);
     if (i < l.length - 1) {
@@ -385,7 +391,7 @@ export default function Natsumatsuri() {
     const titles: Record<StepId, string> = {
       events: "どれに参加する？（あてはまるもの全部）",
       plan: "参加費",
-      transport: "🚗 移動について",
+      transport: "🚗 当日の移動はどうしますか？",
       meet: "集合場所",
       hotsand: "🍞 ホットサンドのテイクアウト予約",
       dj: "🎧 DJへのリクエスト曲（任意）",
@@ -413,7 +419,9 @@ export default function Natsumatsuri() {
                   [hanabi, setHanabi, "🎆 手持ち花火大会", "19:50〜 @金亀公園"],
                   [party, setParty, "🪩 盆踊りパーティー", "21:00〜24:00 @flat.（DJ🎧）"],
                 ] as const).map(([val, set, label, time], i) => {
-                  const off = i < 2 && eveningClosed;
+                  // 送迎の方は chill+花火 が確定（外せない）
+                  const locked = transport === SHUTTLE && i < 2;
+                  const off = (i < 2 && eveningClosed) || locked;
                   return (
                     <label
                       key={label}
@@ -429,7 +437,8 @@ export default function Natsumatsuri() {
                       <span style={{ fontWeight: 700 }}>
                         {label}
                         <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 12, marginLeft: 8 }}>
-                          {time}{off ? "（受付終了）" : ""}
+                          {time}
+                          {locked ? "（送迎のため参加）" : i < 2 && eveningClosed ? "（受付終了）" : ""}
                         </span>
                       </span>
                     </label>
@@ -437,8 +446,9 @@ export default function Natsumatsuri() {
                 })}
               </div>
               <p className="hint" style={{ margin: "8px 0 0" }}>
-                🚌 送迎を使いたい方は「サンセットchill」と「花火大会」の両方にチェック
-                （車・友達の車の方は片方だけでもOK）
+                {transport === SHUTTLE
+                  ? "🚌 送迎をご希望のため、サンセットchillと花火大会は参加で確定しています。盆踊りパーティーは自由に選べます🪩"
+                  : "🌅 サンセットchillのみのご参加は無料です。パーティだけ、花火だけの参加もOK！"}
               </p>
             </>
           )}
@@ -467,23 +477,24 @@ export default function Natsumatsuri() {
 
           {step === "transport" && (
             <>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                会場は flat.（パーティ）・松原水泳場（chill）・金亀公園（花火）に分かれています。
+                <b>flat. から花火の会場までは徒歩で15分ほど</b>かかります🚶
+              </p>
               <Radio
                 options={transports}
                 value={transport}
-                onChange={(v) => {
-                  setTransport(v);
-                  // 送迎は花火大会まで一緒に動く前提。chillだけ選んでいたら花火も参加にする
-                  if (v === SHUTTLE && chill && !hanabi) setHanabi(true);
-                }}
+                onChange={setTransport}
                 disabled={(o) => o === SHUTTLE && (status ? !status.shuttleOpen : false)}
                 disabledNote={() => "満員御礼🙏"}
               />
-              {transport === SHUTTLE && chill && hanabi && (
+              {transport === SHUTTLE && (
                 <div style={{ marginTop: 10 }}>
                   <Info>
-                    🚌 送迎は花火大会まで一緒に動くので、<b>手持ち花火大会にも参加</b>となります🎆<br />
+                    🚌 送迎は flat. 17:45集合 → 松原水泳場 → 金亀公園 → flat. と一緒に動きます。
+                    そのため<b>サンセットchillと手持ち花火大会の両方に参加</b>となります🌅🎆<br />
                     <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                      サンセットchillだけ参加したい場合は、車・自転車・徒歩でお願いします
+                      片方だけ参加したい場合は、車・自転車・徒歩を選んでください
                     </span>
                   </Info>
                 </div>
@@ -723,6 +734,7 @@ export default function Natsumatsuri() {
           <li>送迎は花火大会まで一緒に動くので、サンセットchillから送迎を使う方は花火大会にもご参加いただきます🎆</li>
           <li>お車の方はご自身の車での移動をお願いします。お友達と一緒に参加される場合は、乗り合わせにご協力いただけると助かります🙏</li>
           <li>車・友達の車・自転車・徒歩の方は、chillか花火の片方だけの参加もOKです（サンセットchillのみなら無料🌅）</li>
+          <li>flat. から花火の会場（金亀公園）までは徒歩で15分ほどかかります🚶</li>
           <li>駐車場はflat.にあります</li>
         </ul>
       </S>
