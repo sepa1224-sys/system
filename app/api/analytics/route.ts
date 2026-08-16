@@ -82,6 +82,10 @@ export async function GET(req: NextRequest) {
     const byDay: Record<string, { sales: number; count: number }> = {};
     const byProduct: Record<string, { qty: number; amount: number; cost: number }> = {};
     const byTender: Record<string, { count: number; amount: number }> = {};
+    // 時間帯別・曜日別（バイトのシフトをどこに入れるかの判断材料）。
+    // 「営業した日数」で割って1日平均を出すため、時間帯ごとに日付も集める。
+    const byHour: Record<number, { sales: number; count: number; days: Set<string> }> = {};
+    const byWeekday: Record<number, { sales: number; count: number; days: Set<string> }> = {};
 
     for (const o of orders) {
       const amt = o.total_money?.amount || 0;
@@ -94,6 +98,20 @@ export async function GET(req: NextRequest) {
       byDay[day] = byDay[day] || { sales: 0, count: 0 };
       byDay[day].sales += amt;
       byDay[day].count += 1;
+
+      // 実際の時刻（営業日への繰り上げ前の時刻を使う。25時台は1時として扱う）
+      const realJst = new Date(new Date(o.created_at).getTime() + 9 * 3600_000);
+      const hour = realJst.getUTCHours();
+      byHour[hour] = byHour[hour] || { sales: 0, count: 0, days: new Set() };
+      byHour[hour].sales += amt;
+      byHour[hour].count += 1;
+      byHour[hour].days.add(day);
+
+      const wd = new Date(day + "T00:00:00Z").getUTCDay(); // 0=日
+      byWeekday[wd] = byWeekday[wd] || { sales: 0, count: 0, days: new Set() };
+      byWeekday[wd].sales += amt;
+      byWeekday[wd].count += 1;
+      byWeekday[wd].days.add(day);
 
       for (const li of o.line_items || []) {
         const name = li.name || "不明";
@@ -154,6 +172,27 @@ export async function GET(req: NextRequest) {
         byTender: Object.entries(byTender)
           .map(([k, v]) => ({ tender: k, ...v }))
           .sort((a, b) => b.amount - a.amount),
+        // 時間帯別（1日あたりの平均も出す。シフトを何時に置くかの判断用）
+        byHour: Object.entries(byHour)
+          .map(([h, v]) => ({
+            hour: Number(h),
+            sales: v.sales,
+            count: v.count,
+            days: v.days.size,
+            avgSales: Math.round(v.sales / v.days.size),
+            avgCount: Math.round((v.count / v.days.size) * 10) / 10,
+          }))
+          .sort((a, b) => a.hour - b.hour),
+        byWeekday: Object.entries(byWeekday)
+          .map(([w, v]) => ({
+            weekday: Number(w),
+            name: ["日", "月", "火", "水", "木", "金", "土"][Number(w)],
+            sales: v.sales,
+            count: v.count,
+            days: v.days.size,
+            avgSales: Math.round(v.sales / v.days.size),
+          }))
+          .sort((a, b) => a.weekday - b.weekday),
       },
       products,
       productCostCoverage: {
