@@ -230,14 +230,16 @@ export default function Natsumatsuri() {
         setLineUserId(p.userId || "");
         setContact("line");
         setViaLiff(true);
-        try {
-          // getFriendship() はLINEログインチャネルが公式アカウントとリンクされている
-          // ときだけ使える。未リンクだと例外になるので、その場合は判定不能(null)として
-          // 従来どおり友だち追加ボタンを出す。
-          const f = await window.liff!.getFriendship();
-          setIsFriend(f.friendFlag);
-        } catch {
-          setIsFriend(null);
+        // 友だち判定はサーバー側（Messaging APIのプロフィール取得）で行う。
+        // liff.getFriendship() はチャネルのリンク状況や環境によって動かないことがあるため。
+        if (p.userId) {
+          try {
+            const res = await fetch(`/api/line/friendship?userId=${encodeURIComponent(p.userId)}`);
+            const j = await res.json();
+            if (j.known) setIsFriend(!!j.isFriend);
+          } catch {
+            /* 判定不能。従来どおり友だち追加ボタンを出す */
+          }
         }
       } catch {
         /* LIFF外はスキップ */
