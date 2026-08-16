@@ -41,13 +41,17 @@ async function getBankWalletables(): Promise<Walletable[]> {
   return walletables.filter((w) => w.type === "bank_account" || w.type === "wallet");
 }
 
-async function getUnprocessedTxns(
-  walletables: Walletable[],
+// freeeのwallet_txns一覧は limit未指定だとデフォルト20件しか返らない（最大100）。
+// 1口座で20件を超えることは普通にあるため、必ずページングして全件取得する。
+async function fetchAllWalletTxns(
+  w: Walletable,
   startDate: string,
   endDate: string,
-): Promise<(WalletTxn & { walletName: string; walletType: string })[]> {
-  const all: (WalletTxn & { walletName: string; walletType: string })[] = [];
-  for (const w of walletables) {
+): Promise<WalletTxn[]> {
+  const all: WalletTxn[] = [];
+  let offset = 0;
+  const limit = 100;
+  for (;;) {
     const { wallet_txns } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
       "/api/1/wallet_txns",
       {
@@ -56,8 +60,25 @@ async function getUnprocessedTxns(
         walletable_id: String(w.id),
         start_date: startDate,
         end_date: endDate,
+        limit: String(limit),
+        offset: String(offset),
       },
     );
+    all.push(...wallet_txns);
+    if (wallet_txns.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+async function getUnprocessedTxns(
+  walletables: Walletable[],
+  startDate: string,
+  endDate: string,
+): Promise<(WalletTxn & { walletName: string; walletType: string })[]> {
+  const all: (WalletTxn & { walletName: string; walletType: string })[] = [];
+  for (const w of walletables) {
+    const wallet_txns = await fetchAllWalletTxns(w, startDate, endDate);
     for (const t of wallet_txns) {
       if (t.status === 1 && t.entry_side === "expense") {
         all.push({ ...t, walletName: w.name, walletType: w.type });
@@ -155,16 +176,7 @@ export async function POST(req: NextRequest) {
     let matchedTxn: WalletTxn | null = null;
     let walletName = "";
     for (const w of walletables) {
-      const { wallet_txns } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
-        "/api/1/wallet_txns",
-        {
-          company_id: FREEE_COMPANY_ID,
-          walletable_type: w.type,
-          walletable_id: String(w.id),
-          start_date: "2026-06-01",
-          end_date: endDate,
-        },
-      );
+      const wallet_txns = await fetchAllWalletTxns(w, "2026-06-01", endDate);
       const hit = wallet_txns.find((t) => t.id === Number(body.walletTxnId));
       if (hit) {
         matchedTxn = hit;
