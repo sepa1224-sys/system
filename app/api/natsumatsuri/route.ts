@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
       meetPoint: b.meetPoint,
       transport: b.transport,
       hotsand: b.hotsand,
+      takeoutDrink: (b.takeoutDrink || "").trim(),
       djRequest: (b.djRequest || "").trim(),
       photoOk: true,
       note: (b.note || "").trim(),

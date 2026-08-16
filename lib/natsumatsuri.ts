@@ -63,6 +63,7 @@ export type NatsumatsuriEntry = {
   meetPoint: string;
   transport: string;
   hotsand: string;
+  takeoutDrink?: string; // ソフトドリンクのテイクアウト（任意）
   djRequest?: string;
   photoOk: boolean;
   note?: string;

@@ -33,14 +33,32 @@ const MEET_MATSUBARA = "🌅 松原水泳場に 18:20（サンセットchillか�
 const MEET_LIBRARY = "🎆 彦根市立図書館前に 19:40（花火大会から）";
 const MEET_FLAT_2100 = "🪩 flat. に 21:00（パーティから）";
 
-const HOTSAND = [
+const HOTSAND_QTY = [
   "予約する：1つ（¥800・当日flat.でお渡し）",
   "予約する：2つ（¥1,600・当日flat.でお渡し）",
   "いらない（食べてくる・持ってくる）",
 ];
 const HOTSAND_NONE = "いらない（食べてくる・持ってくる）";
+const HOTSAND_FLAVORS = ["ガーデンメルト", "クラシックメルト"];
 
-type StepId = "contact" | "events" | "transport" | "car" | "plan" | "meet" | "hotsand" | "dj" | "confirm";
+const DRINKS_NONE = "いらない";
+const DRINK_OPTIONS = [
+  { name: "アイスティー", price: 500 },
+  { name: "コーラ", price: 500 },
+  { name: "ジンジャーエール", price: 500 },
+];
+
+type StepId =
+  | "contact"
+  | "events"
+  | "transport"
+  | "car"
+  | "plan"
+  | "meet"
+  | "hotsand"
+  | "drink"
+  | "dj"
+  | "confirm";
 type TransportMode = "" | "shuttle" | "own_car" | "friend_car" | "walk";
 
 declare global {
@@ -164,7 +182,10 @@ export default function Natsumatsuri() {
   const [chillMeet, setChillMeet] = useState("");
   const [mode, setMode] = useState<TransportMode>("");
   const [carDrink, setCarDrink] = useState(""); // 車の人：お酒を飲むか
-  const [hotsand, setHotsand] = useState("");
+  const [hotsandQty, setHotsandQty] = useState("");
+  const [hotsandFlavor1, setHotsandFlavor1] = useState("");
+  const [hotsandFlavor2, setHotsandFlavor2] = useState("");
+  const [takeoutDrink, setTakeoutDrink] = useState("");
   const [djRequest, setDjRequest] = useState("");
   const [photoOk, setPhotoOk] = useState(false);
   const [note, setNote] = useState("");
@@ -242,7 +263,14 @@ export default function Natsumatsuri() {
   else if (hanabi) meetPoint = MEET_LIBRARY;
   else if (party) meetPoint = MEET_FLAT_2100;
 
-  const effectiveHotsand = chill ? hotsand : HOTSAND_NONE;
+  const hotsandCount = hotsandQty.includes("2つ") ? 2 : hotsandQty.includes("1つ") ? 1 : 0;
+  const effectiveHotsand =
+    chill && hotsandCount > 0
+      ? `${hotsandQty} ／ 味: ${[hotsandFlavor1, hotsandCount === 2 ? hotsandFlavor2 : ""].filter(Boolean).join("・")}`
+      : chill
+        ? hotsandQty || HOTSAND_NONE
+        : HOTSAND_NONE;
+  const effectiveDrink = chill ? takeoutDrink || DRINKS_NONE : DRINKS_NONE;
 
   // 移動手段の選択肢。パーティのみの人には送迎は出さない（移動が発生しないため）
   const modeOptions: { key: TransportMode; label: string; off?: boolean; note?: string }[] = [
@@ -287,7 +315,7 @@ export default function Natsumatsuri() {
       if (mode === "own_car" && party) l.push("car");
       l.push("plan");
       if (chill && mode !== "shuttle") l.push("meet");
-      if (chill) l.push("hotsand");
+      if (chill) l.push("hotsand", "drink");
       if (party) l.push("dj");
     }
     l.push("confirm");
@@ -300,7 +328,12 @@ export default function Natsumatsuri() {
     if (id === "transport" && !mode) return "移動方法を選んでください";
     if (id === "car" && !carDrink) return "お酒を飲むかどうかを選んでください";
     if (id === "meet" && !chillMeet) return "集合場所を選んでください";
-    if (id === "hotsand" && !hotsand) return "どれか選んでください";
+    if (id === "hotsand") {
+      if (!hotsandQty) return "どれか選んでください";
+      if (hotsandCount >= 1 && !hotsandFlavor1) return "1つ目の味を選んでください";
+      if (hotsandCount >= 2 && !hotsandFlavor2) return "2つ目の味を選んでください";
+    }
+    if (id === "drink" && !takeoutDrink) return "どれか選んでください（不要な場合は「いらない」）";
     if (id === "contact") {
       if (!name.trim()) return "お名前を入力してください";
       if (!contact) return "連絡方法（LINE か メール）を選んでください";
@@ -356,6 +389,7 @@ export default function Natsumatsuri() {
           meetPoint,
           transport,
           hotsand: effectiveHotsand,
+          takeoutDrink: effectiveDrink,
           djRequest: party ? djRequest : "",
           photoOk,
           note,
@@ -396,6 +430,7 @@ export default function Natsumatsuri() {
           <div className="result-row"><span>集合</span><span style={{ textAlign: "right" }}>{meetPoint}</span></div>
           <div className="result-row"><span>移動</span><span style={{ textAlign: "right" }}>{transport}</span></div>
           <div className="result-row"><span>ホットサンド</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>
+          <div className="result-row"><span>ドリンク</span><span style={{ textAlign: "right" }}>{effectiveDrink}</span></div>
         </div>
         {!inLine && (
           <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
@@ -420,6 +455,7 @@ export default function Natsumatsuri() {
       car: "🚗 お車について",
       meet: "集合場所",
       hotsand: "🍞 ホットサンドのテイクアウト予約",
+      drink: "🥤 ドリンクのテイクアウト予約",
       dj: "🎧 DJへのリクエスト曲（任意）",
       contact: "お名前と連絡方法",
       confirm: "最終確認",
@@ -579,7 +615,46 @@ export default function Natsumatsuri() {
               <p className="hint" style={{ margin: "0 0 8px" }}>
                 chillから参加すると夜ごはんの時間が取れません。食べてくるか、持ってくるか、ホットサンドをどうぞ！
               </p>
-              <Radio options={HOTSAND} value={hotsand} onChange={setHotsand} />
+              <Radio
+                options={HOTSAND_QTY}
+                value={hotsandQty}
+                onChange={(v) => {
+                  setHotsandQty(v);
+                  if (v === HOTSAND_NONE) {
+                    setHotsandFlavor1("");
+                    setHotsandFlavor2("");
+                  }
+                }}
+              />
+              {hotsandCount >= 1 && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
+                    1つ目の味
+                  </p>
+                  <Radio options={HOTSAND_FLAVORS} value={hotsandFlavor1} onChange={setHotsandFlavor1} />
+                </div>
+              )}
+              {hotsandCount >= 2 && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 6px" }}>
+                    2つ目の味
+                  </p>
+                  <Radio options={HOTSAND_FLAVORS} value={hotsandFlavor2} onChange={setHotsandFlavor2} />
+                </div>
+              )}
+            </>
+          )}
+
+          {step === "drink" && (
+            <>
+              <p className="hint" style={{ margin: "0 0 8px" }}>
+                ソフトドリンクのテイクアウトもできます（各¥500・当日flat.でお渡し）
+              </p>
+              <Radio
+                options={[...DRINK_OPTIONS.map((d) => `${d.name} ¥${d.price}`), DRINKS_NONE]}
+                value={takeoutDrink}
+                onChange={setTakeoutDrink}
+              />
             </>
           )}
 
@@ -672,6 +747,7 @@ export default function Natsumatsuri() {
                 <div className="result-row"><span>移動</span><span style={{ textAlign: "right" }}>{transport}</span></div>
                 <div className="result-row"><span>集合</span><span style={{ textAlign: "right" }}>{meetPoint}</span></div>
                 {chill && <div className="result-row"><span>🍞</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>}
+                {chill && <div className="result-row"><span>🥤</span><span style={{ textAlign: "right" }}>{effectiveDrink}</span></div>}
                 {party && djRequest && <div className="result-row"><span>🎧</span><span style={{ textAlign: "right" }}>{djRequest}</span></div>}
               </div>
 

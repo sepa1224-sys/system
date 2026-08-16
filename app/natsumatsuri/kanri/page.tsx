@@ -14,6 +14,7 @@ type Entry = {
   meetPoint: string;
   transport: string;
   hotsand: string;
+  takeoutDrink?: string;
   djRequest?: string;
   note?: string;
   createdAt: string;
@@ -57,9 +58,11 @@ export default function NatsumatsuriKanri() {
 
   const djList = entries.filter((e) => e.djRequest);
   const hotsandList = entries.filter((e) => e.hotsand.includes("予約する"));
+  const drinkList = entries.filter((e) => e.takeoutDrink && e.takeoutDrink !== "いらない");
 
   // プラン別集計
   const byPlan: Record<string, number> = {};
+  const byDrink: Record<string, number> = {};
   let revenue = 0;
   for (const e of entries) {
     byPlan[e.plan] = (byPlan[e.plan] || 0) + 1;
@@ -67,6 +70,11 @@ export default function NatsumatsuriKanri() {
     if (m) revenue += parseInt(m[1].replace(/,/g, ""), 10);
     if (e.hotsand.includes("2つ")) revenue += 1600;
     else if (e.hotsand.includes("1つ")) revenue += 800;
+    if (e.takeoutDrink && e.takeoutDrink !== "いらない") {
+      byDrink[e.takeoutDrink] = (byDrink[e.takeoutDrink] || 0) + 1;
+      const dm = /¥([\d,]+)/.exec(e.takeoutDrink);
+      if (dm) revenue += parseInt(dm[1].replace(/,/g, ""), 10);
+    }
   }
 
   return (
@@ -107,6 +115,15 @@ export default function NatsumatsuriKanri() {
               <span>{e.name}</span>
               <span>{e.hotsand.includes("2つ") ? "2個" : "1個"}</span>
             </div>
+          ))}
+        </div>
+      )}
+
+      {drinkList.length > 0 && (
+        <div className="card">
+          <div className="cat-title">🥤 ドリンクテイクアウト（{drinkList.length}件）</div>
+          {Object.entries(byDrink).sort((a, b) => b[1] - a[1]).map(([d, n]) => (
+            <div key={d} className="result-row"><span>{d}</span><span className="mono">{n}件</span></div>
           ))}
         </div>
       )}
