@@ -571,14 +571,20 @@ export default function Receipts() {
               <div style={{ marginTop: 10 }}>
                 {r.registered ? (
                   <div className="decided-box" style={{ margin: 0 }}>
-                    ✓ freee登録済（振替伝票 #{r.registered.journalId}）／ 借)
-                    {r.category}・貸)
                     {r.expenseKind === "card"
-                      ? "普通預金"
-                      : r.expenseKind === "cash"
-                        ? "現金"
-                        : `役員借入金（${r.payer}）`}
+                      ? `✓ freee登録済（取引 #${r.registered.journalId}／銀行明細と消込済）`
+                      : `✓ freee登録済（振替伝票 #${r.registered.journalId}）／ 借)${r.category}・貸)${
+                          r.expenseKind === "cash" ? "現金" : `役員借入金（${r.payer}）`
+                        }`}
                   </div>
+                ) : r.expenseKind === "card" ? (
+                  <a
+                    href="/meisai"
+                    className="pay-btn"
+                    style={{ width: "100%", display: "block", textAlign: "center", textDecoration: "none" }}
+                  >
+                    🏦 明細タブでマッチングして登録（借)　{r.category}）
+                  </a>
                 ) : (
                   <button
                     className="pay-btn"
@@ -588,9 +594,7 @@ export default function Receipts() {
                   >
                     {busy === r.id
                       ? <span className="spinner" />
-                      : r.expenseKind === "card"
-                        ? "freeeに登録（借)" + r.category + "／貸)普通預金）"
-                        : r.expenseKind === "cash"
+                      : r.expenseKind === "cash"
                           ? "freeeに登録（借)" + r.category + "／貸)現金）"
                           : "freeeに登録（借)" + r.category + "／貸)役員借入金）"}
                   </button>
