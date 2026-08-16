@@ -1,0 +1,183 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Nav from "@/components/Nav";
+
+// 仕入れサイクル。領収書の履歴から品目ごとの購入間隔を自動集計し、
+// 「そろそろ切れる」ものを教える。手で頻度を登録する必要はない。
+
+type Stat = {
+  name: string;
+  displayName: string;
+  category: string;
+  vendor: string;
+  count: number;
+  dates: string[];
+  lastDate: string;
+  lastAmount: number;
+  totalAmount: number;
+  avgIntervalDays: number | null;
+  daysSinceLast: number;
+  nextDueDate: string | null;
+  daysUntilDue: number | null;
+  status: "overdue" | "soon" | "ok" | "unknown";
+};
+
+const LABEL: Record<Stat["status"], { text: string; color: string }> = {
+  overdue: { text: "買い時すぎ", color: "#c0392b" },
+  soon: { text: "もうすぐ", color: "#b5651d" },
+  ok: { text: "まだ大丈夫", color: "var(--ok)" },
+  unknown: { text: "周期不明", color: "var(--muted)" },
+};
+
+export default function Shiire() {
+  const [stats, setStats] = useState<Stat[]>([]);
+  const [summary, setSummary] = useState<{ total: number; overdue: number; soon: number; tracked: number } | null>(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"need" | "all">("need");
+  const [advice, setAdvice] = useState("");
+  const [adviceBusy, setAdviceBusy] = useState(false);
+  const [openName, setOpenName] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/shiire?min=1");
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "取得失敗");
+      setStats(d.stats || []);
+      setSummary(d.summary || null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "取得失敗");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const askAdvice = async () => {
+    setAdviceBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/shiire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soonDays: 3 }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "生成に失敗");
+      setAdvice(d.advice || "");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "生成に失敗");
+    } finally {
+      setAdviceBusy(false);
+    }
+  };
+
+  const need = stats.filter((s) => s.status === "overdue" || s.status === "soon");
+  const list = tab === "need" ? need : stats;
+
+  return (
+    <div className="wrap">
+      <header>
+        <h1>🛒 仕入れサイクル</h1>
+        <p>領収書の履歴から、品目ごとの購入間隔を自動で集計しています</p>
+      </header>
+      <Nav />
+
+      {err && <p className="err">{err}</p>}
+
+      {summary && (
+        <div className="card total-card">
+          <div className="total-label">そろそろ仕入れ</div>
+          <div className="total-amount">{summary.overdue + summary.soon}件</div>
+          <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 12, opacity: 0.85, flexWrap: "wrap" }}>
+            <span>⚠️ 買い時すぎ {summary.overdue}</span>
+            <span>⏳ もうすぐ {summary.soon}</span>
+            <span>📈 周期がわかる品目 {summary.tracked}/{summary.total}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 14 }}>
+        <div style={{ textAlign: "center" }}>
+          <button className="primary" onClick={askAdvice} disabled={adviceBusy}>
+            {adviceBusy ? "AIが確認中..." : "🤖 いま何を発注すべきか聞く"}
+          </button>
+        </div>
+        {advice && (
+          <div style={{ marginTop: 12, fontSize: 13.5, whiteSpace: "pre-wrap", lineHeight: 1.8 }}>
+            {advice}
+          </div>
+        )}
+      </div>
+
+      <div className="sub-tabs">
+        {([["need", `そろそろ (${need.length})`], ["all", `全品目 (${stats.length})`]] as const).map(([k, l]) => (
+          <button key={k} className={`sub-tab ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>集計中…</div>}
+
+      {!loading && list.length === 0 && (
+        <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>
+          {tab === "need" ? "🎉 いま急いで買うものはありません。" : "データがありません。"}
+        </div>
+      )}
+
+      {!loading && list.map((s) => {
+        const open = openName === s.name;
+        const lb = LABEL[s.status];
+        return (
+          <div key={s.name} className="card" style={{ padding: "12px 14px" }}>
+            <div
+              onClick={() => setOpenName(open ? null : s.name)}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", gap: 8 }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{s.displayName}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                  {s.vendor} ／ {s.count}回購入
+                  {s.avgIntervalDays !== null && ` ／ 平均${s.avgIntervalDays}日ごと`}
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ color: lb.color, fontWeight: 700, fontSize: 12.5 }}>{lb.text}</div>
+                {s.daysUntilDue !== null && (
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                    {s.daysUntilDue < 0 ? `${-s.daysUntilDue}日超過` : `あと${s.daysUntilDue}日`}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {open && (
+              <div style={{ marginTop: 10, fontSize: 13 }}>
+                <div className="result-row"><span>前回購入</span><span className="mono">{s.lastDate}（{s.daysSinceLast}日前）</span></div>
+                <div className="result-row"><span>前回金額</span><span className="mono">¥{s.lastAmount.toLocaleString()}</span></div>
+                <div className="result-row"><span>累計</span><span className="mono">¥{s.totalAmount.toLocaleString()}</span></div>
+                {s.nextDueDate && (
+                  <div className="result-row"><span>次回の目安</span><span className="mono">{s.nextDueDate}</span></div>
+                )}
+                <div className="result-row"><span>科目</span><span>{s.category}</span></div>
+                <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+                  購入日: {s.dates.join(" / ")}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>
+        ※ 同じ品目を2回以上買うと平均間隔が計算され、次に買う目安が出ます。
+        領収書を登録し続けるほど精度が上がります。
+      </p>
+    </div>
+  );
+}

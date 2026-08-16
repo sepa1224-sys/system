@@ -21,6 +21,7 @@ export default function Nav() {
     { href: "/menu", label: "🍽️ メニュー" },
     { href: "/orders", label: "📬 発注" },
     { href: "/inventory", label: "📦 仕入れ表" },
+    { href: "/shiire", label: "🛒 仕入れ時期" },
     { href: "/todos", label: "✅ ToDo" },
     { href: "/table", label: "🛎️ 注文" },
     { href: "/kitchen", label: "🍳 KDS" },
