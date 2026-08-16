@@ -27,10 +27,20 @@ type Counts = {
   hotsand: number;
 };
 
+const fmtDate = (iso: string) => {
+  try {
+    const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
+    return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  } catch {
+    return iso;
+  }
+};
+
 export default function NatsumatsuriKanri() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [err, setErr] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -139,40 +149,62 @@ export default function NatsumatsuriKanri() {
         </div>
       )}
 
-      <div className="card" style={{ overflowX: "auto" }}>
-        <div className="cat-title">申込一覧</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--line)", color: "var(--muted)" }}>
-              <th style={{ textAlign: "left", padding: 4 }}>名前</th>
-              <th style={{ textAlign: "left", padding: 4 }}>連絡先</th>
-              <th style={{ textAlign: "left", padding: 4 }}>プラン</th>
-              <th style={{ textAlign: "left", padding: 4 }}>集合</th>
-              <th style={{ textAlign: "left", padding: 4 }}>移動</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                <td style={{ padding: 4 }}>
-                  {e.name}
-                  {e.note && <div style={{ color: "var(--muted)", fontSize: 11 }}>{e.note}</div>}
-                </td>
-                <td style={{ padding: 4 }}>
-                  {e.lineName && <span>📱 {e.lineName}</span>}
-                  {e.email && <div style={{ fontSize: 11 }}>✉️ {e.email}</div>}
-                </td>
-                <td style={{ padding: 4 }}>{e.plan.replace(/（.*/, "").replace(/¥.*/, "")}</td>
-                <td style={{ padding: 4 }}>{e.meetPoint.slice(0, e.meetPoint.indexOf("（") > 0 ? e.meetPoint.indexOf("（") : undefined)}</td>
-                <td style={{ padding: 4 }}>{e.transport.slice(0, 6)}</td>
-                <td style={{ padding: 4 }}>
-                  <button className="ghost" style={{ fontSize: 11, padding: "2px 6px" }} onClick={() => del(e)}>✕</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card">
+        <div className="cat-title">申込一覧（{entries.length}件・タップで詳細）</div>
+        {entries.map((e) => {
+          const open = openId === e.id;
+          return (
+            <div key={e.id} style={{ borderBottom: "1px solid var(--line)" }}>
+              <div
+                onClick={() => setOpenId(open ? null : e.id)}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 4px",
+                  cursor: "pointer",
+                  gap: 8,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>{e.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                    {e.plan.replace(/¥.*/, "")}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", flexShrink: 0 }}>
+                  {open ? "▲ 閉じる" : "▼ 詳細"}
+                </div>
+              </div>
+
+              {open && (
+                <div style={{ padding: "0 4px 14px", fontSize: 13 }}>
+                  <div className="result-row"><span>連絡先</span>
+                    <span style={{ textAlign: "right" }}>
+                      {e.lineName && <div>📱 {e.lineName}</div>}
+                      {e.email && <div>✉️ {e.email}</div>}
+                    </span>
+                  </div>
+                  <div className="result-row"><span>参加費</span><span style={{ textAlign: "right" }}>{e.plan}</span></div>
+                  <div className="result-row"><span>集合場所</span><span style={{ textAlign: "right" }}>{e.meetPoint}</span></div>
+                  <div className="result-row"><span>移動</span><span style={{ textAlign: "right" }}>{e.transport}</span></div>
+                  <div className="result-row"><span>🍞 ホットサンド</span><span style={{ textAlign: "right" }}>{e.hotsand}</span></div>
+                  <div className="result-row"><span>🥤 ドリンク</span><span style={{ textAlign: "right" }}>{e.takeoutDrink || "いらない"}</span></div>
+                  {e.djRequest && (
+                    <div className="result-row"><span>🎧 DJ曲</span><span style={{ textAlign: "right" }}>{e.djRequest}</span></div>
+                  )}
+                  {e.note && (
+                    <div className="result-row"><span>備考</span><span style={{ textAlign: "right" }}>{e.note}</span></div>
+                  )}
+                  <div className="result-row"><span>申込日時</span><span className="mono" style={{ textAlign: "right" }}>{fmtDate(e.createdAt)}</span></div>
+                  <div style={{ textAlign: "right", marginTop: 8 }}>
+                    <button className="ghost" style={{ fontSize: 12 }} onClick={() => del(e)}>この申込を取り消す ✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
