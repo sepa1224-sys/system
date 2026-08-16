@@ -231,10 +231,13 @@ export default function Natsumatsuri() {
         setContact("line");
         setViaLiff(true);
         try {
+          // getFriendship() はLINEログインチャネルが公式アカウントとリンクされている
+          // ときだけ使える。未リンクだと例外になるので、その場合は判定不能(null)として
+          // 従来どおり友だち追加ボタンを出す。
           const f = await window.liff!.getFriendship();
           setIsFriend(f.friendFlag);
         } catch {
-          setIsFriend(false); // 判定できない場合は安全側（未フォロー扱い）に倒す
+          setIsFriend(null);
         }
       } catch {
         /* LIFF外はスキップ */
@@ -440,14 +443,27 @@ export default function Natsumatsuri() {
           <div className="result-row"><span>ホットサンド</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>
           <div className="result-row"><span>ドリンク</span><span style={{ textAlign: "right" }}>{effectiveDrink}</span></div>
         </div>
-        {isFriend !== true && (
+        {isFriend === true ? (
+          <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
+              ✅ 友だち登録ありがとうございます！
+            </p>
+            <p className="hint" style={{ margin: "8px 0 0" }}>
+              📷 写真データの共有・当日の連絡はこのLINEでお送りします。<br />
+              変更・キャンセルもLINEでご連絡ください
+            </p>
+          </div>
+        ) : (
           <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
             <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
               📷 写真データの共有・当日の連絡は公式LINEで行います<br />
               写真がほしい方はLINE登録をお忘れなく！
             </p>
             <LineButton label="flat. を友だち追加する" />
-            <p className="hint" style={{ margin: "8px 0 0" }}>変更・キャンセルもLINEでご連絡ください</p>
+            <p className="hint" style={{ margin: "8px 0 0" }}>
+              すでに友だち追加済みの方はそのままでOKです<br />
+              変更・キャンセルもLINEでご連絡ください
+            </p>
           </div>
         )}
       </div>
@@ -708,12 +724,27 @@ export default function Natsumatsuri() {
               )}
               {contact === "line" && (
                 <div style={{ marginTop: 10 }}>
-                  {isFriend !== true && (
+                  {isFriend === true ? (
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        padding: "8px 12px",
+                        background: "#eafbf0",
+                        border: "1px solid #06C755",
+                        borderRadius: 10,
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        textAlign: "center",
+                      }}
+                    >
+                      ✅ 友だち登録ありがとうございます！
+                    </p>
+                  ) : (
                     <div style={{ textAlign: "center", marginBottom: 10 }}>
                       <LineButton label={viaLiff ? "flat. を友だち追加する" : "① flat. を友だち追加する"} />
                       <p className="hint" style={{ margin: "6px 0 0" }}>
                         {viaLiff
-                          ? "写真の共有・当日の連絡のため、友だち追加をお願いします🙏"
+                          ? "写真の共有・当日の連絡のため、まだの方は友だち追加をお願いします🙏（追加済みならそのままでOK）"
                           : "追加するとLINEに申込ページが届きます。このままここで続けてもOK👇"}
                       </p>
                     </div>
