@@ -5,20 +5,36 @@
 
 import { getReceipts, receiptLines, type SavedReceipt } from "@/lib/receipts";
 
+// 商品ではない行（税額調整・送料・値引きなど）。仕入れ周期の対象から外す。
+const NOISE_PATTERNS = [
+  /消費税/, /税額/, /内税/, /外税/,
+  /送料/, /配送料/, /手数料/,
+  /値引/, /割引/, /ポイント/, /調整/,
+  /^合計/, /^小計/, /^お?釣/,
+];
+
+export function isNoiseItem(name: string): boolean {
+  const s = String(name || "").trim();
+  if (!s) return true;
+  return NOISE_PATTERNS.some((p) => p.test(s));
+}
+
 /** 品目名から数量・単価表記などのノイズを落として、同じ商品をまとめられる形にする */
 export function normalizeItemName(raw: string): string {
   let s = String(raw || "").trim();
   if (!s) return "";
-  // 全角空白・記号の揺れを吸収
   s = s.replace(/　/g, " ");
-  // 「@1,080×2」「×3」「 2コ×単85」などの数量・単価表記を除去
-  s = s.replace(/@[\d,]+\s*[×xX*]\s*\d+/g, " ");
-  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック|P|ｹ)\s*[×xX*]\s*[単]?[\d,]*/g, " ");
-  s = s.replace(/[×xX*]\s*\d+\s*(コ|個|本|枚|点|袋|缶|パック)?/g, " ");
-  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック)(入)?/g, " ");
-  // 括弧内の補足（まとめ売り値下、一括割引後 等）を除去
+  // 括弧内の補足（まとめ売り値下、一括割引後 等）を先に除去
   s = s.replace(/[（(][^）)]*[）)]/g, " ");
-  // 金額・数字だけの断片を除去
+  // 「@1,080×2」「@495×2」など単価×数量
+  s = s.replace(/@\s*[\d,]+\s*[×xX*✕╳]\s*\d+/g, " ");
+  // 「2コ×単100」「5コ×単148」など 数量×単価
+  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック|P|ｹ|ヶ)?\s*[×xX*✕╳]\s*単?\s*[\d,]+/g, " ");
+  // 「×3」「x2」など末尾の数量
+  s = s.replace(/[×xX*✕╳]\s*\d+\s*(コ|個|本|枚|点|袋|缶|パック)?/g, " ");
+  // 「3個」「2コ」「4点」など単独の数量
+  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック|ヶ)(入)?(?![a-zA-Z])/g, " ");
+  // 残った金額表記
   s = s.replace(/[¥￥][\d,]+/g, " ");
   s = s.replace(/\s+/g, " ").trim();
   return s;
@@ -34,13 +50,16 @@ export type PurchaseStat = {
   lastDate: string;
   lastAmount: number;
   totalAmount: number;
-  avgIntervalDays: number | null; // 平均購入間隔（購入2回以上のときだけ）
+  avgIntervalDays: number | null; // 購入間隔の中央値（購入2回以上のときだけ）
   daysSinceLast: number;
   /** 次に買うべき推定日。間隔が分かる品目のみ */
   nextDueDate: string | null;
   /** 推定日まであと何日（マイナスは超過） */
   daysUntilDue: number | null;
   status: "overdue" | "soon" | "ok" | "unknown";
+  /** 周期の信頼度。開業準備中にまとめ買いしただけの物を「定期購入」と誤認しないための指標 */
+  reliable: boolean;
+  spanDays: number; // 初回購入から前回購入までの期間
 };
 
 const DAY = 86_400_000;
@@ -73,6 +92,7 @@ export function analyzePurchases(
   for (const r of receipts) {
     if (!r.date) continue;
     for (const l of receiptLines(r)) {
+      if (isNoiseItem(l.name)) continue;
       const key = normalizeItemName(l.name);
       if (!key || key.length < 2) continue;
       const cur = map.get(key);
@@ -105,14 +125,25 @@ export function analyzePurchases(
     // 同日の重複購入は1回として扱う（1回の買い物で複数行に分かれることがあるため）
     const uniqDates = [...new Set(dates)];
 
+    // 間隔は中央値を使う（開業準備の連日購入のような外れ値に引っ張られないため）
     let avgInterval: number | null = null;
-    if (uniqDates.length >= 2) {
-      let sum = 0;
-      for (let i = 1; i < uniqDates.length; i++) {
-        sum += dayDiff(uniqDates[i], uniqDates[i - 1]);
-      }
-      avgInterval = Math.round((sum / (uniqDates.length - 1)) * 10) / 10;
+    const intervals: number[] = [];
+    for (let i = 1; i < uniqDates.length; i++) {
+      intervals.push(dayDiff(uniqDates[i], uniqDates[i - 1]));
     }
+    if (intervals.length > 0) {
+      const sorted = [...intervals].sort((x, y) => x - y);
+      const mid = Math.floor(sorted.length / 2);
+      avgInterval =
+        sorted.length % 2 === 1
+          ? sorted[mid]
+          : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10;
+    }
+
+    const spanDays = uniqDates.length >= 2 ? dayDiff(uniqDates[uniqDates.length - 1], uniqDates[0]) : 0;
+    // 開業準備中に数日で何度も買った備品を「定期購入」と誤認しないための条件。
+    // 3回以上買っていて、初回から前回まで2週間以上にわたっていれば周期とみなす。
+    const reliable = uniqDates.length >= 3 && spanDays >= 14;
 
     const daysSinceLast = dayDiff(today, a.lastDate);
     let nextDueDate: string | null = null;
@@ -141,12 +172,15 @@ export function analyzePurchases(
       nextDueDate,
       daysUntilDue,
       status,
+      reliable,
+      spanDays,
     });
   }
 
-  // 急ぎ順（超過が大きいものが上）→ 購入回数が多い順
+  // 信頼できる周期のものを優先し、その中で急ぎ順 → 購入回数が多い順
   const rank = { overdue: 0, soon: 1, ok: 2, unknown: 3 };
   out.sort((x, y) => {
+    if (x.reliable !== y.reliable) return x.reliable ? -1 : 1;
     if (rank[x.status] !== rank[y.status]) return rank[x.status] - rank[y.status];
     if (x.daysUntilDue !== null && y.daysUntilDue !== null) return x.daysUntilDue - y.daysUntilDue;
     return y.count - x.count;

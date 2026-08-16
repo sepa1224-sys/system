@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
     const soonDays = Number(sp.get("soon")) || 3;
     const minCount = Number(sp.get("min")) || 1;
     const stats = await getPurchaseStats({ soonDays, minCount });
+    // 「そろそろ」の件数は、周期が信頼できる品目だけで数える
+    const rel = stats.filter((s) => s.reliable);
     const summary = {
       total: stats.length,
-      overdue: stats.filter((s) => s.status === "overdue").length,
-      soon: stats.filter((s) => s.status === "soon").length,
-      tracked: stats.filter((s) => s.avgIntervalDays !== null).length,
+      overdue: rel.filter((s) => s.status === "overdue").length,
+      soon: rel.filter((s) => s.status === "soon").length,
+      tracked: rel.length,
     };
     return NextResponse.json({ summary, stats });
   } catch (e) {
@@ -39,9 +41,9 @@ export async function POST(req: NextRequest) {
     const soonDays = body.soonDays ?? 3;
     const stats = await getPurchaseStats({ soonDays, minCount: 2 });
 
-    // 2回以上買っていて周期が読めるものだけをAIに渡す（1回だけの物は判断材料が無い）
+    // 周期が信頼できるものだけをAIに渡す（開業準備の一時的なまとめ買いは除外）
     const target = stats
-      .filter((s) => s.avgIntervalDays !== null)
+      .filter((s) => s.reliable && s.avgIntervalDays !== null)
       .slice(0, 60)
       .map((s) => ({
         品目: s.displayName,
@@ -58,7 +60,10 @@ export async function POST(req: NextRequest) {
 
     if (target.length === 0) {
       return NextResponse.json({
-        advice: "まだ同じ品目を2回以上買った履歴が少なく、仕入れ周期を判断できません。買い続けるうちに自動で精度が上がります。",
+        advice:
+          "まだ仕入れ周期を判断できる品目がありません。\n" +
+          "同じ品目を3回以上・2週間以上にわたって買った履歴がたまると、自動で「そろそろ買う時期」が出るようになります。\n" +
+          "（開業準備で数日のうちに何度も買った備品は、定期購入ではないので対象外にしています）",
       });
     }
 

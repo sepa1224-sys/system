@@ -21,6 +21,8 @@ type Stat = {
   nextDueDate: string | null;
   daysUntilDue: number | null;
   status: "overdue" | "soon" | "ok" | "unknown";
+  reliable: boolean;
+  spanDays: number;
 };
 
 const LABEL: Record<Stat["status"], { text: string; color: string }> = {
@@ -76,7 +78,8 @@ export default function Shiire() {
     }
   };
 
-  const need = stats.filter((s) => s.status === "overdue" || s.status === "soon");
+  // 「そろそろ」は周期が信頼できるものだけ（開業準備のまとめ買いを除く）
+  const need = stats.filter((s) => s.reliable && (s.status === "overdue" || s.status === "soon"));
   const list = tab === "need" ? need : stats;
 
   return (
@@ -147,7 +150,9 @@ export default function Shiire() {
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ color: lb.color, fontWeight: 700, fontSize: 12.5 }}>{lb.text}</div>
+                <div style={{ color: s.reliable ? lb.color : "var(--muted)", fontWeight: 700, fontSize: 12.5 }}>
+                  {s.reliable ? lb.text : "参考"}
+                </div>
                 {s.daysUntilDue !== null && (
                   <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
                     {s.daysUntilDue < 0 ? `${-s.daysUntilDue}日超過` : `あと${s.daysUntilDue}日`}
@@ -175,7 +180,8 @@ export default function Shiire() {
       })}
 
       <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>
-        ※ 同じ品目を2回以上買うと平均間隔が計算され、次に買う目安が出ます。
+        ※ 同じ品目を<b>3回以上・2週間以上にわたって</b>買うと、周期として扱い「そろそろ」に出します。
+        それ未満は「参考」表示です（開業準備で数日のうちに何度も買った備品を、定期購入と誤認しないため）。
         領収書を登録し続けるほど精度が上がります。
       </p>
     </div>
