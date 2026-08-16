@@ -22,16 +22,26 @@ export async function GET(req: NextRequest) {
 
     const all: any[] = [];
     for (const w of banks) {
-      const { wallet_txns } = await freeeGet<{ wallet_txns: any[] }>(
-        "/api/1/wallet_txns",
-        {
-          company_id: FREEE_COMPANY_ID,
-          walletable_type: w.type,
-          walletable_id: String(w.id),
-          start_date: startDate,
-          end_date: endDate,
-        },
-      );
+      // limit未指定だとfreeeはデフォルト20件しか返さない（最大100）ため、ページングして全件取得
+      let offset = 0;
+      const wallet_txns: any[] = [];
+      for (;;) {
+        const { wallet_txns: page } = await freeeGet<{ wallet_txns: any[] }>(
+          "/api/1/wallet_txns",
+          {
+            company_id: FREEE_COMPANY_ID,
+            walletable_type: w.type,
+            walletable_id: String(w.id),
+            start_date: startDate,
+            end_date: endDate,
+            limit: "100",
+            offset: String(offset),
+          },
+        );
+        wallet_txns.push(...page);
+        if (page.length < 100) break;
+        offset += 100;
+      }
       for (const t of wallet_txns) {
         all.push({
           id: t.id,

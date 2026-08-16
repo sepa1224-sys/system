@@ -35,18 +35,28 @@ export async function GET() {
     const out: unknown[] = [];
 
     for (const w of banks) {
-      const { wallet_txns } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
-        "/api/1/wallet_txns",
-        {
-          company_id: FREEE_COMPANY_ID,
-          walletable_type: w.type,
-          walletable_id: String(w.id),
-          start_date: "2026-06-01",
-          end_date: new Date(Date.now() + 9 * 3600 * 1000)
-            .toISOString()
-            .slice(0, 10),
-        },
-      );
+      // limit未指定だとfreeeはデフォルト20件しか返さない（最大100）ため、ページングして全件取得
+      let offset = 0;
+      const wallet_txns: WalletTxn[] = [];
+      for (;;) {
+        const { wallet_txns: page } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
+          "/api/1/wallet_txns",
+          {
+            company_id: FREEE_COMPANY_ID,
+            walletable_type: w.type,
+            walletable_id: String(w.id),
+            start_date: "2026-06-01",
+            end_date: new Date(Date.now() + 9 * 3600 * 1000)
+              .toISOString()
+              .slice(0, 10),
+            limit: "100",
+            offset: String(offset),
+          },
+        );
+        wallet_txns.push(...page);
+        if (page.length < 100) break;
+        offset += 100;
+      }
       for (const t of wallet_txns) {
         if (t.status !== 1) continue; // 未処理のみ
         const hint = await matchKb(t.description);
