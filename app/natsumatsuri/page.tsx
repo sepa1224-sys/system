@@ -124,6 +124,38 @@ function Radio({
   );
 }
 
+// ?debug=1 を付けて開いたときだけ表示する診断パネル（LIFFが動いているかの確認用）
+function DiagPanel({
+  diag,
+  isFriend,
+  viaLiff,
+  inLine,
+}: {
+  diag: string[];
+  isFriend: boolean | null;
+  viaLiff: boolean;
+  inLine: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    setShow(new URLSearchParams(window.location.search).get("debug") === "1");
+  }, []);
+  if (!show) return null;
+  return (
+    <div
+      className="card"
+      style={{ background: "#fffbe6", borderColor: "#e0c060", fontSize: 12, fontFamily: "monospace" }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>🔧 LIFF診断</div>
+      <div>UA-Line: {String(inLine)} / viaLiff: {String(viaLiff)} / isFriend: {String(isFriend)}</div>
+      {diag.map((d, i) => (
+        <div key={i}>・{d}</div>
+      ))}
+      {diag.length === 0 && <div>（ログなし）</div>}
+    </div>
+  );
+}
+
 const S = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="card">
     <div style={{ fontWeight: 700, marginBottom: 8 }}>{title}</div>
@@ -174,6 +206,7 @@ export default function Natsumatsuri() {
   const [viaLiff, setViaLiff] = useState(false);
   const [inLine, setInLine] = useState(false);
   const [isFriend, setIsFriend] = useState<boolean | null>(null); // LIFF経由で実際の友だち関係を確認した結果
+  const [diag, setDiag] = useState<string[]>([]); // ?debug=1 のときだけ表示する診断ログ
   const [lineUserId, setLineUserId] = useState("");
 
   const [chill, setChill] = useState(false);
@@ -218,14 +251,25 @@ export default function Natsumatsuri() {
       .catch(() => {});
 
     const liffId = process.env.NEXT_PUBLIC_LIFF_ID_NATSUMATSURI;
-    if (!liffId) return;
+    if (!liffId) {
+      setDiag((d) => [...d, "LIFF_ID未設定"]);
+      return;
+    }
+    setDiag((d) => [...d, `LIFF_ID=${liffId}`]);
     const s = document.createElement("script");
     s.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+    s.onerror = () => setDiag((d) => [...d, "SDK読込失敗"]);
     s.onload = async () => {
+      setDiag((d) => [...d, "SDK読込OK"]);
       try {
         await window.liff!.init({ liffId });
-        if (!window.liff!.isLoggedIn()) return;
+        setDiag((d) => [...d, "init OK"]);
+        if (!window.liff!.isLoggedIn()) {
+          setDiag((d) => [...d, "未ログイン"]);
+          return;
+        }
         const p = await window.liff!.getProfile();
+        setDiag((d) => [...d, `profile OK userId=${(p.userId || "").slice(0, 8)}…`]);
         setLineName((prev) => prev || p.displayName);
         setLineUserId(p.userId || "");
         setContact("line");
@@ -236,13 +280,14 @@ export default function Natsumatsuri() {
           try {
             const res = await fetch(`/api/line/friendship?userId=${encodeURIComponent(p.userId)}`);
             const j = await res.json();
+            setDiag((d) => [...d, `friendship: ${JSON.stringify(j)}`]);
             if (j.known) setIsFriend(!!j.isFriend);
-          } catch {
-            /* 判定不能。従来どおり友だち追加ボタンを出す */
+          } catch (e) {
+            setDiag((d) => [...d, `friendship失敗: ${e instanceof Error ? e.message : "?"}`]);
           }
         }
-      } catch {
-        /* LIFF外はスキップ */
+      } catch (e) {
+        setDiag((d) => [...d, `init/profile失敗: ${e instanceof Error ? e.message : String(e)}`]);
       }
     };
     document.head.appendChild(s);
@@ -826,6 +871,7 @@ export default function Natsumatsuri() {
   /* ============ イベント詳細（最初の画面） ============ */
   return (
     <div className="wrap">
+      <DiagPanel diag={diag} isFriend={isFriend} viaLiff={viaLiff} inLine={inLine} />
       <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
         <div style={{ fontSize: 44 }}>🎆🏮</div>
         <h1 style={{ fontSize: 26, margin: "4px 0" }}>flat. 夏祭り2026</h1>
