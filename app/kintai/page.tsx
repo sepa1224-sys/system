@@ -36,6 +36,7 @@ declare global {
       isLoggedIn: () => boolean;
       login: () => void;
       getProfile: () => Promise<{ displayName: string; userId: string }>;
+      getFriendship: () => Promise<{ friendFlag: boolean }>;
     };
   }
 }

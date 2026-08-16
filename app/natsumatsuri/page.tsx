@@ -68,6 +68,7 @@ declare global {
       isLoggedIn: () => boolean;
       login: () => void;
       getProfile: () => Promise<{ displayName: string; userId: string }>;
+      getFriendship: () => Promise<{ friendFlag: boolean }>;
     };
   }
 }
@@ -172,6 +173,7 @@ export default function Natsumatsuri() {
   const [mailSent, setMailSent] = useState(false);
   const [viaLiff, setViaLiff] = useState(false);
   const [inLine, setInLine] = useState(false);
+  const [isFriend, setIsFriend] = useState<boolean | null>(null); // LIFF経由で実際の友だち関係を確認した結果
   const [lineUserId, setLineUserId] = useState("");
 
   const [chill, setChill] = useState(false);
@@ -228,6 +230,12 @@ export default function Natsumatsuri() {
         setLineUserId(p.userId || "");
         setContact("line");
         setViaLiff(true);
+        try {
+          const f = await window.liff!.getFriendship();
+          setIsFriend(f.friendFlag);
+        } catch {
+          setIsFriend(false); // 判定できない場合は安全側（未フォロー扱い）に倒す
+        }
       } catch {
         /* LIFF外はスキップ */
       }
@@ -432,7 +440,7 @@ export default function Natsumatsuri() {
           <div className="result-row"><span>ホットサンド</span><span style={{ textAlign: "right" }}>{effectiveHotsand}</span></div>
           <div className="result-row"><span>ドリンク</span><span style={{ textAlign: "right" }}>{effectiveDrink}</span></div>
         </div>
-        {!inLine && (
+        {isFriend !== true && (
           <div className="card" style={{ textAlign: "center", background: "#eafbf0", borderColor: "#06C755" }}>
             <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>
               📷 写真データの共有・当日の連絡は公式LINEで行います<br />
@@ -700,11 +708,13 @@ export default function Natsumatsuri() {
               )}
               {contact === "line" && (
                 <div style={{ marginTop: 10 }}>
-                  {!viaLiff && !inLine && (
+                  {isFriend !== true && (
                     <div style={{ textAlign: "center", marginBottom: 10 }}>
-                      <LineButton label="① flat. を友だち追加する" />
+                      <LineButton label={viaLiff ? "flat. を友だち追加する" : "① flat. を友だち追加する"} />
                       <p className="hint" style={{ margin: "6px 0 0" }}>
-                        追加するとLINEに申込ページが届きます。このままここで続けてもOK👇
+                        {viaLiff
+                          ? "写真の共有・当日の連絡のため、友だち追加をお願いします🙏"
+                          : "追加するとLINEに申込ページが届きます。このままここで続けてもOK👇"}
                       </p>
                     </div>
                   )}
