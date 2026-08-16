@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
-import { getReceipt, getReceipts, receiptLines, markRegistered } from "@/lib/receipts";
+import { getReceipt, getReceipts, receiptLines, markRegistered, clearRegistered } from "@/lib/receipts";
 import { mapCategory, clampIssueDate } from "@/lib/freeeMap";
 
 export const runtime = "nodejs";
@@ -10,9 +10,17 @@ const COMPANY = Number(FREEE_COMPANY_ID);
 
 // 会社カード払いは口座直結のデビットなので、貸方は「普通預金」等の bank_account/wallet 明細に
 // 実際の引き落としが出てくる。ここでは領収書(expenseKind=card)を金額一致・日付近傍で
-// その未処理明細と突き合わせ、freeeの取引(deals)として"明細に紐づけて"登録する。
-// manual_journalsで単独登録すると、後日その明細が別途処理され二重計上になるため、
-// deals + payments で明細を直接消し込む（Amazon importと同じ方式）。
+// その未処理明細と突き合わせて内訳を確定させ、freeeの取引(deals)として登録する。
+//
+// 重要: freeeの公開APIには「既存のwallet_txnをこの取引で消し込む」フィールドは存在しない
+// （payments配列は from_walletable_id/amount/date を渡すだけの支払行で、指定した時点で
+// その取引は"決済済み"になり、明細側のstatusとは一切連動しない。実際に試したところ
+// wallet_txn.status は 1(消込待ち) のまま変化しなかった）。
+// freeeが明細を消し込めるのは「未決済（payments無し）の取引」に対してのみ
+// （自動登録ルールの条件6/7「未決済取引の消込」がこれに該当）。
+// そのため、ここでは payments を付けずに未決済の取引として登録する。
+// 明細との消込自体は freee の「自動で経理」画面で行う（金額が一致する未決済取引として
+// 提案されるはず）。
 
 type Walletable = { id: number; name: string; type: string };
 type WalletTxn = {
@@ -145,7 +153,6 @@ export async function POST(req: NextRequest) {
     const endDate = endD.toISOString().slice(0, 10);
 
     let matchedTxn: WalletTxn | null = null;
-    let walletType = "";
     let walletName = "";
     for (const w of walletables) {
       const { wallet_txns } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
@@ -161,7 +168,6 @@ export async function POST(req: NextRequest) {
       const hit = wallet_txns.find((t) => t.id === Number(body.walletTxnId));
       if (hit) {
         matchedTxn = hit;
-        walletType = w.type;
         walletName = w.name;
         break;
       }
@@ -192,32 +198,53 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 発生日は明細側の日付で計上（freeeの消し込み要件に合わせる）
+    // 発生日は明細側の日付に合わせる（金額一致・日付一致で freee の消込候補になりやすくするため）
     const { issueDate } = clampIssueDate(matchedTxn.date);
 
+    // payments は付けない＝未決済の取引として作成。
+    // freeeの「自動で経理」画面で、この明細の消込候補として提案されるはず。
     const dealBody = {
       company_id: COMPANY,
       issue_date: issueDate,
       type: "expense",
       details,
-      payments: [
-        {
-          amount: matchedTxn.amount,
-          from_walletable_type: walletType,
-          from_walletable_id: matchedTxn.walletable_id,
-          date: matchedTxn.date,
-        },
-      ],
     };
 
     const deal = await freeePost<{ deal: { id: number } }>("/api/1/deals", dealBody);
     const dealId = deal.deal?.id;
     if (dealId) await markRegistered(r.id, dealId);
 
-    return NextResponse.json({ ok: true, dealId, walletName });
+    return NextResponse.json({ ok: true, dealId, walletName, unsettled: true });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "登録に失敗しました" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE { receiptId, dealId }: 誤って作成した取引を取り消す（登録フラグも戻す）
+export async function DELETE(req: NextRequest) {
+  if (!(await isConnected())) {
+    return NextResponse.json({ error: "freee未接続です" }, { status: 400 });
+  }
+  let body: { receiptId?: string; dealId?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "不正なリクエスト" }, { status: 400 });
+  }
+  if (!body.receiptId || !body.dealId) {
+    return NextResponse.json({ error: "receiptId, dealId が必要です" }, { status: 400 });
+  }
+  try {
+    const { freeeDelete } = await import("@/lib/freee");
+    await freeeDelete(`/api/1/deals/${body.dealId}`, { company_id: String(COMPANY) });
+    await clearRegistered(body.receiptId);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "削除に失敗しました" },
       { status: 500 },
     );
   }
