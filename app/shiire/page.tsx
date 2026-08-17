@@ -3,6 +3,32 @@
 import { useState, useEffect, useCallback } from "react";
 import Nav from "@/components/Nav";
 
+// 仕入先の発注ページ。1タップで飛べるようにここに置く。
+// 「お気に入り」「再購入」のように前に買ったものが並ぶページを優先する。
+// （lib/shiire から import するとKV側のコードがクライアントに入るのでここで持つ）
+const SHOPS: { name: string; url: string; note: string }[] = [
+  {
+    name: "容器スタイル",
+    url: "https://www.packstyle.jp/wishlist.html",
+    note: "お気に入り一覧。バーガー袋ほか包材。¥3,850以上で送料無料",
+  },
+  {
+    name: "アミカ ネットショップ",
+    url: "https://www.amicashop.com/",
+    note: "ワッフル粉・シロップなど。¥10,000以上で送料無料",
+  },
+  {
+    name: "Amazon 再購入",
+    url: "https://www.amazon.co.jp/gp/buyagain",
+    note: "過去に買ったものが並ぶ。ジンジャーエールなど",
+  },
+  {
+    name: "カインズ",
+    url: "https://www.cainz.com/",
+    note: "消耗品・資材",
+  },
+];
+
 // 仕入れサイクル。領収書の履歴から品目ごとの購入間隔を自動集計し、
 // 「そろそろ切れる」ものを教える。手で頻度を登録する必要はない。
 
@@ -103,6 +129,35 @@ export default function Shiire() {
           </div>
         </div>
       )}
+
+      <div className="card" style={{ padding: 14 }}>
+        <div className="cat-title">🛍️ 発注ページ</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+          {SHOPS.map((s) => (
+            <a
+              key={s.name}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={s.note}
+              style={{
+                display: "inline-block",
+                padding: "7px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--line, #ddd)",
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              {s.name} ↗
+            </a>
+          ))}
+        </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          「お気に入り」「再購入」のページを登録してあるので、前に買ったものがそのまま並びます。
+        </p>
+      </div>
 
       <div className="card" style={{ padding: 14 }}>
         <div style={{ textAlign: "center" }}>
