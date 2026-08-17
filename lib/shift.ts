@@ -99,7 +99,7 @@ export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[
     note: "15:00以降は全員でイベント準備（終了時刻が未確定）",
     blocks: [
       { staff: "町田", start: "9:00", end: "10:00" },
-      { staff: "櫻井", start: "10:00", end: "14:00" },
+      { staff: "櫻井", start: "9:00", end: "14:00" },
       { staff: "町田", start: "14:00", end: "15:00" },
     ],
   },
