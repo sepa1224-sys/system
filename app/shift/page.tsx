@@ -64,6 +64,122 @@ const shiftMonth = (month: string, delta: number) => {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 };
 
+// 9:00〜24:30 を30分×31コマのグリッドに載せる。1人1行なので、
+// 中抜けのある人は同じ行に2本のバーが並ぶ（何時に帰って何時に戻るかが見える）。
+const SLOTS = (T1 - T0) / 30; // 31
+const col = (min: number) => Math.round((min - T0) / 30) + 1;
+
+function Timeline({ entries }: { entries: Entry[] }) {
+  const staff = Array.from(new Set(entries.map((e) => e.staff)));
+
+  // 30分ごとの配置人数。0人＝無人、2人以上＝2オペ
+  const counts = Array.from({ length: SLOTS }, (_, i) => {
+    const m = T0 + i * 30;
+    return entries.filter((e) => {
+      const s = toMin(e.start);
+      let t = toMin(e.end);
+      if (s === null || t === null) return false;
+      if (t <= s) t += 24 * 60;
+      return s <= m && m < t;
+    }).length;
+  });
+
+  const grid: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: `repeat(${SLOTS}, 1fr)`,
+  };
+
+  return (
+    <div style={{ marginTop: 10, overflowX: "auto" }}>
+      <div style={{ minWidth: 460 }}>
+        {/* 目盛り（3時間おき） */}
+        <div style={{ ...grid, marginBottom: 2 }}>
+          {[9, 12, 15, 18, 21, 24].map((h) => (
+            <span
+              key={h}
+              style={{
+                gridColumn: col(h * 60),
+                fontSize: 10,
+                color: "var(--muted)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {h}
+            </span>
+          ))}
+        </div>
+
+        {/* 1人1行 */}
+        {staff.map((name) => {
+          const mine = entries.filter((e) => e.staff === name);
+          const total = mine.reduce((n, e) => {
+            const s = toMin(e.start) ?? 0;
+            let t = toMin(e.end) ?? 0;
+            if (t <= s) t += 24 * 60;
+            return n + (t - s);
+          }, 0);
+          return (
+            <div key={name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+              <span style={{ width: 34, fontSize: 11, fontWeight: 700, color: COLOR[name], flexShrink: 0 }}>
+                {name}
+              </span>
+              <div style={{ ...grid, flex: 1, height: 19, background: "var(--line-soft, #ececec)", borderRadius: 3 }}>
+                {mine.map((e) => {
+                  const s = toMin(e.start) ?? T0;
+                  let t = toMin(e.end) ?? T1;
+                  if (t <= s) t += 24 * 60;
+                  return (
+                    <div
+                      key={e.id}
+                      title={`${e.staff} ${e.start}〜${e.end}`}
+                      style={{
+                        gridColumn: `${col(s)} / ${col(t)}`,
+                        gridRow: 1,
+                        background: COLOR[name] || "#777",
+                        borderRadius: 3,
+                        color: "#fff",
+                        fontSize: 9.5,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {e.start}-{e.end}
+                    </div>
+                  );
+                })}
+              </div>
+              <span style={{ width: 32, fontSize: 10.5, color: "var(--muted)", textAlign: "right", flexShrink: 0 }}>
+                {hoursText(total)}
+              </span>
+            </div>
+          );
+        })}
+
+        {/* 人数の帯。赤=無人、濃い=2人以上 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          <span style={{ width: 34, fontSize: 10, color: "var(--muted)", flexShrink: 0 }}>人数</span>
+          <div style={{ ...grid, flex: 1, height: 13, borderRadius: 3, overflow: "hidden" }}>
+            {counts.map((c, i) => (
+              <div
+                key={i}
+                title={`${hhmm(T0 + i * 30)} ${c}人`}
+                style={{
+                  gridColumn: i + 1,
+                  background: c === 0 ? "#c0392b" : c === 1 ? "#c9d3dd" : "#4a7fb5",
+                }}
+              />
+            ))}
+          </div>
+          <span style={{ width: 32, flexShrink: 0 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Shift() {
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   const [month, setMonth] = useState(today.slice(0, 7));
@@ -258,41 +374,7 @@ export default function Shift() {
                 </div>
               </div>
 
-              {entries.length > 0 && (
-                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 3 }}>
-                  {entries.map((e) => {
-                    const s = toMin(e.start) ?? T0;
-                    let t = toMin(e.end) ?? T1;
-                    if (t <= s) t += 24 * 60;
-                    const left = ((s - T0) / (T1 - T0)) * 100;
-                    const width = ((t - s) / (T1 - T0)) * 100;
-                    return (
-                      <div key={e.id} style={{ position: "relative", height: 20, background: "var(--line-soft, #eee)", borderRadius: 3 }}>
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: `${Math.max(0, left)}%`,
-                            width: `${Math.min(100 - Math.max(0, left), width)}%`,
-                            top: 0,
-                            bottom: 0,
-                            background: COLOR[e.staff] || "#777",
-                            borderRadius: 3,
-                            color: "#fff",
-                            fontSize: 10.5,
-                            display: "flex",
-                            alignItems: "center",
-                            paddingLeft: 5,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {e.staff} {e.start}-{e.end}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {entries.length > 0 && <Timeline entries={entries} />}
 
               {open && (
                 <div style={{ marginTop: 12 }}>

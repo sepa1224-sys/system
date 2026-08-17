@@ -30,7 +30,7 @@ export const PATTERNS: { label: string; start: string; end: string; staff?: Staf
   { label: "バイト", start: "10:00", end: "14:00", staff: "バイト" },
 ];
 
-export type Block = { staff: Staff; start: string; end: string };
+export type Block = { staff: Staff; start: string; end: string; note?: string };
 
 /**
  * 曜日ごとの定型シフト。ここを直すと以降の割当がすべて変わる。
@@ -41,7 +41,7 @@ export type Block = { staff: Staff; start: string; end: string };
  *
  * 火曜と水曜は坂本と町田が入れ替わっているだけで、櫻井は両日とも同じ。
  */
-export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[] }[] = [
+export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[]; note?: string }[] = [
   {
     weekday: 2,
     label: "火曜",
@@ -49,9 +49,9 @@ export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[
       { staff: "櫻井", start: "9:00", end: "14:00" },
       { staff: "櫻井", start: "15:00", end: "18:00" },
       { staff: "坂本", start: "14:00", end: "18:00" },
-      { staff: "坂本", start: "19:00", end: "22:30" },
+      { staff: "坂本", start: "19:00", end: "24:30" },
       { staff: "町田", start: "9:00", end: "10:00" },
-      { staff: "町田", start: "20:00", end: "24:30" },
+      { staff: "町田", start: "20:00", end: "22:30" },
     ],
   },
   {
@@ -61,9 +61,46 @@ export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[
       { staff: "櫻井", start: "9:00", end: "14:00" },
       { staff: "櫻井", start: "15:00", end: "18:00" },
       { staff: "町田", start: "14:00", end: "18:00" },
-      { staff: "町田", start: "19:00", end: "22:30" },
+      { staff: "町田", start: "20:00", end: "24:30" },
       { staff: "坂本", start: "9:00", end: "10:00" },
-      { staff: "坂本", start: "20:00", end: "24:30" },
+      { staff: "坂本", start: "19:00", end: "22:30" },
+    ],
+  },
+  {
+    weekday: 4,
+    label: "木曜",
+    blocks: [
+      { staff: "櫻井", start: "9:00", end: "14:00" },
+      { staff: "櫻井", start: "15:00", end: "18:00" },
+      { staff: "町田", start: "14:00", end: "18:00" },
+      { staff: "町田", start: "20:00", end: "24:30" },
+      { staff: "坂本", start: "9:00", end: "10:00" },
+      { staff: "坂本", start: "19:00", end: "22:30" },
+    ],
+  },
+  {
+    weekday: 5,
+    label: "金曜",
+    // 金曜だけ 9:00-10:00 が坂本1人（他の曜日は2人で仕込み）。櫻井は10:00入り。
+    blocks: [
+      { staff: "坂本", start: "9:00", end: "10:00" },
+      { staff: "坂本", start: "19:00", end: "24:30" },
+      { staff: "櫻井", start: "10:00", end: "14:00" },
+      { staff: "櫻井", start: "15:00", end: "18:00" },
+      { staff: "町田", start: "14:00", end: "18:00" },
+      { staff: "町田", start: "20:00", end: "22:30" },
+    ],
+  },
+  {
+    weekday: 6,
+    label: "土曜",
+    // 15:00以降は「全員でイベント準備」。終了時刻が未確定なので枠を入れていない。
+    // 決まったらここに全員分のブロックを足す。
+    note: "15:00以降は全員でイベント準備（終了時刻が未確定）",
+    blocks: [
+      { staff: "町田", start: "9:00", end: "10:00" },
+      { staff: "櫻井", start: "10:00", end: "14:00" },
+      { staff: "町田", start: "14:00", end: "15:00" },
     ],
   },
 ];
