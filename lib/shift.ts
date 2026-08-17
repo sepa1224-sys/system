@@ -265,6 +265,52 @@ export function prepCount(entries: ShiftEntry[]): number {
   }).length;
 }
 
+export type Segment = { start: string; end: string; staff: string[]; idle: boolean };
+
+/**
+ * 「9:00-10:00 櫻井・町田」「10:00-14:00 櫻井」のような時間帯ごとの担当リストを作る。
+ * 30分刻みで見て、担当の顔ぶれが変わらない限り1本にまとめる。
+ * 誰が何時に入るかを、シフト表と同じ書き方で確認するためのもの。
+ */
+export function segments(entries: ShiftEntry[]): Segment[] {
+  if (!entries.length) return [];
+  const starts = entries.map((e) => toMin(e.start) ?? 0);
+  const ends = entries.map((e) => {
+    const s = toMin(e.start) ?? 0;
+    let t = toMin(e.end) ?? 0;
+    if (t <= s) t += 24 * 60;
+    return t;
+  });
+  const from = Math.min(...starts);
+  const to = Math.max(...ends);
+
+  const at = (m: number) =>
+    entries
+      .filter((_, i) => starts[i] <= m && m < ends[i])
+      .map((e) => e.staff)
+      .sort();
+
+  const out: Segment[] = [];
+  let cur: string[] | null = null;
+  let curFrom = from;
+  for (let m = from; m < to; m += 30) {
+    const now = at(m);
+    const key = now.join("|");
+    if (cur === null) {
+      cur = now;
+      curFrom = m;
+    } else if (key !== cur.join("|")) {
+      out.push({ start: fromMin(curFrom), end: fromMin(m), staff: cur, idle: cur.length === 0 });
+      cur = now;
+      curFrom = m;
+    }
+  }
+  if (cur !== null) {
+    out.push({ start: fromMin(curFrom), end: fromMin(to), staff: cur, idle: cur.length === 0 });
+  }
+  return out;
+}
+
 export type DaySummary = {
   date: string;
   entries: ShiftEntry[];
@@ -275,6 +321,8 @@ export type DaySummary = {
   /** 開店準備の人数と、2人に足りているか */
   prepCount: number;
   prepOk: boolean;
+  /** 時間帯ごとの担当（シフト表と同じ書き方） */
+  segments: Segment[];
 };
 
 export function summarizeDay(date: string, entries: ShiftEntry[]): DaySummary {
@@ -288,6 +336,7 @@ export function summarizeDay(date: string, entries: ShiftEntry[]): DaySummary {
     doubleMinutes: slots.filter((s) => s.count >= 2).length * 30,
     prepCount: prep,
     prepOk: prep >= PREP_REQUIRED,
+    segments: segments(entries),
   };
 }
 

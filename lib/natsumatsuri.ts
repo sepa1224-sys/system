@@ -98,6 +98,31 @@ export function joinsHanabi(e: NatsumatsuriEntry): boolean {
   return HANABI_PLANS.includes(e.plan);
 }
 
+/**
+ * ホットサンドの味の内訳。
+ * hotsand は「予約する：1つ（…） ／ 味: ガーデンメルト」の形で保存されている。
+ * 味の選択は2026-08-16 14:48(JST)に追加したので、それ以前の申込には味が入っていない。
+ *
+ * 注意: 個人名を含むので、公開エンドポイントが返す counts には混ぜないこと。
+ */
+export function hotsandBreakdown(entries: NatsumatsuriEntry[]) {
+  const byFlavor: Record<string, number> = {};
+  const missing: { name: string; qty: number }[] = [];
+  let total = 0;
+  for (const e of entries) {
+    const qty = e.hotsand.includes("2つ") ? 2 : e.hotsand.includes("1つ") ? 1 : 0;
+    if (!qty) continue;
+    total += qty;
+    const m = /味[:：]\s*(.+)$/.exec(e.hotsand);
+    const picked = m
+      ? m[1].split(/[・、,]/).map((s) => s.trim()).filter(Boolean)
+      : [];
+    for (const f of picked) byFlavor[f] = (byFlavor[f] || 0) + 1;
+    if (qty > picked.length) missing.push({ name: e.name, qty: qty - picked.length });
+  }
+  return { total, byFlavor, missing };
+}
+
 export function counts(entries: NatsumatsuriEntry[]) {
   const shuttle = entries.filter((e) => e.transport === SHUTTLE_OPTION).length;
   const hanabi = entries.filter(joinsHanabi).length;

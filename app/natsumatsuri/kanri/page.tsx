@@ -68,6 +68,25 @@ export default function NatsumatsuriKanri() {
 
   const djList = entries.filter((e) => e.djRequest);
   const hotsandList = entries.filter((e) => e.hotsand.includes("予約する"));
+
+  // ホットサンドの味の内訳。hotsand は「予約する：1つ（…） ／ 味: ガーデンメルト」の形。
+  // 味の選択は8/16 14:48(JST)に追加したので、それ以前の申込には味が入っていない。
+  const hotsand = (() => {
+    const byFlavor: Record<string, number> = {};
+    const missing: { name: string; qty: number }[] = [];
+    let total = 0;
+    for (const e of entries) {
+      const qty = e.hotsand.includes("2つ") ? 2 : e.hotsand.includes("1つ") ? 1 : 0;
+      if (!qty) continue;
+      total += qty;
+      const m = /味[:：]\s*(.+)$/.exec(e.hotsand);
+      const picked = m ? m[1].split(/[・、,]/).map((s) => s.trim()).filter(Boolean) : [];
+      for (const f of picked) byFlavor[f] = (byFlavor[f] || 0) + 1;
+      if (qty > picked.length) missing.push({ name: e.name, qty: qty - picked.length });
+    }
+    return { total, byFlavor, missing };
+  })();
+  const missingQty = hotsand.missing.reduce((n, x) => n + x.qty, 0);
   const drinkList = entries.filter((e) => e.takeoutDrink && e.takeoutDrink !== "いらない");
 
   // プラン別集計
@@ -119,13 +138,41 @@ export default function NatsumatsuriKanri() {
 
       {hotsandList.length > 0 && (
         <div className="card">
-          <div className="cat-title">🍞 ホットサンド予約（{counts?.hotsand}個）</div>
-          {hotsandList.map((e) => (
-            <div key={e.id} className="result-row">
-              <span>{e.name}</span>
-              <span>{e.hotsand.includes("2つ") ? "2個" : "1個"}</span>
+          <div className="cat-title">🍞 ホットサンド予約（{hotsand.total}個）</div>
+
+          {/* 味ごとの必要数。仕込みはこの数字で用意する */}
+          {Object.entries(hotsand.byFlavor).sort((a, b) => b[1] - a[1]).map(([f, n]) => (
+            <div key={f} className="result-row">
+              <span>{f}</span>
+              <span className="mono">{n}個</span>
             </div>
           ))}
+          {missingQty > 0 && (
+            <div className="result-row">
+              <span style={{ color: "#c0392b" }}>味 未選択</span>
+              <span className="mono" style={{ color: "#c0392b" }}>{missingQty}個</span>
+            </div>
+          )}
+
+          <div style={{ marginTop: 10, borderTop: "1px solid var(--line-soft, #eee)", paddingTop: 8 }}>
+            {hotsandList.map((e) => {
+              const m = /味[:：]\s*(.+)$/.exec(e.hotsand);
+              return (
+                <div key={e.id} className="result-row">
+                  <span>{e.name}</span>
+                  <span style={{ textAlign: "right", color: m ? undefined : "#c0392b" }}>
+                    {e.hotsand.includes("2つ") ? "2個" : "1個"} ／ {m ? m[1] : "味 未選択"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {hotsand.missing.length > 0 && (
+            <p className="hint" style={{ marginTop: 8, color: "#c0392b" }}>
+              ⚠️ {hotsand.missing.map((x) => x.name).join("・")} さんは、味の選択を追加する前（8/16 14:48以前）に申し込まれています。個別に確認してください。
+            </p>
+          )}
         </div>
       )}
 

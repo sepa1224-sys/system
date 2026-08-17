@@ -23,6 +23,7 @@ type Day = {
   doubleMinutes: number;
   prepCount: number;
   prepOk: boolean;
+  segments: { start: string; end: string; staff: string[]; idle: boolean }[];
 };
 
 type Data = {
@@ -416,6 +417,38 @@ export default function Shift() {
 
               {open && (
                 <div style={{ marginTop: 12 }}>
+                  {/* 時間帯ごとの担当。シフト表と同じ書き方で並べる */}
+                  <div className="cat-title" style={{ fontSize: 12 }}>時間帯ごとの担当</div>
+                  <div style={{ marginBottom: 12 }}>
+                    {(day?.segments || []).map((sg) => (
+                      <div key={sg.start} className="result-row">
+                        <span className="mono" style={{ fontSize: 12.5 }}>
+                          {sg.start}〜{sg.end}
+                        </span>
+                        <span style={{ textAlign: "right", fontSize: 12.5 }}>
+                          {sg.idle ? (
+                            <span style={{ color: "var(--muted)" }}>
+                              {isIdle(toMin(sg.start) ?? 0) ? "アイドリング" : "⚠️ 無人"}
+                            </span>
+                          ) : (
+                            <>
+                              {sg.staff.map((n, i) => (
+                                <span key={n} style={{ color: COLOR[n], fontWeight: 700 }}>
+                                  {i > 0 && <span style={{ color: "var(--muted)", fontWeight: 400 }}>・</span>}
+                                  {n}
+                                </span>
+                              ))}
+                              {sg.staff.length >= 2 && (
+                                <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 5 }}>2人</span>
+                              )}
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="cat-title" style={{ fontSize: 12 }}>個別の枠</div>
                   {entries.map((e) => (
                     <div key={e.id} className="result-row">
                       <span>
