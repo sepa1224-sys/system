@@ -228,13 +228,30 @@ export function coverage(entries: ShiftEntry[]): Slot[] {
   return slots;
 }
 
-/** 誰も入っていない時間帯を "H:MM〜H:MM" でまとめて返す */
+/**
+ * 意図的に誰も入れない時間帯。18:00-19:00 は客足が落ちる（実績で1日平均¥531）ので
+ * アイドリングとして空けている。穴の警告からは除外する。
+ */
+export const IDLE_WINDOWS: { start: string; end: string; label: string }[] = [
+  { start: "18:00", end: "19:00", label: "アイドリング" },
+];
+
+export function inIdle(min: number): boolean {
+  return IDLE_WINDOWS.some((w) => {
+    const s = toMin(w.start);
+    const e = toMin(w.end);
+    return s !== null && e !== null && s <= min && min < e;
+  });
+}
+
+/** 想定外に誰も入っていない時間帯を "H:MM〜H:MM" でまとめて返す（アイドリングは除く） */
 export function gaps(entries: ShiftEntry[]): string[] {
   const out: string[] = [];
   let from: number | null = null;
   for (const s of coverage(entries)) {
-    if (s.count === 0 && from === null) from = s.min;
-    if (s.count > 0 && from !== null) {
+    const isGap = s.count === 0 && !inIdle(s.min);
+    if (isGap && from === null) from = s.min;
+    if (!isGap && from !== null) {
       out.push(`${fromMin(from)}〜${fromMin(s.min)}`);
       from = null;
     }

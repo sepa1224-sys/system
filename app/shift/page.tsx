@@ -69,6 +69,10 @@ const shiftMonth = (month: string, delta: number) => {
 const SLOTS = (T1 - T0) / 30; // 31
 const col = (min: number) => Math.round((min - T0) / 30) + 1;
 
+// 意図的に誰も入れない時間帯（lib/shift.ts の IDLE_WINDOWS と揃える）
+const IDLE: [number, number][] = [[18 * 60, 19 * 60]];
+const isIdle = (min: number) => IDLE.some(([s, e]) => s <= min && min < e);
+
 function Timeline({ entries }: { entries: Entry[] }) {
   const staff = Array.from(new Set(entries.map((e) => e.staff)));
 
@@ -162,16 +166,27 @@ function Timeline({ entries }: { entries: Entry[] }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
           <span style={{ width: 34, fontSize: 10, color: "var(--muted)", flexShrink: 0 }}>人数</span>
           <div style={{ ...grid, flex: 1, height: 13, borderRadius: 3, overflow: "hidden" }}>
-            {counts.map((c, i) => (
-              <div
-                key={i}
-                title={`${hhmm(T0 + i * 30)} ${c}人`}
-                style={{
-                  gridColumn: i + 1,
-                  background: c === 0 ? "#c0392b" : c === 1 ? "#c9d3dd" : "#4a7fb5",
-                }}
-              />
-            ))}
+            {counts.map((c, i) => {
+              const m = T0 + i * 30;
+              const idle = isIdle(m);
+              return (
+                <div
+                  key={i}
+                  title={idle ? `${hhmm(m)} アイドリング` : `${hhmm(m)} ${c}人`}
+                  style={{
+                    gridColumn: i + 1,
+                    // アイドリングは意図的に空けている時間なので、無人（赤）とは区別する
+                    background: idle
+                      ? "repeating-linear-gradient(45deg,#d8d2c4,#d8d2c4 3px,#eae5da 3px,#eae5da 6px)"
+                      : c === 0
+                        ? "#c0392b"
+                        : c === 1
+                          ? "#c9d3dd"
+                          : "#4a7fb5",
+                  }}
+                />
+              );
+            })}
           </div>
           <span style={{ width: 32, flexShrink: 0 }} />
         </div>
@@ -429,7 +444,8 @@ export default function Shift() {
         })}
 
       <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>
-        ※ 穴の判定は営業時間（10:00〜24:30）で行います。9:00〜10:00の仕込みは人数に数えますが、穴の対象外です。<br />
+        ※ <b>18:00〜19:00 はアイドリング</b>として意図的に空けているので、無人の警告は出しません（帯では斜線で表示）。<br />
+        穴の判定は営業時間（10:00〜24:30）で行います。9:00〜10:00の仕込みは人数に数えますが、穴の対象外です。<br />
         曜日パターンを変えたいときは <code>lib/shift.ts</code> の WEEKDAY_TEMPLATES を直します。
       </p>
     </div>
