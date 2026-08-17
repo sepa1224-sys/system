@@ -81,11 +81,10 @@ export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[
   {
     weekday: 5,
     label: "金曜",
-    // 金曜だけ 9:00-10:00 が坂本1人（他の曜日は2人で仕込み）。櫻井は10:00入り。
     blocks: [
       { staff: "坂本", start: "9:00", end: "10:00" },
       { staff: "坂本", start: "19:00", end: "24:30" },
-      { staff: "櫻井", start: "10:00", end: "14:00" },
+      { staff: "櫻井", start: "9:00", end: "14:00" },
       { staff: "櫻井", start: "15:00", end: "18:00" },
       { staff: "町田", start: "14:00", end: "18:00" },
       { staff: "町田", start: "20:00", end: "22:30" },
@@ -260,6 +259,22 @@ export function gaps(entries: ShiftEntry[]): string[] {
   return out;
 }
 
+/** 開店準備の時間帯。掃除とエスプレッソマシンの立ち上げがあるので必ず2人 */
+export const PREP_START = 9 * 60;
+export const PREP_END = 10 * 60;
+export const PREP_REQUIRED = 2;
+
+/** 9:00-10:00 に入っている人数。PREP_REQUIRED を下回っていたら要修正 */
+export function prepCount(entries: ShiftEntry[]): number {
+  return entries.filter((e) => {
+    const s = toMin(e.start);
+    let t = toMin(e.end);
+    if (s === null || t === null) return false;
+    if (t <= s) t += 24 * 60;
+    return s <= PREP_START && PREP_END <= t;
+  }).length;
+}
+
 export type DaySummary = {
   date: string;
   entries: ShiftEntry[];
@@ -267,16 +282,22 @@ export type DaySummary = {
   gaps: string[];
   /** 2人以上いる時間帯の長さ（分）。売上ピークを覆えているかの目安 */
   doubleMinutes: number;
+  /** 開店準備の人数と、2人に足りているか */
+  prepCount: number;
+  prepOk: boolean;
 };
 
 export function summarizeDay(date: string, entries: ShiftEntry[]): DaySummary {
   const slots = coverage(entries);
+  const prep = prepCount(entries);
   return {
     date,
     entries,
     totalMinutes: entries.reduce((n, e) => n + entryMinutes(e), 0),
     gaps: gaps(entries),
     doubleMinutes: slots.filter((s) => s.count >= 2).length * 30,
+    prepCount: prep,
+    prepOk: prep >= PREP_REQUIRED,
   };
 }
 

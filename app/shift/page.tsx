@@ -21,6 +21,8 @@ type Day = {
   totalMinutes: number;
   gaps: string[];
   doubleMinutes: number;
+  prepCount: number;
+  prepOk: boolean;
 };
 
 type Data = {
@@ -293,6 +295,8 @@ export default function Shift() {
   const dates = monthDays(month);
   const staffList = data?.staff || ["坂本", "町田", "櫻井", "バイト"];
   const gapDays = (data?.days || []).filter((d) => d.gaps.length > 0);
+  // 割当がある日のうち、開店準備が2人に満たない日
+  const prepShortDays = (data?.days || []).filter((d) => d.entries.length > 0 && !d.prepOk);
 
   return (
     <div className="wrap">
@@ -348,6 +352,25 @@ export default function Shift() {
               </div>
             ))}
             {gapDays.length > 6 && <div>ほか {gapDays.length - 6} 日</div>}
+          </div>
+        </div>
+      )}
+
+      {prepShortDays.length > 0 && (
+        <div className="card" style={{ padding: 14, borderLeft: "3px solid #b5651d" }}>
+          <strong style={{ color: "#b5651d", fontSize: 14 }}>
+            ⚠️ 開店準備が1人の日が {prepShortDays.length} 日あります
+          </strong>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
+            9:00〜10:00 は掃除とエスプレッソマシンがあるので必ず2人です。
+            <div style={{ marginTop: 4 }}>
+              {prepShortDays.slice(0, 8).map((d) => (
+                <span key={d.date} style={{ marginRight: 10 }}>
+                  {d.date.slice(5)}（{WD[new Date(d.date + "T00:00:00Z").getUTCDay()]}）{d.prepCount}人
+                </span>
+              ))}
+              {prepShortDays.length > 8 && <span>ほか {prepShortDays.length - 8} 日</span>}
+            </div>
           </div>
         </div>
       )}
