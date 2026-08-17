@@ -85,6 +85,25 @@ export async function addEntry(e: NatsumatsuriEntry): Promise<void> {
   await store.set(KEY, list);
 }
 
+/**
+ * 申込内容を後から直す。味の選択を追加する前(2026-08-16 14:48 JST)に
+ * 申し込んだ人に、あとから電話などで確認した内容を反映するために使う。
+ */
+export async function updateEntry(
+  id: string,
+  patch: Partial<NatsumatsuriEntry>,
+): Promise<NatsumatsuriEntry | null> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const list = (await store.get<NatsumatsuriEntry[]>(KEY)) ?? [];
+  const i = list.findIndex((e) => e.id === id);
+  if (i < 0) return null;
+  // id と createdAt は動かさない
+  list[i] = { ...list[i], ...patch, id: list[i].id, createdAt: list[i].createdAt };
+  await store.set(KEY, list);
+  return list[i];
+}
+
 export async function deleteEntry(id: string): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");

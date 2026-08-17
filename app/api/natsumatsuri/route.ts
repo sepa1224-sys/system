@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getEntries,
   addEntry,
+  updateEntry,
   deleteEntry,
   counts,
   CAPS,
@@ -165,6 +166,29 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "申込に失敗しました" },
+      { status: 500 },
+    );
+  }
+}
+
+// PATCH { id, patch }: 申込内容の一部を後から直す（味の後追い確認など・管理用）
+export async function PATCH(req: NextRequest) {
+  try {
+    const { id, patch } = (await req.json()) as {
+      id?: string;
+      patch?: Partial<NatsumatsuriEntry>;
+    };
+    if (!id || !patch) {
+      return NextResponse.json({ error: "id と patch が必要" }, { status: 400 });
+    }
+    const updated = await updateEntry(id, patch);
+    if (!updated) {
+      return NextResponse.json({ error: "該当の申込がありません" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, entry: updated });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "更新に失敗" },
       { status: 500 },
     );
   }
