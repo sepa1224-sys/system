@@ -10,8 +10,12 @@ export async function GET(req: NextRequest) {
   }
   try {
     const sp = req.nextUrl.searchParams;
-    const startDate = sp.get("start_date") || "2026-07-01";
-    const endDate = sp.get("end_date") || "2026-07-31";
+    // from/to でも呼べるようにする。名前が違うと既定値に落ちて「明細が無い」ように
+    // 見えてしまうため、既定も固定日付ではなく「今月」にしておく。
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const startDate =
+      sp.get("start_date") || sp.get("from") || today.slice(0, 8) + "01";
+    const endDate = sp.get("end_date") || sp.get("to") || today;
 
     // 口座一覧
     const { walletables } = await freeeGet<{ walletables: any[] }>(

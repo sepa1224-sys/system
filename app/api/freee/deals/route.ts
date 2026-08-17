@@ -11,8 +11,11 @@ export async function GET(req: NextRequest) {
   }
   try {
     const sp = req.nextUrl.searchParams;
-    const startDate = sp.get("start_date") || "2026-05-01";
-    const endDate = sp.get("end_date") || "2026-07-31";
+    // 既定を固定日付にすると、指定を忘れたときに黙って古い期間だけを返してしまう。
+    // 開業月（2026-08）から今日まで、を既定にする。
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const startDate = sp.get("start_date") || sp.get("from") || "2026-05-01";
+    const endDate = sp.get("end_date") || sp.get("to") || today;
 
     // freee deals API で取引一覧を取得
     const query: Record<string, string> = {

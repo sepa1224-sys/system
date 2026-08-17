@@ -52,7 +52,8 @@ async function getUnprocessedTxns(walletables: Walletable[]): Promise<(WalletTxn
           walletable_type: w.type,
           walletable_id: String(w.id),
           start_date: "2026-05-01",
-          end_date: "2026-07-31",
+          // 固定日付にすると以降の明細を永久に取りこぼすため、今日までを見る
+          end_date: new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10),
           limit: "100",
           offset: String(offset),
         },
