@@ -66,13 +66,16 @@ export async function getDocFile(
   return (await store.get<{ base64: string; mediaType: string }>(`doc:file:${id}`)) ?? null;
 }
 
-/** 未処理明細(金額・摘要)に一致しそうな書類を返す（金額一致＋取引先名のゆるい一致） */
-export async function matchDocs(
+/**
+ * 読み込み済みの索引から一致しそうな書類を返す（金額一致＋取引先名のゆるい一致）。
+ * 明細を大量に判定するときは、KVの読み込みを1回で済ませるためこちらを使う。
+ */
+export function matchDocsIn(
+  docs: DocEntry[],
   amount: number,
   description: string,
-): Promise<DocEntry[]> {
+): DocEntry[] {
   const d = norm(description);
-  const docs = await getDocsIndex();
   return docs.filter((doc) =>
     doc.payments.some((p) => {
       const amtHit = p.amount === amount;
@@ -80,4 +83,12 @@ export async function matchDocs(
       return amtHit || payeeHit;
     }),
   );
+}
+
+/** 未処理明細(金額・摘要)に一致しそうな書類を返す（金額一致＋取引先名のゆるい一致） */
+export async function matchDocs(
+  amount: number,
+  description: string,
+): Promise<DocEntry[]> {
+  return matchDocsIn(await getDocsIndex(), amount, description);
 }

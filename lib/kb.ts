@@ -50,14 +50,21 @@ export async function getKbEntries(): Promise<KbEntry[]> {
   return (await store.get<KbEntry[]>(KB_KEY)) ?? [];
 }
 
-/** 摘要にマッチする過去ノウハウを返す（最長キーワード優先） */
-export async function matchKb(description: string): Promise<KbEntry | null> {
+/**
+ * 読み込み済みのエントリから引き当てる（最長キーワード優先）。
+ * 明細を大量に判定するときは、KVの読み込みを1回で済ませるためこちらを使う。
+ */
+export function matchKbIn(entries: KbEntry[], description: string): KbEntry | null {
   const d = norm(description);
-  const entries = await getKbEntries();
   const hits = entries
     .filter((e) => e.keyword && d.includes(norm(e.keyword)))
     .sort((a, b) => b.keyword.length - a.keyword.length);
   return hits[0] ?? null;
+}
+
+/** 摘要にマッチする過去ノウハウを返す（最長キーワード優先） */
+export async function matchKb(description: string): Promise<KbEntry | null> {
+  return matchKbIn(await getKbEntries(), description);
 }
 
 export async function saveKbEntry(e: Omit<KbEntry, "updatedAt">): Promise<void> {

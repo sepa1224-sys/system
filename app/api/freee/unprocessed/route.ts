@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, isConnected } from "@/lib/freee";
-import { matchKb, getDecisions } from "@/lib/kb";
-import { matchDocs } from "@/lib/docs";
+import { matchKbIn, getKbEntries, getDecisions } from "@/lib/kb";
+import { matchDocsIn, getDocsIndex } from "@/lib/docs";
 import { isGoogleConnected } from "@/lib/google";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type Walletable = { id: number; name: string; type: string };
 type WalletTxn = {
@@ -31,37 +32,51 @@ export async function GET() {
       (w) => w.type === "bank_account" || w.type === "wallet",
     );
 
-    const decisions = await getDecisions();
+    // ノウハウ・書類索引・判断はKVから1回だけ読む。
+    // 以前は明細1件ごとに matchKb/matchDocs がKVを読んでいて、
+    // 未処理が100件あると往復200回で1分近くかかっていた。
+    const [decisions, kbEntries, docsIndex, gmail] = await Promise.all([
+      getDecisions(),
+      getKbEntries(),
+      getDocsIndex(),
+      isGoogleConnected(),
+    ]);
     const out: unknown[] = [];
 
-    for (const w of banks) {
-      // limit未指定だとfreeeはデフォルト20件しか返さない（最大100）ため、ページングして全件取得
-      let offset = 0;
-      const wallet_txns: WalletTxn[] = [];
-      for (;;) {
-        const { wallet_txns: page } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
-          "/api/1/wallet_txns",
-          {
-            company_id: FREEE_COMPANY_ID,
-            walletable_type: w.type,
-            walletable_id: String(w.id),
-            start_date: "2026-06-01",
-            end_date: new Date(Date.now() + 9 * 3600 * 1000)
-              .toISOString()
-              .slice(0, 10),
-            limit: "100",
-            offset: String(offset),
-          },
-        );
-        wallet_txns.push(...page);
-        if (page.length < 100) break;
-        offset += 100;
-      }
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+
+    // 口座ごとの取得は互いに独立しているので並列で回す
+    const perBank = await Promise.all(
+      banks.map(async (w) => {
+        // limit未指定だとfreeeはデフォルト20件しか返さない（最大100）ため、ページングして全件取得
+        let offset = 0;
+        const wallet_txns: WalletTxn[] = [];
+        for (;;) {
+          const { wallet_txns: page } = await freeeGet<{ wallet_txns: WalletTxn[] }>(
+            "/api/1/wallet_txns",
+            {
+              company_id: FREEE_COMPANY_ID,
+              walletable_type: w.type,
+              walletable_id: String(w.id),
+              start_date: "2026-06-01",
+              end_date: today,
+              limit: "100",
+              offset: String(offset),
+            },
+          );
+          wallet_txns.push(...page);
+          if (page.length < 100) break;
+          offset += 100;
+        }
+        return { w, wallet_txns };
+      }),
+    );
+
+    for (const { w, wallet_txns } of perBank) {
       for (const t of wallet_txns) {
         if (t.status !== 1) continue; // 未処理のみ
-        const hint = await matchKb(t.description);
-        const docs = await matchDocs(t.amount, t.description);
-        const doc = docs[0];
+        const hint = matchKbIn(kbEntries, t.description);
+        const doc = matchDocsIn(docsIndex, t.amount, t.description)[0];
         // この明細の金額に対応する想定仕訳（書類のpaymentから）
         const pay = doc?.payments.find((p) => p.amount === t.amount);
         out.push({
@@ -94,7 +109,6 @@ export async function GET() {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
       return b.id - a.id;
     });
-    const gmail = await isGoogleConnected();
     return NextResponse.json({ connected: true, gmail, txns: out });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "エラー";
