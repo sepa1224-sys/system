@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
 import { getReceipt, getReceipts, receiptLines, markRegistered, clearRegistered } from "@/lib/receipts";
 import { mapCategory, clampIssueDate } from "@/lib/freeeMap";
+import { itemIdForProduct, newItemCache } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -32,6 +33,28 @@ type WalletTxn = {
   status: number;
   walletable_id: number;
 };
+
+/** 仕入先を名前で引く。無ければ作る。「Amazonにいくら使ったか」を集計できるようにする */
+async function resolvePartnerId(name: string): Promise<number | undefined> {
+  const n = (name || "").trim();
+  if (!n) return undefined;
+  try {
+    const list = await freeeGet<{ partners: { id: number; name: string }[] }>(
+      "/api/1/partners",
+      { company_id: FREEE_COMPANY_ID, limit: "3000" },
+    );
+    const hit = list.partners?.find((p) => p.name === n);
+    if (hit) return hit.id;
+    const created = await freeePost<{ partner: { id: number } }>("/api/1/partners", {
+      company_id: Number(FREEE_COMPANY_ID),
+      name: n,
+    });
+    return created.partner?.id;
+  } catch {
+    // 取引先が付けられなくても登録は続ける
+    return undefined;
+  }
+}
 
 async function getBankWalletables(): Promise<Walletable[]> {
   const { walletables } = await freeeGet<{ walletables: Walletable[] }>(
@@ -199,16 +222,25 @@ export async function POST(req: NextRequest) {
 
     const lines = receiptLines(r);
     const desc = (r.memo || r.summary || r.vendor || "").slice(0, 100);
-    const details = lines.map((l) => {
-      const m = mapCategory(l.category);
-      return {
-        account_item_id: m.accountItemId,
-        tax_code: m.taxCode,
-        amount: l.amount,
-        ...(m.itemId ? { item_id: m.itemId } : {}),
-        description: (l.name || desc).slice(0, 100),
-      };
-    });
+
+    // 品目は銘柄まで分ける（ビール（ハイネケン）など）。ルールに無いものは品目なし。
+    const cache = newItemCache();
+    const details = await Promise.all(
+      lines.map(async (l) => {
+        const m = mapCategory(l.category);
+        const itemId = m.itemId ?? (await itemIdForProduct(l.name || "", cache));
+        return {
+          account_item_id: m.accountItemId,
+          tax_code: m.taxCode,
+          amount: l.amount,
+          ...(itemId ? { item_id: itemId } : {}),
+          description: (l.name || desc).slice(0, 100),
+        };
+      }),
+    );
+
+    // 仕入先を入れておくと、freee側で取引先別の集計ができる
+    const partnerId = await resolvePartnerId(r.vendor);
 
     // 発生日は明細側の日付に合わせる（金額一致・日付一致で freee の消込候補になりやすくするため）
     const { issueDate } = clampIssueDate(matchedTxn.date);
@@ -219,6 +251,7 @@ export async function POST(req: NextRequest) {
       company_id: COMPANY,
       issue_date: issueDate,
       type: "expense",
+      ...(partnerId ? { partner_id: partnerId } : {}),
       details,
     };
 
