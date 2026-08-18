@@ -195,3 +195,37 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// DELETE /api/freee/make-deal  { dealIds: [1,2,3] }
+// 作りすぎた・科目を間違えた取引を取り消す
+export async function DELETE(req: NextRequest) {
+  if (!(await isConnected())) {
+    return NextResponse.json({ error: "freee未接続" }, { status: 400 });
+  }
+  try {
+    const { dealIds } = (await req.json()) as { dealIds?: number[] };
+    if (!dealIds?.length) {
+      return NextResponse.json({ error: "dealIds が必要です" }, { status: 400 });
+    }
+    const { freeeDelete } = await import("@/lib/freee");
+    const results: { dealId: number; ok: boolean; error?: string }[] = [];
+    for (const id of dealIds) {
+      try {
+        await freeeDelete(`/api/1/deals/${id}`, { company_id: FREEE_COMPANY_ID });
+        results.push({ dealId: id, ok: true });
+      } catch (e) {
+        results.push({ dealId: id, ok: false, error: e instanceof Error ? e.message : "失敗" });
+      }
+    }
+    return NextResponse.json({
+      ok: true,
+      deleted: results.filter((r) => r.ok).length,
+      results,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "取消に失敗" },
+      { status: 500 },
+    );
+  }
+}
