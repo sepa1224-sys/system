@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { CATEGORIES, type Receipt } from "@/lib/receipt";
 import Nav from "@/components/Nav";
 import CopyField from "@/components/CopyField";
 import TagInput from "@/components/TagInput";
+import ItemPicker from "@/components/ItemPicker";
 
 const MEMBERS = ["坂本", "町田", "櫻井", "國仲"] as const;
 
@@ -167,6 +168,44 @@ export default function Home() {
       });
     } finally {
       setConsulting(false);
+    }
+  }
+
+  // 品目（ビール（ハイネケン）など）の対応表。仕入高の行に、その場で品目を付けられる。
+  const [itemMap, setItemMap] = useState<{ items: string[]; overrides: Record<string, string> }>({
+    items: [],
+    overrides: {},
+  });
+
+  useEffect(() => {
+    fetch("/api/items-map")
+      .then((r) => r.json())
+      .then((d) => d.items && setItemMap({ items: d.items, overrides: d.overrides ?? {} }))
+      .catch(() => {});
+  }, []);
+
+  /** 品名から、いまの設定で決まる品目名（未設定なら空） */
+  function itemOf(name: string) {
+    const keys = Object.keys(itemMap.overrides).sort((a, b) => b.length - a.length);
+    for (const k of keys) if (name.includes(k)) return itemMap.overrides[k];
+    return "";
+  }
+
+  /** 「プレミアム」→「ビール（その他）」のように覚えさせる */
+  async function learnItem(keyword: string, item: string) {
+    const k = keyword.trim();
+    if (!k) return;
+    const res = await fetch("/api/items-map", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword: k, item }),
+    });
+    const d = await res.json();
+    if (d.overrides) {
+      setItemMap((m) => ({
+        items: [...new Set([...m.items, ...(item ? [item] : [])])].sort(),
+        overrides: d.overrides,
+      }));
     }
   }
 
@@ -504,6 +543,14 @@ export default function Home() {
                 ))}
               </select>
               <TagInput tags={l.tags} onChange={(t) => setLine(i, { tags: t })} />
+              {l.category === "仕入高" && l.name.trim() !== "" && (
+                <ItemPicker
+                  productName={l.name}
+                  current={itemOf(l.name)}
+                  items={itemMap.items}
+                  onLearn={learnItem}
+                />
+              )}
             </div>
           ))}
           <button type="button" className="rc-toggle" onClick={addLine} style={{ marginTop: 4 }}>

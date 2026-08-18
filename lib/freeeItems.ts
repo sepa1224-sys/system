@@ -8,6 +8,50 @@
 
 import { FREEE_COMPANY_ID, freeeGet, freeePost } from "@/lib/freee";
 
+const OVERRIDE_KEY = "items:overrides";
+
+async function kv() {
+  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token =
+    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const { createClient } = await import("@vercel/kv");
+  return createClient({ url, token });
+}
+
+/**
+ * 手で覚えさせた「キーワード → 品目」。ルール表に無い商品を、
+ * 領収書を登録するその場で分類できるようにするためのもの。
+ * ルール表より優先し、長いキーワードから先に当てる。
+ */
+export async function getOverrides(): Promise<Record<string, string>> {
+  const store = await kv();
+  return store ? ((await store.get<Record<string, string>>(OVERRIDE_KEY)) ?? {}) : {};
+}
+
+export async function saveOverride(keyword: string, item: string): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const k = keyword.trim();
+  if (!k) throw new Error("キーワードが空です");
+  const cur = (await store.get<Record<string, string>>(OVERRIDE_KEY)) ?? {};
+  if (item.trim()) cur[k] = item.trim();
+  else delete cur[k]; // 品目を空で送ると解除
+  await store.set(OVERRIDE_KEY, cur);
+}
+
+/** 覚えさせた分を含めて品目名を決める。ルール表より覚えさせた方を優先する */
+export function resolveWithOverrides(
+  productName: string,
+  overrides: Record<string, string>,
+): string | null {
+  const s = String(productName ?? "");
+  if (!s) return null;
+  const keys = Object.keys(overrides).sort((a, b) => b.length - a.length);
+  for (const k of keys) if (s.includes(k)) return overrides[k];
+  return resolveItemName(s);
+}
+
 export type ItemRule = { re: RegExp; item: string };
 
 /** 上から順に見て、最初に当たったものを採用する */
@@ -171,11 +215,13 @@ export async function getOrCreateItemId(
   }
 }
 
-/** 品名から item_id を得る（該当ルールが無ければ null） */
+/** 品名から item_id を得る（覚えさせた分も見る。該当なしは null） */
 export async function itemIdForProduct(
   productName: string,
   cache: ItemCache,
+  overrides?: Record<string, string>,
 ): Promise<number | null> {
-  const name = resolveItemName(productName);
+  const ov = overrides ?? (await getOverrides());
+  const name = resolveWithOverrides(productName, ov);
   return name ? getOrCreateItemId(name, cache) : null;
 }
