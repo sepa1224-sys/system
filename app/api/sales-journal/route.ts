@@ -30,17 +30,21 @@ async function markDone(date: string, journalId: number) {
 }
 
 /** 勘定科目を名前で引く。完全一致を優先し、無ければ部分一致 */
-async function accountId(name: string): Promise<number | null> {
+async function resolveAccount(
+  name: string,
+): Promise<{ id: number; name: string } | null> {
   const r = await freeeGet<{ account_items: { id: number; name: string }[] }>(
     "/api/1/account_items",
     { company_id: FREEE_COMPANY_ID },
   );
   const list = r.account_items ?? [];
-  return (
-    list.find((a) => a.name === name)?.id ??
-    list.find((a) => a.name.includes(name))?.id ??
-    null
-  );
+  // 部分一致だと「売掛金」が「Square売掛金」に化けるので、完全一致を必ず優先する
+  const hit = list.find((a) => a.name === name) ?? list.find((a) => a.name.includes(name));
+  return hit ? { id: hit.id, name: hit.name } : null;
+}
+
+async function accountId(name: string): Promise<number | null> {
+  return (await resolveAccount(name))?.id ?? null;
 }
 
 type Day = { date: string; cash: number; other: number; total: number; count: number };
@@ -139,11 +143,12 @@ export async function POST(req: NextRequest) {
     const from = body.from || "2026-08-08";
     const to = body.to || today;
 
-    const [cashId, arId, salesId] = await Promise.all([
-      accountId("現金"),
-      accountId("売掛金"),
-      accountId("売上高"),
+    const [cashAcc, arAcc, salesAcc] = await Promise.all([
+      resolveAccount("現金"),
+      resolveAccount("売掛金"),
+      resolveAccount("売上高"),
     ]);
+    const cashId = cashAcc?.id, arId = arAcc?.id, salesId = salesAcc?.id;
     const missing = [!cashId && "現金", !arId && "売掛金", !salesId && "売上高"].filter(
       Boolean,
     );
@@ -164,7 +169,8 @@ export async function POST(req: NextRequest) {
     if (dryRun) {
       return NextResponse.json({
         dryRun: true,
-        accounts: { cash: cashId, ar: arId, sales: salesId },
+        // 実際にどの科目に入るかを名前で確認できるようにする
+        accounts: { cash: cashAcc, ar: arAcc, sales: salesAcc },
         targets,
         summary: {
           days: targets.length,
