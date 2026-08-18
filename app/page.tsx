@@ -543,7 +543,7 @@ export default function Home() {
                 ))}
               </select>
               <TagInput tags={l.tags} onChange={(t) => setLine(i, { tags: t })} />
-              {l.category === "仕入高" && l.name.trim() !== "" && (
+              {l.name.trim() !== "" && (
                 <ItemPicker
                   productName={l.name}
                   current={itemOf(l.name)}

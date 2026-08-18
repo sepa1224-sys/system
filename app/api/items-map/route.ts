@@ -25,7 +25,6 @@ export async function GET() {
     const unresolved = new Map<string, number>();
     for (const r of receipts) {
       for (const l of receiptLines(r)) {
-        if (l.category !== "仕入高") continue;
         const name = (l.name || "").trim();
         if (!name) continue;
         if (resolveWithOverrides(name, overrides)) continue;
