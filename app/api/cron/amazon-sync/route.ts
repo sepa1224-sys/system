@@ -153,9 +153,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const dateStr = `${threeDaysAgo.getFullYear()}/${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}/${String(threeDaysAgo.getDate()).padStart(2, "0")}`;
+    // 既定は3日分。過去の取りこぼしを埋めるときは ?days=60&max=50 のように広げる。
+    const sp = req.nextUrl.searchParams;
+    const days = Math.min(Math.max(Number(sp.get("days") || "3"), 1), 400);
+    const perQuery = Math.min(Math.max(Number(sp.get("max") || "10"), 1), 100);
+
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const dateStr = `${from.getFullYear()}/${String(from.getMonth() + 1).padStart(2, "0")}/${String(from.getDate()).padStart(2, "0")}`;
 
     // 注文確認メールを広く検索
     const queries = [
@@ -167,7 +172,7 @@ export async function GET(req: NextRequest) {
 
     const allMails = new Map<string, Mail>();
     for (const q of queries) {
-      const mails = await gmailSearch(q, 10);
+      const mails = await gmailSearch(q, perQuery);
       for (const m of mails) allMails.set(m.id, m);
     }
 
