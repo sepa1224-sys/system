@@ -174,6 +174,27 @@ export async function freeePost<T = unknown>(
   return (await res.json()) as T;
 }
 
+export async function freeePut<T = unknown>(
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const token = await getAccessToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Api-Version": "2020-06-15",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`freee API PUT ${path} 失敗(${res.status}): ${text.slice(0, 300)}`);
+  }
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
 export async function freeeDelete(path: string, query: Record<string, string> = {}): Promise<void> {
   const token = await getAccessToken();
   const qs = new URLSearchParams(query).toString();
