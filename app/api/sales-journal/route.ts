@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
+import { FREEE_COMPANY_ID, freeeGet, freeePost, freeeDelete, isConnected } from "@/lib/freee";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -213,6 +213,68 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "登録に失敗" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE /api/sales-journal?from=2026-08-08&to=2026-08-18
+//   登録した売上の振替伝票を取り消す。
+//   freeeのSquare連携が同じ売上を自動で取り込むようになったため、
+//   こちらの伝票は二重計上になる。消したぶんは記録からも外して再登録できるようにする。
+export async function DELETE(req: NextRequest) {
+  if (!(await isConnected())) {
+    return NextResponse.json({ error: "freee未接続" }, { status: 400 });
+  }
+  try {
+    const sp = req.nextUrl.searchParams;
+    const from = sp.get("from") || "2026-06-01";
+    const to = sp.get("to") || todayJST();
+    const dryRun = sp.get("dryRun") !== "0";
+
+    const done = await getDone();
+    const targets = Object.entries(done)
+      .filter(([date]) => date >= from && date <= to)
+      .sort(([a], [b]) => (a < b ? -1 : 1));
+
+    if (dryRun) {
+      return NextResponse.json({
+        dryRun: true,
+        count: targets.length,
+        targets: targets.map(([date, journalId]) => ({ date, journalId })),
+      });
+    }
+
+    const store = await kv();
+    const cur = store ? ((await store.get<Record<string, number>>(KEY)) ?? {}) : {};
+    const results: { date: string; journalId: number; ok: boolean; error?: string }[] = [];
+    for (const [date, journalId] of targets) {
+      try {
+        await freeeDelete(`/api/1/manual_journals/${journalId}`, {
+          company_id: FREEE_COMPANY_ID,
+        });
+        delete cur[date];
+        results.push({ date, journalId, ok: true });
+      } catch (e) {
+        results.push({
+          date,
+          journalId,
+          ok: false,
+          error: e instanceof Error ? e.message : "失敗",
+        });
+      }
+    }
+    if (store) await store.set(KEY, cur);
+
+    return NextResponse.json({
+      ok: true,
+      deleted: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "取消に失敗" },
       { status: 500 },
     );
   }
