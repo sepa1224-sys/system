@@ -100,8 +100,11 @@ export async function POST(req: NextRequest) {
       feeCategory?: string;
       dryRun?: boolean;
       ids?: number[];
+      /** 入金の明細に対して取引を作るときは "income" */
+      side?: "expense" | "income";
     };
     const dryRun = body.dryRun !== false;
+    const side = body.side === "income" ? "income" : "expense";
     const matchStr = body.match || "ATM";
     const category = body.category || "現金";
     const feeCategory = body.feeCategory;
@@ -133,7 +136,7 @@ export async function POST(req: NextRequest) {
     const all = await bankTxns();
     const targets = all.filter(
       (t) =>
-        t.entry_side === "expense" &&
+        t.entry_side === side &&
         re.test(t.description) &&
         (!body.ids?.length || body.ids.includes(t.id)),
     );
@@ -167,7 +170,7 @@ export async function POST(req: NextRequest) {
         const res = await freeePost<{ deal: { id: number } }>("/api/1/deals", {
           company_id: COMPANY,
           issue_date: p.date,
-          type: "expense",
+          type: side,
           details: [
             {
               account_item_id: p.accountItemId,
