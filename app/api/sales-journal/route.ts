@@ -229,7 +229,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const from = sp.get("from") || "2026-06-01";
-    const to = sp.get("to") || todayJST();
+    const to = sp.get("to") || new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     const dryRun = sp.get("dryRun") !== "0";
 
     const done = await getDone();
