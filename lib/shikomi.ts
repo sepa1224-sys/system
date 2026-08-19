@@ -55,6 +55,15 @@ export const TASKS: Task[] = [
     minutes: 20,
   },
   {
+    id: "cold-brew",
+    name: "コールドブリューの仕込み",
+    kind: "仕込み",
+    intervalDays: 3,
+    qty: "2本",
+    note: "仕込んであるかの確認だけでも可。抽出に時間がかかるので切らさない",
+    minutes: 15,
+  },
+  {
     id: "stock-check",
     name: "在庫の確認",
     kind: "確認",
