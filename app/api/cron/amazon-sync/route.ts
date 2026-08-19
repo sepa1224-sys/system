@@ -115,8 +115,11 @@ function parseMonotaro(body: string, mail: Mail): PendingOrder | null {
 
   const orderNo = /注文書番号[\s　]*[：:]\s*(\d+)/.exec(body)?.[1] || mail.id.slice(0, 12);
   const orderDate = /ご注文日[\s　]*[：:]\s*([\d/]+)/.exec(body)?.[1] || mail.date;
-  // 外税表記なので、明細の合計と実際の請求額はずれる。金額は消込時に明細側で合わせる。
-  const total = items.reduce((n, i) => n + i.price, 0);
+  // 外税表記なので明細の単純合計は請求額とずれる。メールに合計があればそちらを使う。
+  const totalM = /合計[^\d]*([,\d]+)/.exec(body);
+  const total = totalM
+    ? parseInt(totalM[1].replace(/,/g, ""), 10)
+    : items.reduce((n, i) => n + i.price, 0);
 
   return {
     id: `${mail.id}_0`,
@@ -195,6 +198,9 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const days = Math.min(Math.max(Number(sp.get("days") || "3"), 1), 400);
     const perQuery = Math.min(Math.max(Number(sp.get("max") || "10"), 1), 100);
+    // パーサーを直したあと、取り込み済みのメールを読み直すためのフラグ。
+    // 同じmailIdの注文は差し替える。
+    const reparse = sp.get("reparse") === "1";
 
     const from = new Date();
     from.setDate(from.getDate() - days);
@@ -229,7 +235,7 @@ export async function GET(req: NextRequest) {
     const newOrders: PendingOrder[] = [];
 
     for (const mail of allMails.values()) {
-      if (processed.has(mail.id)) continue;
+      if (!reparse && processed.has(mail.id)) continue;
 
       const source = detectSource(mail.from, mail.subject);
       if (!source) continue;
@@ -254,8 +260,17 @@ export async function GET(req: NextRequest) {
     }
 
     if (newOrders.length > 0) {
-      existing.push(...newOrders);
-      await store.set(KV_KEY, existing);
+      // 同じメールから作った注文は差し替える（reparseで読み直したときに重複させない）。
+      // ただし確定済みのものは触らない。
+      const ids = new Set(newOrders.map((o) => o.id));
+      const kept = existing.filter((o) => !ids.has(o.id) || o.status !== "pending");
+      const skipped = newOrders.filter((o) =>
+        existing.some((e) => e.id === o.id && e.status !== "pending"),
+      );
+      await store.set(KV_KEY, [
+        ...kept,
+        ...newOrders.filter((o) => !skipped.some((x) => x.id === o.id)),
+      ]);
     }
 
     return NextResponse.json({
