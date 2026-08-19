@@ -94,6 +94,44 @@ function parseAskul(body: string, mail: Mail): PendingOrder | null {
   };
 }
 
+/**
+ * モノタロウの注文メール。明細はこの形で並んでいる:
+ *   注文コード：27862039
+ *   商品　　　：EBM 木製 タグスティック 64301 小 1パック(100本)
+ *   単価×数量：@￥1,098(外税) × 2
+ * 「配送費」も1明細として入るので、そのまま拾う。
+ */
+function parseMonotaro(body: string, mail: Mail): PendingOrder | null {
+  const items: OrderItem[] = [];
+  const re =
+    /商品[\s　]*[：:]\s*(.+?)\r?\n\s*単価×数量[\s　]*[：:]\s*@[¥￥]?\s*([,\d]+)\s*(?:\([^)]*\))?\s*[×x]\s*(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body))) {
+    const unit = parseInt(m[2].replace(/,/g, ""), 10);
+    const qty = parseInt(m[3], 10) || 1;
+    items.push({ name: m[1].trim().slice(0, 80), quantity: qty, price: unit * qty });
+  }
+  if (items.length === 0) return null;
+
+  const orderNo = /注文書番号[\s　]*[：:]\s*(\d+)/.exec(body)?.[1] || mail.id.slice(0, 12);
+  const orderDate = /ご注文日[\s　]*[：:]\s*([\d/]+)/.exec(body)?.[1] || mail.date;
+  // 外税表記なので、明細の合計と実際の請求額はずれる。金額は消込時に明細側で合わせる。
+  const total = items.reduce((n, i) => n + i.price, 0);
+
+  return {
+    id: `${mail.id}_0`,
+    mailId: mail.id,
+    source: "モノタロウ",
+    orderNumber: orderNo,
+    orderDate,
+    items,
+    total,
+    subject: mail.subject,
+    snippet: mail.snippet,
+    status: "pending",
+  };
+}
+
 function parseGeneric(body: string, mail: Mail, source: string): PendingOrder | null {
   // 汎用パーサー: 金額っぽいものを拾う
   const items: OrderItem[] = [];
@@ -201,6 +239,9 @@ export async function GET(req: NextRequest) {
         order = parseAmazon(mail.body, mail);
       } else if (source === "ASKUL") {
         order = parseAskul(mail.body, mail);
+      } else if (source === "モノタロウ") {
+        // 明細が読めなければ汎用パーサーに落とす
+        order = parseMonotaro(mail.body, mail) ?? parseGeneric(mail.body, mail, source);
       } else {
         order = parseGeneric(mail.body, mail, source);
       }
