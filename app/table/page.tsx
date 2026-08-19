@@ -71,7 +71,7 @@ const TABLES = [
   { id: "C3", label: "C3", area: "C", x: 60, y: 27, w: 12, h: 18 },
   { id: "C4", label: "C4", area: "C", x: 74, y: 27, w: 12, h: 18 },
   // T: 畳
-  { id: "T1", label: "T1", area: "T", x: 55, y: 60, w: 22, h: 30 },
+  { id: "T1", label: "T1", area: "T", x: 52, y: 62, w: 34, h: 20 },
 ];
 
 const fmt = (n: number) => `¥${n.toLocaleString()}`;
@@ -793,13 +793,14 @@ export default function TablePage() {
 
       {/* フロアマップ */}
       <div className="card" style={{ padding: 12, position: "relative", aspectRatio: "0.91", overflow: "hidden" }}>
-        {/* キッチン */}
+        {/* キッチン。レジはこの中の右上にある */}
         <div style={{
-          position: "absolute", left: "2%", top: "78%", width: "40%", height: "20%",
-          background: "#f0ede8", borderRadius: 8, display: "flex", alignItems: "center",
-          justifyContent: "center", fontSize: 12, color: "var(--muted)", border: "1px dashed var(--line)",
+          position: "absolute", left: "16%", top: "84%", width: "44%", height: "14%",
+          background: "#f0ede8", borderRadius: 8, fontSize: 12, color: "var(--muted)",
+          border: "1px dashed var(--line)",
         }}>
-          🍳 キッチン
+          <span style={{ position: "absolute", left: 8, bottom: 6 }}>🍳 キッチン</span>
+          <span style={{ position: "absolute", right: 6, top: 4, fontSize: 10.5 }}>💰 レジ</span>
         </div>
 
         {/* 入口 */}
@@ -808,13 +809,6 @@ export default function TablePage() {
           textAlign: "center",
         }}>
           入口 ▶
-        </div>
-
-        {/* レジ */}
-        <div style={{
-          position: "absolute", right: "2%", bottom: "4%", fontSize: 11, color: "var(--muted)",
-        }}>
-          💰 レジ
         </div>
 
         {/* テーブル */}
@@ -858,18 +852,9 @@ export default function TablePage() {
           );
         })}
 
-        {/* エリアラベル */}
-        <div style={{ position: "absolute", left: "24%", top: "2%", fontSize: 10, color: "var(--muted)" }}>
-          A 壁側テーブル
-        </div>
-        <div style={{ position: "absolute", right: "2%", top: "24%", fontSize: 10, color: "var(--muted)", writingMode: "vertical-rl" }}>
-          B ソファ
-        </div>
-        <div style={{ position: "absolute", left: "56%", top: "26%", fontSize: 10, color: "var(--muted)" }}>
-          C 中央
-        </div>
-        <div style={{ position: "absolute", left: "10%", top: "50%", fontSize: 10, color: "var(--muted)" }}>
-          T 畳
+        {/* 畳だけラベルを残す。A/B/Cはテーブル名で分かるので出さない */}
+        <div style={{ position: "absolute", left: "52%", top: "57%", fontSize: 10, color: "var(--muted)" }}>
+          畳
         </div>
       </div>
 
