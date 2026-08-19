@@ -104,7 +104,9 @@ export async function GET(req: NextRequest) {
                 end_at: endAt,
               },
             },
-            state_filter: { states: ["COMPLETED"] },
+            // OPENも取る。会計をキーパッドで打つと品目の無いCOMPLETEDができ、
+            // 品目つきの注文がOPENのまま残るため、あとで突き合わせて品目を補う。
+            state_filter: { states: ["COMPLETED", "OPEN"] },
           },
           sort: { sort_field: "CREATED_AT", sort_order: "ASC" },
         },
@@ -132,8 +134,41 @@ export async function GET(req: NextRequest) {
     // カタログマップを取得
     const catalogMap = await buildCatalogMap();
 
+    // 会計されたのはCOMPLETED。OPENは品目を補うための材料として脇に置く。
+    const completed = allOrders.filter((o) => o.state === "COMPLETED");
+    const openOrders = allOrders.filter((o) => o.state === "OPEN");
+
+    const named = (li: any) => catalogMap[li.catalog_object_id] || li.name || "";
+
+    /**
+     * 品目が無いCOMPLETED（キーパッド入力）に、同額・同時刻のOPEN注文の品目を当てる。
+     * 会計は品目つきの注文を作った直後に打たれるので、120秒以内で探す。
+     */
+    const usedOpen = new Set<string>();
+    function recoverItems(o: any): any[] | null {
+      const hasName = (o.line_items || []).some((li: any) => named(li));
+      if (hasName) return null;
+      const t = new Date(o.created_at).getTime();
+      const total = o.total_money?.amount || 0;
+      const hit = openOrders.find(
+        (x) =>
+          !usedOpen.has(x.id) &&
+          (x.total_money?.amount || 0) === total &&
+          Math.abs(new Date(x.created_at).getTime() - t) <= 120_000,
+      );
+      if (!hit) return null;
+      usedOpen.add(hit.id);
+      return (hit.line_items || []).map((li: any) => ({
+        name: named(li) || "不明",
+        qty: parseInt(li.quantity) || 1,
+        amount: li.total_money?.amount || 0,
+        note: li.note || "",
+        recovered: true,
+      }));
+    }
+
     // 注文データを整形
-    const orders = allOrders.map((o) => {
+    const orders = completed.map((o) => {
       const createdJST = new Date(
         new Date(o.created_at).getTime() + 9 * 60 * 60 * 1000
       );
@@ -151,11 +186,14 @@ export async function GET(req: NextRequest) {
           amount: t.amount_money?.amount || 0,
           note: t.note || t.other_details?.source || "",
         })),
-        items: (o.line_items || []).map((li: any) => ({
-          name: catalogMap[li.catalog_object_id] || li.name || "不明",
-          qty: parseInt(li.quantity) || 1,
-          amount: li.total_money?.amount || 0,
-        })),
+        items:
+          recoverItems(o) ??
+          (o.line_items || []).map((li: any) => ({
+            name: named(li) || (li.note ? `金額入力（${li.note}）` : "金額入力"),
+            qty: parseInt(li.quantity) || 1,
+            amount: li.total_money?.amount || 0,
+            note: li.note || "",
+          })),
       };
     });
 
