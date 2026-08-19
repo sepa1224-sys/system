@@ -23,6 +23,16 @@ const SHOPS: { name: string; url: string; note: string }[] = [
     note: "過去に買ったものが並ぶ。ジンジャーエールなど",
   },
   {
+    name: "Amazon ほしい物リスト",
+    url: "https://www.amazon.co.jp/hz/wishlist/ls/8FJVIJUEMZ7L",
+    note: "梅シロップなど。定番の仕入れをまとめてある",
+  },
+  {
+    name: "ヨドバシ お気に入り",
+    url: "https://order.yodobashi.com/yc/favorite/index.html",
+    note: "テキーラ（クエルボ エスペシャル）など",
+  },
+  {
     name: "カインズ",
     url: "https://www.cainz.com/",
     note: "消耗品・資材",
