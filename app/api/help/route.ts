@@ -8,9 +8,11 @@ export const maxDuration = 60;
 // このシステムの使い方に答えるチャット。会計の判断は /soudan の担当。
 export async function POST(req: NextRequest) {
   let messages: { role: "user" | "assistant"; content: string }[] = [];
+  let path = "";
   try {
     const body = await req.json();
     messages = Array.isArray(body.messages) ? body.messages : [];
+    if (typeof body.path === "string") path = body.path;
   } catch {
     return new Response("不正なリクエストです。", { status: 400 });
   }
@@ -25,7 +27,11 @@ export async function POST(req: NextRequest) {
         const s = await client.messages.stream({
           model: "claude-opus-4-8",
           max_tokens: 1500,
-          system: SYSTEM_GUIDE,
+          system:
+            SYSTEM_GUIDE +
+            (path
+              ? `\n\n# いまユーザーが開いている画面\n${path}\n「この画面」と言われたらここのこと。`
+              : ""),
           messages,
         });
         for await (const ev of s) {

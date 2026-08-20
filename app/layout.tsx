@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import HelpWidget from "@/components/HelpWidget";
 
 export const metadata: Metadata = {
   title: "flat system",
@@ -34,7 +35,10 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <HelpWidget />
+      </body>
     </html>
   );
 }
