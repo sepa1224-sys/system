@@ -32,6 +32,7 @@ export default function Nav() {
     { href: "/bunseki", label: "🔍 分析" },
     { href: "/sales", label: "📈 売上" },
     { href: "/soudan", label: "💬 相談" },
+    { href: "/help", label: "❓ 使い方" },
     { href: "/natsumatsuri/kanri", label: "🎆 夏祭り申込" },
   ];
   return (
