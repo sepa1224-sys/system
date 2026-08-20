@@ -125,6 +125,9 @@ export default function HelpWidget() {
                 {s}
               </button>
             ))}
+            <a href="/knowledge" className="hw-link">
+              📚 分かったことをナレッジに残す →
+            </a>
           </div>
         ) : (
           messages.map((m, i) => (
@@ -214,6 +217,13 @@ export default function HelpWidget() {
           border: 1px solid var(--line, #ddd);
           background: var(--card, #fff);
           cursor: pointer;
+        }
+        .hw-link {
+          font-size: 12px;
+          color: var(--accent, #b5651d);
+          text-decoration: none;
+          padding: 6px 2px;
+          font-weight: 700;
         }
         .hw-foot {
           display: flex;

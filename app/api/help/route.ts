@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_GUIDE } from "@/lib/systemGuide";
+import { getKnowledge, toPrompt } from "@/lib/knowledge";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     return new Response("メッセージがありません。", { status: 400 });
   }
 
+  // 店のナレッジを読み込む。書かれていることは、これを最優先で答える。
+  const knowledge = await getKnowledge().catch(() => []);
+
   const client = new Anthropic();
   const stream = new ReadableStream({
     async start(controller) {
@@ -29,6 +33,12 @@ export async function POST(req: NextRequest) {
           max_tokens: 1500,
           system:
             SYSTEM_GUIDE +
+            toPrompt(knowledge) +
+            "\n\n# 答えられないとき\n" +
+            "ナレッジにも書かれておらず、システムの説明からも分からないことは、" +
+            "推測で答えないでください。「これは分かりません」とはっきり伝えたうえで、" +
+            "『分かる人に聞いて、答えを /knowledge に登録しておくと次から答えられます』" +
+            "と案内してください。" +
             (path
               ? `\n\n# いまユーザーが開いている画面\n${path}\n「この画面」と言われたらここのこと。`
               : ""),
