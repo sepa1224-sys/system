@@ -100,6 +100,8 @@ export default function TablePage() {
   const [variantPending, setVariantPending] = useState<MenuItem | null>(null);
   const [soyPending, setSoyPending] = useState<{ item: MenuItem; note: string } | null>(null);
   const [payMode, setPayMode] = useState(false);
+  // お客さんが席を移ったときの移動先。空なら移動UIを閉じている
+  const [moveTo, setMoveTo] = useState<string | null>(null);
   const [tendered, setTendered] = useState("");
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
@@ -596,6 +598,7 @@ export default function TablePage() {
                 const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
                 const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
                 const DESSERT_NAMES = ["アフォガート","ワッフル"];
+                const APPAREL_NAMES = ["flat. Tシャツ"];
                 const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
                 HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
                 FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
@@ -603,10 +606,11 @@ export default function TablePage() {
                 CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
                 DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
                 SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
+                APPAREL_NAMES.forEach(n => FALLBACK[n] = "👕 アパレル");
 
                 const validItems = menu.filter(item => { const v = item.variations[0]; return v && v.price != null; });
                 const grouped: Record<string, MenuItem[]> = {};
-                const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
+                const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
                 for (const item of validItems) {
                   const cat = item.category || FALLBACK[item.name] || "その他";
                   if (!grouped[cat]) grouped[cat] = [];
@@ -876,8 +880,19 @@ export default function TablePage() {
           {/* 現在の注文 */}
           {currentOrder && (
             <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                 <div className="cat-title" style={{ marginBottom: 0 }}>{selected} の注文中</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={() => setMoveTo(moveTo === null ? "" : null)}
+                  style={{
+                    fontSize: 11, padding: "4px 10px", borderRadius: 6,
+                    border: "1px solid var(--line)", background: "var(--card)",
+                    cursor: "pointer", fontWeight: 600,
+                  }}
+                >
+                  ↔ 席を移動
+                </button>
                 <button
                   onClick={async () => {
                     if (!confirm(`${selected} の注文を全てキャンセルしますか？`)) return;
@@ -901,7 +916,49 @@ export default function TablePage() {
                 >
                   全キャンセル
                 </button>
+                </div>
               </div>
+
+              {/* 席の移動。空いているテーブルを選ぶとその席へ付け替える */}
+              {moveTo !== null && (
+                <div style={{ marginTop: 8, padding: 10, border: "1px solid var(--line)", borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                    移動先の席を選んでください（{selected} → ?）
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {TABLES.filter((t) => t.id !== selected && !orderFor(t.id)).map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={async () => {
+                          if (!currentOrder) return;
+                          try {
+                            const res = await fetch("/api/square/move", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                order_id: currentOrder.id,
+                                version: currentOrder.version,
+                                to: t.id,
+                              }),
+                            });
+                            const d = await res.json();
+                            if (!res.ok) throw new Error(d.error);
+                            setMoveTo(null);
+                            setSelected(t.id);
+                            await loadOrders();
+                          } catch (e: any) { setErr(e.message); }
+                        }}
+                        style={{ fontSize: 13, fontWeight: 700, padding: "8px 14px" }}
+                      >
+                        {t.id}
+                      </button>
+                    ))}
+                  </div>
+                  {TABLES.filter((t) => t.id !== selected && !orderFor(t.id)).length === 0 && (
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>空いている席がありません</div>
+                  )}
+                </div>
+              )}
               {currentOrder.items.map((item, i) => (
                 <div key={i} className="result-row" style={{ alignItems: "center" }}>
                   <input
@@ -1131,6 +1188,7 @@ export default function TablePage() {
             CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
             DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
             SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
+            ["flat. Tシャツ"].forEach(n => FALLBACK[n] = "👕 アパレル");
 
             const validItems = menu.filter(item => {
               const v = item.variations[0];
@@ -1139,7 +1197,7 @@ export default function TablePage() {
 
             // カテゴリ分類
             const grouped: Record<string, MenuItem[]> = {};
-            const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "その他"];
+            const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
             for (const item of validItems) {
               const cat = item.category || FALLBACK[item.name] || "その他";
               if (!grouped[cat]) grouped[cat] = [];
