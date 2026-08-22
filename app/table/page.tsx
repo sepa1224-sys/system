@@ -87,6 +87,19 @@ function autoMode(): "day" | "night" {
   return mins >= 360 && mins < 1110 ? "day" : "night";
 }
 
+// 盆踊りパーティの参加費。通常のメニューとは別扱いにして、
+// パーティモードのときだけ出す。
+const PARTY_NAMES = [
+  "花火＋パーティ（飲み放題）",
+  "花火＋パーティ（3杯）",
+  "花火のみ",
+  "パーティのみ（飲み放題）",
+  "パーティのみ（ほろ酔い3杯）",
+  "パーティのみ（ノンアル飲み放題）",
+  "パーティのみ（入場のみ）",
+];
+const PARTY_SET = new Set(PARTY_NAMES);
+
 export default function TablePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -110,7 +123,9 @@ export default function TablePage() {
   // 夜でもテイクアウトを受けられるように、カウンター注文の画面を夜モードでも開けるようにする
   const [takeout, setTakeout] = useState(false);
   // 店内利用かテイクアウトか。伝票名になり、KDSにもこの名前で出る。
-  const [orderType, setOrderType] = useState<"店内" | "テイクアウト">("店内");
+  const [orderType, setOrderType] = useState<"店内" | "テイクアウト" | "パーティ受付">("店内");
+  // パーティモード：参加費だけを出す受付用の画面
+  const [party, setParty] = useState(false);
   // 別会計：会計する品目のuid。空なら注文全体を会計する
   const [splitSel, setSplitSel] = useState<Set<string>>(new Set());
   // 昼モード: カウンター注文のstate
@@ -519,21 +534,25 @@ export default function TablePage() {
     <div className="wrap">
       <header>
         <h1>🛎️ 注文</h1>
-        <p>{mode === "day" || takeout ? `カウンター注文（${orderType}）` : "テーブル注文"}</p>
+        <p>{party ? "🎆 盆踊りパーティ 受付" : mode === "day" || takeout ? `カウンター注文（${orderType}）` : "テーブル注文"}</p>
       </header>
       <Nav />
 
       {/* 昼/夜 切替 */}
       <div className="sub-tabs" style={{ marginBottom: 12 }}>
-        <button className={`sub-tab ${mode === "day" ? "active" : ""}`} onClick={() => { setMode("day"); setTakeout(false); setOrderType("店内"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
+        <button className={`sub-tab ${mode === "day" && !party ? "active" : ""}`} onClick={() => { setMode("day"); setParty(false); setTakeout(false); setOrderType("店内"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
           ☀️ 昼（カウンター）
         </button>
-        <button className={`sub-tab ${mode === "night" ? "active" : ""}`} onClick={() => { setMode("night"); setCart([]); setPayMode(false); setPayResult(null); }}>
+        <button className={`sub-tab ${mode === "night" && !party ? "active" : ""}`} onClick={() => { setMode("night"); setParty(false); setCart([]); setPayMode(false); setPayResult(null); }}>
           🌙 夜（テーブル）
+        </button>
+        <button className={`sub-tab ${party ? "active" : ""}`} onClick={() => { setMode("day"); setParty(true); setTakeout(false); setOrderType("パーティ受付"); setSelected(null); setCart([]); setPayMode(false); setPayResult(null); }}>
+          🎆 パーティ
         </button>
       </div>
 
       {/* 仕込み管理 */}
+      {!party && (
       <div className="card" style={{ padding: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontWeight: 700, fontSize: 14 }}>🥪 仕込み在庫</span>
@@ -558,6 +577,7 @@ export default function TablePage() {
           );
         })}
       </div>
+      )}
 
       {/* ===== 昼モード / 夜のテイクアウト ===== */}
       {(mode === "day" || takeout) && (
@@ -598,7 +618,7 @@ export default function TablePage() {
                 const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
                 const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
                 const DESSERT_NAMES = ["アフォガート","ワッフル"];
-                const APPAREL_NAMES = ["flat. Tシャツ"];
+                const APPAREL_NAMES = ["flat. Tシャツ", "ステッカー（小）", "ステッカー（大）"];
                 const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
                 HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
                 FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
@@ -607,10 +627,16 @@ export default function TablePage() {
                 DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
                 SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
                 APPAREL_NAMES.forEach(n => FALLBACK[n] = "👕 アパレル");
+                PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
 
-                const validItems = menu.filter(item => { const v = item.variations[0]; return v && v.price != null; });
+                const validItems = menu.filter(item => {
+                  const v = item.variations[0];
+                  if (!v || v.price == null) return false;
+                  // 参加費は普段のメニューには出さない
+                  return party ? PARTY_SET.has(item.name) : !PARTY_SET.has(item.name);
+                });
                 const grouped: Record<string, MenuItem[]> = {};
-                const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
+                const CAT_ORDER = ["🎆 パーティ参加費", "🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
                 for (const item of validItems) {
                   const cat = item.category || FALLBACK[item.name] || "その他";
                   if (!grouped[cat]) grouped[cat] = [];
@@ -717,7 +743,7 @@ export default function TablePage() {
                   {err && <p className="err">{err}</p>}
 
                   {/* 店内 / テイクアウト（伝票名になりKDSに出る） */}
-                  {!payMode && (
+                  {!payMode && !party && (
                     <div style={{ marginTop: 10 }}>
                       <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, fontWeight: 600 }}>
                         提供方法
@@ -1188,11 +1214,13 @@ export default function TablePage() {
             CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
             DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
             SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
-            ["flat. Tシャツ"].forEach(n => FALLBACK[n] = "👕 アパレル");
+            ["flat. Tシャツ", "ステッカー（小）", "ステッカー（大）"].forEach(n => FALLBACK[n] = "👕 アパレル");
+            PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
 
             const validItems = menu.filter(item => {
               const v = item.variations[0];
-              return v && v.price != null;
+              // 参加費はパーティモード専用なので、テーブル注文には出さない
+              return v && v.price != null && !PARTY_SET.has(item.name);
             });
 
             // カテゴリ分類
