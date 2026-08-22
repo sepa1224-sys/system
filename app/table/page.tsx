@@ -98,7 +98,10 @@ const PARTY_NAMES = [
   "パーティのみ（ノンアル飲み放題）",
   "パーティのみ（入場のみ）",
 ];
-const PARTY_SET = new Set(PARTY_NAMES);
+// パーティ当日だけ売るドリンク。参加費とは別枠だが、出す場面は同じ。
+const PARTY_DRINK_NAMES = ["テキーラショット", "テキーラボトル"];
+// パーティモードで出す品目の全体。ここに入っているものは通常営業の画面には出さない。
+const PARTY_SET = new Set([...PARTY_NAMES, ...PARTY_DRINK_NAMES]);
 
 export default function TablePage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -628,6 +631,7 @@ export default function TablePage() {
                 SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
                 APPAREL_NAMES.forEach(n => FALLBACK[n] = "👕 アパレル");
                 PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
+                PARTY_DRINK_NAMES.forEach(n => FALLBACK[n] = "🥃 テキーラ");
 
                 const validItems = menu.filter(item => {
                   const v = item.variations[0];
@@ -636,7 +640,7 @@ export default function TablePage() {
                   return party ? PARTY_SET.has(item.name) : !PARTY_SET.has(item.name);
                 });
                 const grouped: Record<string, MenuItem[]> = {};
-                const CAT_ORDER = ["🎆 パーティ参加費", "🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
+                const CAT_ORDER = ["🎆 パーティ参加費", "🥃 テキーラ", "🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
                 for (const item of validItems) {
                   const cat = item.category || FALLBACK[item.name] || "その他";
                   if (!grouped[cat]) grouped[cat] = [];
@@ -1216,6 +1220,7 @@ export default function TablePage() {
             SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
             ["flat. Tシャツ", "ステッカー（小）", "ステッカー（大）"].forEach(n => FALLBACK[n] = "👕 アパレル");
             PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
+            PARTY_DRINK_NAMES.forEach(n => FALLBACK[n] = "🥃 テキーラ");
 
             const validItems = menu.filter(item => {
               const v = item.variations[0];
