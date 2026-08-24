@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isGoogleConnected, sheetsGet, sheetsUpdate } from "@/lib/google";
+import { isGoogleConnected, sheetsGet, sheetsInsertRows, sheetsUpdate } from "@/lib/google";
 import { SHEET_ID } from "@/lib/inventorySheet";
 
 export const runtime = "nodejs";
@@ -34,10 +34,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Google未接続" }, { status: 400 });
   }
   try {
-    const body = (await req.json()) as { updates?: { range: string; value: string }[] };
+    const body = (await req.json()) as {
+      updates?: { range: string; value: string }[];
+      insert?: { tab: string; startRow: number; count: number };
+    };
+    // 先に行を空ける。あとから updates でその行を埋める
+    if (body.insert) {
+      const { tab, startRow, count } = body.insert;
+      if (!tab || !startRow || !count) {
+        return NextResponse.json({ error: "insertの指定が足りません" }, { status: 400 });
+      }
+      await sheetsInsertRows(SHEET_ID, tab, startRow, count);
+    }
     const updates = body.updates || [];
     if (!updates.length) {
-      return NextResponse.json({ error: "updatesが空です" }, { status: 400 });
+      return NextResponse.json({ ok: true, inserted: body.insert ?? null, updated: [] });
     }
     const done: string[] = [];
     for (const u of updates) {
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
       await sheetsUpdate(SHEET_ID, u.range, [[u.value]]);
       done.push(u.range);
     }
-    return NextResponse.json({ ok: true, updated: done });
+    return NextResponse.json({ ok: true, inserted: body.insert ?? null, updated: done });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "書き込みに失敗" },

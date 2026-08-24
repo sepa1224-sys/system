@@ -291,6 +291,49 @@ export async function sheetsEnsureTab(spreadsheetId: string, title: string): Pro
   if (!up.ok) throw new Error(`タブ作成失敗(${up.status}): ${(await up.text()).slice(0, 200)}`);
 }
 
+// タブの中で行を挿入する。仕入れ表に品目を足すとき、
+// 下のセクションを押し下げて並びを崩さないようにするため。
+// startRow は1始まりで、その行の「前」に count 行入る。
+export async function sheetsInsertRows(
+  spreadsheetId: string,
+  tabTitle: string,
+  startRow: number,
+  count: number,
+): Promise<void> {
+  const token = await getAccessToken();
+  const meta = await fetch(
+    `${SHEETS_API}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!meta.ok) throw new Error(`Sheetsメタ取得失敗(${meta.status})`);
+  const j = await meta.json();
+  const tab = (j.sheets ?? []).find(
+    (x: { properties: { title: string } }) => x.properties.title === tabTitle,
+  );
+  if (!tab) throw new Error(`タブが見つからない: ${tabTitle}`);
+
+  const res = await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: tab.properties.sheetId,
+              dimension: "ROWS",
+              startIndex: startRow - 1,
+              endIndex: startRow - 1 + count,
+            },
+            inheritFromBefore: false,
+          },
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`行挿入失敗(${res.status}): ${(await res.text()).slice(0, 200)}`);
+}
+
 export async function sheetsUpdate(
   spreadsheetId: string,
   range: string,
