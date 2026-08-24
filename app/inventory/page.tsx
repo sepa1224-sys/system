@@ -28,15 +28,21 @@ export default function InventoryPage() {
   const [missingPrice, setMissingPrice] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  // Google連携が切れている状態。再接続してもらうしかない。
+  const [reauth, setReauth] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr("");
+    setReauth(false);
     try {
       const res = await fetch("/api/inventory/sheet");
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "取得失敗");
+      if (!res.ok) {
+        if (d.needsReauth) setReauth(true);
+        throw new Error(d.error || "取得失敗");
+      }
       setSections(d.sections || []);
       setSheetUrl(d.sheetUrl || "");
       setTotal(d.total || 0);
@@ -61,7 +67,29 @@ export default function InventoryPage() {
       </header>
       <Nav />
 
-      {err && <p className="err">{err}</p>}
+      {err && !reauth && <p className="err">{err}</p>}
+
+      {reauth && (
+        <div className="card" style={{ borderColor: "#e0b4b4", background: "#fdf3f3" }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+            🔌 Googleとの連携が切れています
+          </div>
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 12px" }}>
+            スプレッドシートを読むための許可の期限が切れました。
+            下のボタンからGoogleにログインし直すと元に戻ります。
+          </p>
+          <a
+            href="/api/google/authorize"
+            style={{
+              display: "inline-block", padding: "10px 18px", borderRadius: 8,
+              background: "var(--accent)", color: "#fff", fontWeight: 700,
+              fontSize: 14, textDecoration: "none",
+            }}
+          >
+            Googleに再接続する
+          </a>
+        </div>
+      )}
 
       <div className="card total-card">
         <div className="total-label">登録品目</div>

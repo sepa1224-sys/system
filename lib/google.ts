@@ -26,6 +26,30 @@ async function kv() {
 
 type Tokens = { access_token: string; refresh_token: string; expires_at: number };
 
+// Googleの連携が切れたときのエラー。
+// リフレッシュトークンはユーザーがGoogle側で許可を取り消したり、
+// 一定期間使われないと無効になる。こうなると再接続してもらうしかない。
+export class GoogleAuthError extends Error {
+  needsReauth = true as const;
+  constructor(message = "Googleとの連携が切れています。再接続してください。") {
+    super(message);
+    this.name = "GoogleAuthError";
+  }
+}
+
+export function needsReauth(e: unknown): boolean {
+  return e instanceof GoogleAuthError;
+}
+
+// APIが返すエラーの形。画面側は needsReauth を見て再接続ボタンを出す。
+export function googleErrorPayload(e: unknown, fallback = "エラー") {
+  const reauth = needsReauth(e);
+  return {
+    error: e instanceof Error ? e.message : fallback,
+    ...(reauth ? { needsReauth: true } : {}),
+  };
+}
+
 async function loadTokens(): Promise<Tokens | null> {
   const store = await kv();
   if (!store) return null;
@@ -96,12 +120,20 @@ async function getAccessToken(): Promise<string> {
   const t = await loadTokens();
   if (!t) throw new Error("Google未接続");
   if (t.expires_at - 60 < Math.floor(Date.now() / 1000)) {
-    const nt = await tokenReq({
-      grant_type: "refresh_token",
-      refresh_token: t.refresh_token,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-    });
+    let nt: Tokens;
+    try {
+      nt = await tokenReq({
+        grant_type: "refresh_token",
+        refresh_token: t.refresh_token,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+      });
+    } catch (e) {
+      // invalid_grant = 許可が取り消されたか期限切れ。もう自動では戻せない。
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("invalid_grant")) throw new GoogleAuthError();
+      throw e;
+    }
     if (!nt.refresh_token) nt.refresh_token = t.refresh_token; // Googleは更新時にrefresh返さない
     await saveTokens(nt);
     return nt.access_token;

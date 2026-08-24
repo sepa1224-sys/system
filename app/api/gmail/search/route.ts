@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isGoogleConnected, gmailSearch } from "@/lib/google";
+import { isGoogleConnected, gmailSearch, googleErrorPayload } from "@/lib/google";
 
 export const runtime = "nodejs";
 
@@ -15,6 +15,6 @@ export async function GET(req: NextRequest) {
     const mails = await gmailSearch(q, max);
     return NextResponse.json({ count: mails.length, mails });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "エラー" }, { status: 500 });
+    return NextResponse.json(googleErrorPayload(e), { status: 500 });
   }
 }

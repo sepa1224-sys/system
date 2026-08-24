@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isGoogleConnected, sheetsGet } from "@/lib/google";
+import { isGoogleConnected, sheetsGet, googleErrorPayload } from "@/lib/google";
 import { SHEET_ID, SHEET_RANGE, SHEET_URL, parseSheet } from "@/lib/inventorySheet";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ sheetUrl: SHEET_URL, sections, total, missingPrice });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "読み取りに失敗" },
+      googleErrorPayload(e, "読み取りに失敗"),
       { status: 500 },
     );
   }
