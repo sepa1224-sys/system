@@ -285,10 +285,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "ume-lime-soda", name: "梅ライムソーダ", category: "🥤 Soft Drink",
-    cost: 64, price: 650,
+    cost: 63, price: 650,
     ingredients: [
       { name: "梅ジュース（三田飲料 ザ・スタンダード梅 1L）", unit: "ml", capacity: 1000, purchasePrice: 843, usage: 15, cost: 13 },
-      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 15, cost: 18 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 608, usage: 15, cost: 17 },
       { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 75, cost: 23 },
       { name: "ミント（自家栽培）", unit: "枚", capacity: 1, purchasePrice: 0, usage: 4, cost: 0 },
       { name: "スプライト", unit: "ml", capacity: 1500, purchasePrice: 200, usage: 75, cost: 10 },
@@ -331,12 +331,12 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "aperol-margarita", name: "アペロールマルガリータ", category: "🍸 Original Cocktail",
-    cost: 184, price: 650,
+    cost: 181, price: 650,
     recipe: "テキーラ26ml、アペロール30ml、ライムジュース26ml、ガムシロップ18mlをシェイク。ロックグラスに氷を入れて注ぐ。",
     ingredients: [
       { name: "テキーラ（クエルボ）", unit: "ml", capacity: 750, purchasePrice: 1892, usage: 26, cost: 66 },
       { name: "アペロール", unit: "ml", capacity: 700, purchasePrice: 1776, usage: 30, cost: 76 },
-      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 26, cost: 32 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 608, usage: 26, cost: 29 },
       { name: "ガムシロップ", unit: "ml", capacity: 1000, purchasePrice: 550, usage: 18, cost: 10 },
     ],
   },
@@ -372,12 +372,12 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "umeshu-mojito", name: "梅酒モヒート", category: "🍸 Original Cocktail",
-    cost: 184, price: 650,
+    cost: 182, price: 650,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 30, cost: 43 },
       { name: "ジンジャーエール", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 70, cost: 21 },
       { name: "三ツ矢サイダー", unit: "ml", capacity: 12000, purchasePrice: 1450, usage: 50, cost: 6 },
-      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 30, cost: 36 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 608, usage: 30, cost: 34 },
       { name: "冷凍ライムスライス", unit: "g", capacity: 500, purchasePrice: 780, usage: 50, cost: 78 },
       { name: "ミント（自家栽培）", unit: "枚", capacity: 1, purchasePrice: 0, usage: 4, cost: 0 },
     ],
@@ -396,11 +396,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "lime-sour", name: "ライムサワー", category: "🍸 Bar / Cocktail",
-    cost: 156, price: 650,
+    cost: 154, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②ライムジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
-      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 30, cost: 36 },
+      { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 608, usage: 30, cost: 34 },
       { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
@@ -408,11 +408,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "grapefruit-sour", name: "グレープフルーツサワー", category: "🍸 Bar / Cocktail",
-    cost: 167, price: 650,
+    cost: 153, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②グレープフルーツジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
-      { name: "グレープフルーツジュース（ポッカお酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 846, usage: 30, cost: 47 },
+      { name: "グレープフルーツジュース（ポッカお酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 597, usage: 30, cost: 33 },
       { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
