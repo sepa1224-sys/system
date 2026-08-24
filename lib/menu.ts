@@ -342,11 +342,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "berry-coconut-cloud", name: "ココナッツベリークラウド", category: "🍸 Original Cocktail",
-    cost: 123, price: 650,
+    cost: 130, price: 650,
     ingredients: [
       { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 34, cost: 61 },
       { name: "ブラックベリーシロップ", unit: "ml", capacity: 700, purchasePrice: 1293, usage: 12, cost: 22 },
-      { name: "ココナッツクリーム", unit: "ml", capacity: 1000, purchasePrice: 398, usage: 22, cost: 9 },
+      { name: "ココナッツミルク（CHAOKOH）", unit: "ml", capacity: 9600, purchasePrice: 6880, usage: 22, cost: 16 },
       { name: "グアバジュース（グロリア）", unit: "ml", capacity: 1000, purchasePrice: 397, usage: 77, cost: 31 },
     ],
   },
