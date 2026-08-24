@@ -342,12 +342,12 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "berry-coconut-cloud", name: "ココナッツベリークラウド", category: "🍸 Original Cocktail",
-    cost: 130, price: 650,
+    cost: 123, price: 650,
     ingredients: [
       { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 34, cost: 61 },
       { name: "ブラックベリーシロップ", unit: "ml", capacity: 700, purchasePrice: 1293, usage: 12, cost: 22 },
       { name: "ココナッツクリーム", unit: "ml", capacity: 1000, purchasePrice: 398, usage: 22, cost: 9 },
-      { name: "グアバジュース（CHABAA）", unit: "ml", capacity: 1000, purchasePrice: 490, usage: 77, cost: 38 },
+      { name: "グアバジュース（グロリア）", unit: "ml", capacity: 1000, purchasePrice: 397, usage: 77, cost: 31 },
     ],
   },
   {
@@ -372,11 +372,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "umeshu-mojito", name: "梅酒モヒート", category: "🍸 Original Cocktail",
-    cost: 182, price: 650,
+    cost: 190, price: 650,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 30, cost: 43 },
       { name: "ジンジャーエール", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 70, cost: 21 },
-      { name: "三ツ矢サイダー", unit: "ml", capacity: 12000, purchasePrice: 1450, usage: 50, cost: 6 },
+      { name: "三ツ矢サイダー", unit: "ml", capacity: 5000, purchasePrice: 1400, usage: 50, cost: 14 },
       { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 608, usage: 30, cost: 34 },
       { name: "冷凍ライムスライス", unit: "g", capacity: 500, purchasePrice: 780, usage: 50, cost: 78 },
       { name: "ミント（自家栽培）", unit: "枚", capacity: 1, purchasePrice: 0, usage: 4, cost: 0 },
