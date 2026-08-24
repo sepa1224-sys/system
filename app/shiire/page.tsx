@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Nav from "@/components/Nav";
+import InventorySheet from "@/components/InventorySheet";
 
 // 仕入先の発注ページ。1タップで飛べるようにここに置く。
 // 「お気に入り」「再購入」のように前に買ったものが並ぶページを優先する。
@@ -73,10 +74,15 @@ export default function Shiire() {
   const [summary, setSummary] = useState<{ total: number; overdue: number; soon: number; tracked: number } | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"need" | "all">("need");
+  const [tab, setTab] = useState<"need" | "all" | "sheet">("need");
   const [advice, setAdvice] = useState("");
   const [adviceBusy, setAdviceBusy] = useState(false);
   const [openName, setOpenName] = useState<string | null>(null);
+
+  // /inventory から来たときは仕入れ表のタブを開く
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "sheet") setTab("sheet");
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,14 +127,18 @@ export default function Shiire() {
   return (
     <div className="wrap">
       <header>
-        <h1>🛒 仕入れサイクル</h1>
-        <p>領収書の履歴から、品目ごとの購入間隔を自動で集計しています</p>
+        <h1>🛒 仕入れ</h1>
+        <p>
+          {tab === "sheet"
+            ? "スプレッドシートの仕入れ表をそのまま表示しています"
+            : "領収書の履歴から、品目ごとの購入間隔を自動で集計しています"}
+        </p>
       </header>
       <Nav />
 
       {err && <p className="err">{err}</p>}
 
-      {summary && (
+      {summary && tab !== "sheet" && (
         <div className="card total-card">
           <div className="total-label">そろそろ仕入れ</div>
           <div className="total-amount">{summary.overdue + summary.soon}件</div>
@@ -169,6 +179,7 @@ export default function Shiire() {
         </p>
       </div>
 
+      {tab !== "sheet" && (
       <div className="card" style={{ padding: 14 }}>
         <div style={{ textAlign: "center" }}>
           <button className="primary" onClick={askAdvice} disabled={adviceBusy}>
@@ -181,24 +192,33 @@ export default function Shiire() {
           </div>
         )}
       </div>
+      )}
 
       <div className="sub-tabs">
-        {([["need", `そろそろ (${need.length})`], ["all", `全品目 (${stats.length})`]] as const).map(([k, l]) => (
+        {(
+          [
+            ["need", `そろそろ (${need.length})`],
+            ["all", `全品目 (${stats.length})`],
+            ["sheet", "📦 仕入れ表"],
+          ] as const
+        ).map(([k, l]) => (
           <button key={k} className={`sub-tab ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>
             {l}
           </button>
         ))}
       </div>
 
-      {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>集計中…</div>}
+      {tab === "sheet" && <InventorySheet />}
 
-      {!loading && list.length === 0 && (
+      {tab !== "sheet" && loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>集計中…</div>}
+
+      {tab !== "sheet" && !loading && list.length === 0 && (
         <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>
           {tab === "need" ? "🎉 いま急いで買うものはありません。" : "データがありません。"}
         </div>
       )}
 
-      {!loading && list.map((s) => {
+      {tab !== "sheet" && !loading && list.map((s) => {
         const open = openName === s.name;
         const lb = LABEL[s.status];
         return (

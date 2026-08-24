@@ -78,7 +78,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "tea", name: "紅茶 (Hot/Ice)", category: "☕ Drinks (Cafe)",
-    cost: 30, price: 400,
+    cost: 21, price: 400,
     ingredients: [
       { name: "茶葉", unit: "g", capacity: 200, purchasePrice: 800, usage: 5, cost: 20 },
       { name: "水", unit: "ml", capacity: 600000, purchasePrice: 4000, usage: 200, cost: 1 },
@@ -87,7 +87,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "chai", name: "チャイ/トルコ茶", category: "☕ Drinks (Cafe)",
-    cost: 50, price: 450,
+    cost: 60, price: 450,
     ingredients: [
       { name: "チャイ茶葉", unit: "g", capacity: 200, purchasePrice: 1200, usage: 5, cost: 30 },
       { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 100, cost: 15 },
@@ -105,7 +105,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "cocoa", name: "ココア", category: "☕ Drinks (Cafe)",
-    cost: 42, price: 450,
+    cost: 43, price: 450,
     ingredients: [
       { name: "ココアパウダー", unit: "g", capacity: 1000, purchasePrice: 3980, usage: 5, cost: 20 },
       { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 150, cost: 23 },
@@ -148,7 +148,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🥤 Smoothie / Protein
   {
     id: "banana-protein", name: "バナナプロテイン", category: "🥤 Smoothie / Protein",
-    cost: 148, price: 500,
+    cost: 149, price: 500,
     ingredients: [
       { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
       { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
@@ -157,7 +157,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "cocoa-banana-protein", name: "ココアバナナプロテイン", category: "🥤 Smoothie / Protein",
-    cost: 160, price: 550,
+    cost: 161, price: 550,
     ingredients: [
       { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
       { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
@@ -179,7 +179,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🥪 Hot Sandwich
   {
     id: "ham-cream-cheese", name: "クラシックメルト", category: "🥪 Hot Sandwich",
-    cost: 130, price: 800,
+    cost: 129, price: 800,
     ingredients: [
       { name: "食パン", unit: "枚", capacity: 6, purchasePrice: 91, usage: 2, cost: 30 },
       { name: "切り落としハム", unit: "g", capacity: 800, purchasePrice: 905, usage: 40, cost: 45 },
@@ -252,10 +252,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "ginger-highball", name: "ジンジャーハイボール", category: "🍸 Bar / Cocktail",
-    cost: 92, price: 550,
+    cost: 122, price: 550,
     ingredients: [
       { name: "バーボン（JIM BEAM 4L）", unit: "ml", capacity: 4000, purchasePrice: 5825, usage: 45, cost: 66 },
-      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 185, cost: 26 },
+      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 185, cost: 56 },
     ],
   },
   {
@@ -276,27 +276,27 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "gin-buck", name: "ジンバック", category: "🍸 Bar / Cocktail",
-    cost: 107, price: 550,
+    cost: 137, price: 550,
     ingredients: [
       { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 30, cost: 54 },
       { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 20, cost: 27 },
-      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 185, cost: 26 },
+      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 185, cost: 56 },
     ],
   },
   {
     id: "ume-lime-soda", name: "梅ライムソーダ", category: "🥤 Soft Drink",
-    cost: 52, price: 500,
+    cost: 64, price: 650,
     ingredients: [
       { name: "梅ジュース（三田飲料 ザ・スタンダード梅 1L）", unit: "ml", capacity: 1000, purchasePrice: 843, usage: 15, cost: 13 },
       { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 15, cost: 18 },
-      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 75, cost: 11 },
+      { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 75, cost: 23 },
       { name: "ミント（自家栽培）", unit: "枚", capacity: 1, purchasePrice: 0, usage: 4, cost: 0 },
       { name: "スプライト", unit: "ml", capacity: 1500, purchasePrice: 200, usage: 75, cost: 10 },
     ],
   },
   {
     id: "yuzu-lemonade", name: "ゆずレモネード", category: "🥤 Soft Drink",
-    cost: 75, price: 500,
+    cost: 125, price: 650,
     ingredients: [
       { name: "ゆずジュース", unit: "ml", capacity: 500, purchasePrice: 800, usage: 30, cost: 48 },
       { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 15, cost: 20 },
@@ -314,7 +314,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "cassis-orange", name: "カシスオレンジ", category: "📝 将来メニュー",
-    cost: 120, price: 550,
+    cost: 111, price: 550,
     ingredients: [
       { name: "カシスリキュール", unit: "ml", capacity: 700, purchasePrice: 1200, usage: 30, cost: 51 },
       { name: "オレンジジュース", unit: "ml", capacity: 1000, purchasePrice: 400, usage: 150, cost: 60 },
@@ -322,10 +322,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "moscow-mule", name: "モスコミュール", category: "📝 将来メニュー",
-    cost: 115, price: 550,
+    cost: 126, price: 550,
     ingredients: [
       { name: "ウォッカ", unit: "ml", capacity: 700, purchasePrice: 1200, usage: 45, cost: 77 },
-      { name: "ジンジャーエール", unit: "ml", capacity: 500, purchasePrice: 130, usage: 120, cost: 31 },
+      { name: "ジンジャーエール", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 120, cost: 36 },
       { name: "ライム", unit: "個", capacity: 1, purchasePrice: 50, usage: 0.25, cost: 13 },
     ],
   },
@@ -372,10 +372,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "umeshu-mojito", name: "梅酒モヒート", category: "🍸 Original Cocktail",
-    cost: 173, price: 650,
+    cost: 184, price: 650,
     ingredients: [
       { name: "梅酒（CHOYA熟成一年）", unit: "ml", capacity: 700, purchasePrice: 1010, usage: 30, cost: 43 },
-      { name: "ジンジャーエール", unit: "ml", capacity: 9000, purchasePrice: 1277, usage: 70, cost: 10 },
+      { name: "ジンジャーエール", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 70, cost: 21 },
       { name: "三ツ矢サイダー", unit: "ml", capacity: 12000, purchasePrice: 1450, usage: 50, cost: 6 },
       { name: "ライムジュース（ポッカ）", unit: "ml", capacity: 540, purchasePrice: 655, usage: 30, cost: 36 },
       { name: "冷凍ライムスライス", unit: "g", capacity: 500, purchasePrice: 780, usage: 50, cost: 78 },
@@ -384,7 +384,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "lemon-sour", name: "レモンサワー", category: "🍸 Bar / Cocktail",
-    cost: 156, price: 650,
+    cost: 161, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②レモンジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
@@ -396,7 +396,7 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "lime-sour", name: "ライムサワー", category: "🍸 Bar / Cocktail",
-    cost: 155, price: 650,
+    cost: 156, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②ライムジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
