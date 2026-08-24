@@ -276,10 +276,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "gin-buck", name: "ジンバック", category: "🍸 Bar / Cocktail",
-    cost: 137, price: 550,
+    cost: 132, price: 550,
     ingredients: [
       { name: "ドライジン（GORDON'S）", unit: "ml", capacity: 700, purchasePrice: 1264, usage: 30, cost: 54 },
-      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 20, cost: 27 },
+      { name: "レモンジュース（お酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 597, usage: 20, cost: 22 },
       { name: "ジンジャーエール（カナダドライ）", unit: "ml", capacity: 4800, purchasePrice: 1454, usage: 185, cost: 56 },
     ],
   },
@@ -296,10 +296,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "yuzu-lemonade", name: "ゆずレモネード", category: "🥤 Soft Drink",
-    cost: 125, price: 650,
+    cost: 122, price: 650,
     ingredients: [
       { name: "ゆずジュース", unit: "ml", capacity: 500, purchasePrice: 800, usage: 30, cost: 48 },
-      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 15, cost: 20 },
+      { name: "レモンジュース（お酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 597, usage: 15, cost: 17 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 10, cost: 10 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
     ],
@@ -384,11 +384,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "lemon-sour", name: "レモンサワー", category: "🍸 Bar / Cocktail",
-    cost: 161, price: 650,
+    cost: 153, price: 650,
     recipe: "①よく冷やしたグラスに氷を入れる ②レモンジュース約30mlを入れる ③ウォッカ25mlを入れる ④コアントローをティースプーン1杯(5ml)入れる ⑤ガムシロップ5mlを入れる ⑥ここまでの材料をよく撹拌する ⑦開けたてのソーダを入れる ⑧氷を持ち上げるようにして混ぜる",
     ingredients: [
       { name: "ウォッカ（アブソルート）", unit: "ml", capacity: 750, purchasePrice: 1562, usage: 25, cost: 52 },
-      { name: "レモンジュース（ポッカレモン100%）", unit: "ml", capacity: 720, purchasePrice: 972, usage: 30, cost: 41 },
+      { name: "レモンジュース（お酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 597, usage: 30, cost: 33 },
       { name: "ホワイトキュラソー（コアントロー）", unit: "ml", capacity: 700, purchasePrice: 2250, usage: 5, cost: 16 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 5, cost: 5 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
@@ -482,7 +482,7 @@ const INGREDIENT_KEYWORDS: Record<string, string[]> = {
   "ウイスキー(JIM BEAM)": ["ウイスキー", "JIM BEAM", "ジムビーム"],
   "ウォッカ（アブソルート）": ["ウォッカ", "アブソルート", "ABSOLUT"],
   "ホワイトキュラソー（コアントロー）": ["コアントロー", "COINTREAU", "キュラソー"],
-  "レモンジュース（ポッカレモン100%）": ["ポッカレモン", "レモンジュース"],
+  "レモンジュース（お酒にプラス）": ["お酒にプラス", "ポッカレモン", "レモンジュース"],
   "ガムシロップ（サントリー）": ["ガムシロップ"],
   "コロナ 330ml瓶": ["コロナ", "Corona"],
   "バドワイザー 330ml瓶": ["バドワイザー", "Budweiser"],
