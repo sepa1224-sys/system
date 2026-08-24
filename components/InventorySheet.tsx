@@ -13,6 +13,7 @@ type Row = {
   price: string;
   capacity: string;
   note: string;
+  orderQty: string;
 };
 type Section = { title: string; rows: Row[] };
 
@@ -159,7 +160,7 @@ export default function InventorySheet() {
               {isOpen && (
                 <div style={{ marginTop: 10, overflowX: "auto" }}>
                   <table
-                    style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 420 }}
+                    style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 520 }}
                   >
                     <thead>
                       <tr style={{ color: "var(--muted)", fontSize: 11.5 }}>
@@ -170,6 +171,9 @@ export default function InventorySheet() {
                         </th>
                         <th style={{ textAlign: "right", padding: "4px 6px", whiteSpace: "nowrap" }}>
                           容量
+                        </th>
+                        <th style={{ textAlign: "right", padding: "4px 6px", whiteSpace: "nowrap" }}>
+                          1回の発注
                         </th>
                       </tr>
                     </thead>
@@ -222,6 +226,17 @@ export default function InventorySheet() {
                             }}
                           >
                             {r.capacity || "—"}
+                          </td>
+                          <td
+                            style={{
+                              padding: "7px 6px",
+                              textAlign: "right",
+                              whiteSpace: "nowrap",
+                              fontWeight: 700,
+                              color: r.orderQty ? "var(--ink)" : "var(--muted)",
+                            }}
+                          >
+                            {r.orderQty || "—"}
                           </td>
                         </tr>
                       ))}
