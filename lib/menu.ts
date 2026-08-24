@@ -296,9 +296,9 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "yuzu-lemonade", name: "ゆずレモネード", category: "🥤 Soft Drink",
-    cost: 122, price: 650,
+    cost: 106, price: 650,
     ingredients: [
-      { name: "ゆずジュース", unit: "ml", capacity: 500, purchasePrice: 800, usage: 30, cost: 48 },
+      { name: "ゆず茶（リカマン 1kg×3）", unit: "g", capacity: 3000, purchasePrice: 3150, usage: 30, cost: 32 },
       { name: "レモンジュース（お酒にプラス）", unit: "ml", capacity: 540, purchasePrice: 597, usage: 15, cost: 17 },
       { name: "ガムシロップ（サントリー）", unit: "ml", capacity: 780, purchasePrice: 808, usage: 10, cost: 10 },
       { name: "炭酸水（サンガリア185ml缶）", unit: "本", capacity: 1, purchasePrice: 47, usage: 1, cost: 47 },
