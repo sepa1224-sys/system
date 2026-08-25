@@ -8,9 +8,17 @@ import Nav from "@/components/Nav";
 
 type Analytics = {
   period: { from: string; to: string };
+  excludedEvents: {
+    applied: boolean;
+    windows: { date: string; fromHour: number; label: string }[];
+    sales: { label: string; sales: number; count: number }[];
+    total: number;
+  };
   sales: {
     total: number; tax: number; orderCount: number;
     byDay: { day: string; sales: number; count: number }[];
+    byMonth: { month: string; sales: number; count: number; days: number; perDay: number }[];
+    byWeekday: { weekday: number; name: string; sales: number; count: number; days: number; avgSales: number }[];
     byTender: { tender: string; count: number; amount: number }[];
   };
   products: {
@@ -41,7 +49,7 @@ export default function Bunseki() {
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [tab, setTab] = useState<"pnl" | "products" | "expenses" | "days">("pnl");
+  const [tab, setTab] = useState<"pnl" | "products" | "expenses" | "days" | "month" | "weekday">("pnl");
 
   const load = useCallback(async () => {
     setLoading(true); setErr("");
@@ -106,8 +114,21 @@ export default function Bunseki() {
             </div>
           </div>
 
+          {data.excludedEvents?.applied && data.excludedEvents.total > 0 && (
+            <div className="card" style={{ padding: "10px 14px", background: "#fdf6ec", borderColor: "#e8d5b0" }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+                <strong>イベントの売上を分析から外しています。</strong>
+                {data.excludedEvents.sales.map((e) => (
+                  <span key={e.label}> {e.label} {fmt(e.sales)}（{e.count}件）</span>
+                ))}
+                <br />
+                通常営業とは客層も単価も違うため、平常日の傾向がぶれないように除いています。
+              </div>
+            </div>
+          )}
+
           <div className="sub-tabs">
-            {([["pnl", "損益"], ["products", "商品別"], ["expenses", "支出"], ["days", "日別"]] as const).map(([k, l]) => (
+            {([["pnl", "損益"], ["products", "商品別"], ["expenses", "支出"], ["days", "日別"], ["month", "月別"], ["weekday", "曜日別"]] as const).map(([k, l]) => (
               <button key={k} className={`sub-tab ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{l}</button>
             ))}
           </div>
@@ -211,6 +232,66 @@ export default function Bunseki() {
                 ))}
               </div>
             </>
+          )}
+
+          {/* 月別 */}
+          {tab === "month" && (
+            <div className="card">
+              <div className="cat-title">月別売上</div>
+              {data.sales.byMonth.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>データがありません。</p>
+              ) : (
+                data.sales.byMonth.map((m) => {
+                  const max = Math.max(...data.sales.byMonth.map((x) => x.sales), 1);
+                  return (
+                    <div key={m.month} style={{ padding: "8px 0", borderBottom: "1px solid var(--line-soft, #eee)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{m.month.replace("-", "年")}月</span>
+                        <span className="mono" style={{ fontWeight: 700 }}>{fmt(m.sales)}</span>
+                      </div>
+                      <div style={{ background: "var(--line)", borderRadius: 4, height: 14, overflow: "hidden" }}>
+                        <div style={{ width: `${(m.sales / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+                        営業{m.days}日 ・ 1日平均 {fmt(m.perDay)} ・ {m.count}件
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <p className="hint" style={{ marginTop: 10 }}>
+                月をまたいで比べるときは「1日平均」を見てください。営業日数が違うと合計では比べられません。
+              </p>
+            </div>
+          )}
+
+          {/* 曜日別 */}
+          {tab === "weekday" && (
+            <div className="card">
+              <div className="cat-title">曜日別売上（1日あたりの平均）</div>
+              {data.sales.byWeekday.length === 0 ? (
+                <p style={{ color: "var(--muted)", fontSize: 13 }}>データがありません。</p>
+              ) : (
+                data.sales.byWeekday.map((w) => {
+                  const max = Math.max(...data.sales.byWeekday.map((x) => x.avgSales), 1);
+                  const color = w.weekday === 0 ? "#c0392b" : w.weekday === 6 ? "#2980b9" : "var(--ink)";
+                  return (
+                    <div key={w.weekday} style={{ display: "grid", gridTemplateColumns: "34px 1fr 90px 52px", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 13 }}>
+                      <span style={{ fontWeight: 800, color }}>{w.name}</span>
+                      <div style={{ background: "var(--line)", borderRadius: 4, height: 16, overflow: "hidden" }}>
+                        <div style={{ width: `${(w.avgSales / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
+                      </div>
+                      <span className="mono" style={{ textAlign: "right", fontWeight: 700 }}>{fmt(w.avgSales)}</span>
+                      <span className="mono" style={{ textAlign: "right", color: "var(--muted)", fontSize: 11.5 }}>{w.days}日</span>
+                    </div>
+                  );
+                })
+              )}
+              <p className="hint" style={{ marginTop: 10 }}>
+                棒の長さは1日あたりの平均売上です。右端は集計に入った営業日数で、
+                日数が少ない曜日はまだ当てになりません。
+              </p>
+            </div>
           )}
 
           {/* 日別 */}

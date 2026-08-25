@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { EVENT_WINDOWS, eventOf } from "@/lib/salesEvents";
 import { getReceipts, receiptLines } from "@/lib/receipts";
 import { getMenuItems } from "@/lib/menu";
 
@@ -51,7 +52,8 @@ async function fetchOrders(beginISO: string, endISO: string) {
   return all;
 }
 
-// GET /api/analytics?from=2026-08-01&to=2026-08-15
+// GET /api/analytics?from=2026-08-01&to=2026-08-15&withEvents=1
+//   withEvents=1 を付けるとイベント日も混ぜる。既定では外して平常日だけを見る。
 // 売上（Square）・支出（領収書）・商品別粗利（原価表と突き合わせ）を一括で返す。
 // 経営判断用。freeeに登録済みかどうかは問わず、領収書の全件を支出として扱う。
 export async function GET(req: NextRequest) {
@@ -60,6 +62,8 @@ export async function GET(req: NextRequest) {
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     const from = searchParams.get("from") || today.slice(0, 8) + "01";
     const to = searchParams.get("to") || today;
+    // 既定ではイベント日を外す。傾向を見るのが目的で、イベントは平常日と性質が違うため
+    const withEvents = searchParams.get("withEvents") === "1";
 
     // 営業日は朝6時切替
     const beginISO = new Date(`${from}T06:00:00+09:00`).toISOString();
@@ -86,22 +90,35 @@ export async function GET(req: NextRequest) {
     // 「営業した日数」で割って1日平均を出すため、時間帯ごとに日付も集める。
     const byHour: Record<number, { sales: number; count: number; days: Set<string> }> = {};
     const byWeekday: Record<number, { sales: number; count: number; days: Set<string> }> = {};
+    const byMonth: Record<string, { sales: number; count: number; days: Set<string> }> = {};
+    // 外したイベント分。除外した額が分かるように別で持つ
+    const eventSales: Record<string, { sales: number; count: number }> = {};
 
     for (const o of orders) {
       const amt = o.total_money?.amount || 0;
-      totalSales += amt;
-      totalTax += o.total_tax_money?.amount || 0;
       const jst = new Date(new Date(o.created_at).getTime() + 9 * 3600_000);
       // 6時前は前営業日に付ける
       if (jst.getUTCHours() < 6) jst.setUTCDate(jst.getUTCDate() - 1);
       const day = jst.toISOString().slice(0, 10);
-      byDay[day] = byDay[day] || { sales: 0, count: 0 };
-      byDay[day].sales += amt;
-      byDay[day].count += 1;
 
       // 実際の時刻（営業日への繰り上げ前の時刻を使う。25時台は1時として扱う）
       const realJst = new Date(new Date(o.created_at).getTime() + 9 * 3600_000);
       const hour = realJst.getUTCHours();
+
+      const ev = eventOf(day, hour);
+      if (ev && !withEvents) {
+        eventSales[ev.label] = eventSales[ev.label] || { sales: 0, count: 0 };
+        eventSales[ev.label].sales += amt;
+        eventSales[ev.label].count += 1;
+        continue; // 平常日の集計には入れない
+      }
+
+      totalSales += amt;
+      totalTax += o.total_tax_money?.amount || 0;
+
+      byDay[day] = byDay[day] || { sales: 0, count: 0 };
+      byDay[day].sales += amt;
+      byDay[day].count += 1;
       byHour[hour] = byHour[hour] || { sales: 0, count: 0, days: new Set() };
       byHour[hour].sales += amt;
       byHour[hour].count += 1;
@@ -112,6 +129,12 @@ export async function GET(req: NextRequest) {
       byWeekday[wd].sales += amt;
       byWeekday[wd].count += 1;
       byWeekday[wd].days.add(day);
+
+      const mon = day.slice(0, 7);
+      byMonth[mon] = byMonth[mon] || { sales: 0, count: 0, days: new Set() };
+      byMonth[mon].sales += amt;
+      byMonth[mon].count += 1;
+      byMonth[mon].days.add(day);
 
       for (const li of o.line_items || []) {
         const name = li.name || "不明";
@@ -164,11 +187,28 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       period: { from, to },
+      // 分析から外したイベント。withEvents=1 を付けると混ぜて集計する
+      excludedEvents: {
+        applied: !withEvents,
+        windows: EVENT_WINDOWS,
+        sales: Object.entries(eventSales).map(([label, v]) => ({ label, ...v })),
+        total: Object.values(eventSales).reduce((n, v) => n + v.sales, 0),
+      },
       sales: {
         total: totalSales,
         tax: totalTax,
         orderCount: orders.length,
         byDay: Object.entries(byDay).sort().map(([day, v]) => ({ day, ...v })),
+        // 月別（1日あたりの平均も出す。月をまたいで比べるため）
+        byMonth: Object.entries(byMonth)
+          .sort()
+          .map(([month, v]) => ({
+            month,
+            sales: v.sales,
+            count: v.count,
+            days: v.days.size,
+            perDay: Math.round(v.sales / v.days.size),
+          })),
         byTender: Object.entries(byTender)
           .map(([k, v]) => ({ tender: k, ...v }))
           .sort((a, b) => b.amount - a.amount),
