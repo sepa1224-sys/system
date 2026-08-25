@@ -53,10 +53,10 @@ export const DEFAULT_MENU: MenuItem[] = [
   // ☕ Drinks (Cafe)
   {
     id: "cafe-latte", name: "カフェラテ", category: "☕ Drinks (Cafe)",
-    cost: 71, price: 500,
+    cost: 87, price: 500,
     ingredients: [
       { name: "エスプレッソ豆", unit: "g", capacity: 360, purchasePrice: 860, usage: 17, cost: 41 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 200, cost: 30 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 200, cost: 46 },
       { name: "水", unit: "ml", capacity: 600000, purchasePrice: 4000, usage: 40, cost: 0 },
     ],
   },
@@ -87,28 +87,28 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "chai", name: "チャイ/トルコ茶", category: "☕ Drinks (Cafe)",
-    cost: 60, price: 450,
+    cost: 68, price: 450,
     ingredients: [
       { name: "チャイ茶葉", unit: "g", capacity: 200, purchasePrice: 1200, usage: 5, cost: 30 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 100, cost: 15 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 100, cost: 23 },
       { name: "スパイス", unit: "g", capacity: 100, purchasePrice: 500, usage: 3, cost: 15 },
     ],
     note: "原価は概算",
   },
   {
     id: "matcha-latte", name: "抹茶ラテ", category: "☕ Drinks (Cafe)",
-    cost: 91, price: 500,
+    cost: 107, price: 500,
     ingredients: [
       { name: "抹茶", unit: "g", capacity: 30, purchasePrice: 610, usage: 3, cost: 61 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 200, cost: 30 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 200, cost: 46 },
     ],
   },
   {
     id: "cocoa", name: "ココア", category: "☕ Drinks (Cafe)",
-    cost: 43, price: 450,
+    cost: 54, price: 450,
     ingredients: [
       { name: "ココアパウダー", unit: "g", capacity: 1000, purchasePrice: 3980, usage: 5, cost: 20 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 150, cost: 23 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 150, cost: 34 },
     ],
   },
   {
@@ -148,20 +148,20 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🥤 Smoothie / Protein
   {
     id: "banana-protein", name: "バナナプロテイン", category: "🥤 Smoothie / Protein",
-    cost: 149, price: 500,
+    cost: 159, price: 500,
     ingredients: [
       { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
       { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 130, cost: 20 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 130, cost: 30 },
     ],
   },
   {
     id: "cocoa-banana-protein", name: "ココアバナナプロテイン", category: "🥤 Smoothie / Protein",
-    cost: 161, price: 550,
+    cost: 171, price: 550,
     ingredients: [
       { name: "プロテインパウダー", unit: "g", capacity: 1000, purchasePrice: 4539, usage: 24, cost: 109 },
       { name: "バナナ", unit: "本", capacity: 3, purchasePrice: 120, usage: 0.5, cost: 20 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 130, cost: 20 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 130, cost: 30 },
       { name: "ココアパウダー", unit: "g", capacity: 1000, purchasePrice: 3980, usage: 3, cost: 12 },
     ],
   },
@@ -207,22 +207,22 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🧇 Sweets (Waffle)
   {
     id: "plain-waffle", name: "プレーンワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 35, price: 350, note: "1バッチ ¥349 → 50g×10枚",
+    cost: 36, price: 350, note: "1バッチ ¥358 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 120, cost: 27 },
       { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
     ],
   },
   {
     id: "choco-chip-waffle", name: "チョコチップワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 37, price: 400, note: "1バッチ ¥371 → 50g×10枚",
+    cost: 38, price: 400, note: "1バッチ ¥380 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 120, cost: 27 },
       { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 30, cost: 10 },
       { name: "チョコチップ", unit: "g", capacity: 500, purchasePrice: 525, usage: 30, cost: 32 },
@@ -230,11 +230,11 @@ export const DEFAULT_MENU: MenuItem[] = [
   },
   {
     id: "matcha-waffle", name: "抹茶ワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 41, price: 420, note: "1バッチ ¥410 → 50g×10枚",
+    cost: 42, price: 420, note: "1バッチ ¥419 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
-      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
+      { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 228, usage: 120, cost: 27 },
       { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
       { name: "抹茶", unit: "g", capacity: 30, purchasePrice: 610, usage: 3, cost: 61 },
