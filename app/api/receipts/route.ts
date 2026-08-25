@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveReceipt, getReceipts, deleteReceipt, findDuplicate, updateReceiptItems, updateReceipt, type RLine } from "@/lib/receipts";
 import { applyAssetThreshold } from "@/lib/receipt";
 import { updateCostsFromReceipt } from "@/lib/menu";
+import { getOverrides, resolveWithOverrides } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function GET() {
-  const receipts = await getReceipts();
-  return NextResponse.json({ receipts });
+  const [receipts, overrides] = await Promise.all([getReceipts(), getOverrides()]);
+  // freeeの品目は品名から自動で決まる。画面でも見えないと、
+  // 何がどの品目に入るのか登録前に確認できないので添えて返す。
+  const withItems = receipts.map((r) => ({
+    ...r,
+    lines: (r.lines ?? []).map((l) => ({
+      ...l,
+      item: resolveWithOverrides((l.name || "").trim(), overrides) || "",
+    })),
+  }));
+  return NextResponse.json({ receipts: withItems });
 }
 
 export async function DELETE(req: NextRequest) {

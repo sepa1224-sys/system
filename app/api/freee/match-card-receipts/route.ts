@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
 import { getReceipt, getReceipts, receiptLines, markRegistered, clearRegistered } from "@/lib/receipts";
 import { mapCategory, clampIssueDate } from "@/lib/freeeMap";
-import { itemIdForProduct, newItemCache } from "@/lib/freeeItems";
+import { itemIdForProduct, newItemCache, getOverrides, resolveWithOverrides } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -136,6 +136,7 @@ export async function GET() {
     const walletables = await getBankWalletables();
     const txns = await getUnprocessedTxns(walletables, startDate, endDate);
 
+    const overrides = await getOverrides();
     const matches = receipts.map((r) => {
       const candidates = txns
         .filter((t) => t.amount === r.total)
@@ -148,7 +149,13 @@ export async function GET() {
         vendor: r.vendor,
         total: r.total,
         summary: r.summary,
-        lines: receiptLines(r).map((l) => ({ name: l.name, amount: l.amount, category: l.category })),
+        lines: receiptLines(r).map((l) => ({
+          name: l.name,
+          amount: l.amount,
+          category: l.category,
+          // freeeに送られる品目。登録前に画面で確認できるようにする
+          item: resolveWithOverrides((l.name || "").trim(), overrides) || "",
+        })),
         candidates: candidates.map((c) => ({
           walletTxnId: c.id,
           date: c.date,

@@ -18,7 +18,7 @@ type CardMatch = {
   vendor: string;
   total: number;
   summary: string;
-  lines: { name: string; amount: number; category: string }[];
+  lines: { name: string; amount: number; category: string; item?: string }[];
   candidates: CardCandidate[];
 };
 
@@ -118,7 +118,12 @@ export default function Meisai() {
                 {m.date} {m.vendor} <span className="mono">¥{m.total.toLocaleString()}</span>
               </div>
               <div className="hint" style={{ margin: "2px 0 8px" }}>
-                {m.lines.map((l) => `${l.category} ¥${l.amount.toLocaleString()}`).join(" / ")}
+                {m.lines
+                  .map((l) =>
+                    // 品目まで出す。何がどの品目でfreeeに入るかを登録前に確認できるように
+                    `${l.category} ¥${l.amount.toLocaleString()}${l.item ? `［${l.item}］` : ""}`,
+                  )
+                  .join(" / ")}
               </div>
               {m.candidates.length === 0 && (
                 <p className="hint" style={{ color: "#c0392b" }}>

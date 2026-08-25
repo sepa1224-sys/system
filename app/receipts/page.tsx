@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CATEGORIES } from "@/lib/receipt";
 import Nav from "@/components/Nav";
 
-type RLine = { name: string; amount: number; category: string; tags?: string[] };
+type RLine = { name: string; amount: number; category: string; tags?: string[]; item?: string };
 
 type Receipt = {
   id: string;
@@ -90,13 +90,63 @@ export default function Receipts() {
     lines: RLine[];
   } | null>(null);
 
+  // カード払いの領収書と、金額が一致する銀行明細の組み合わせ。
+  // これがあれば明細タブに移らなくてもここから登録できる。
+  const [cardMatches, setCardMatches] = useState<
+    Record<string, { walletTxnId: number; label: string }>
+  >({});
+
+  function loadMatches() {
+    fetch("/api/freee/match-card-receipts")
+      .then((r) => r.json())
+      .then((j) => {
+        const m: Record<string, { walletTxnId: number; label: string }> = {};
+        for (const x of j.matches ?? []) {
+          // 候補は日付が近い順。いちばん近いものを既定にする
+          const t = x.candidates?.[0];
+          if (x.receiptId && t?.walletTxnId) {
+            m[x.receiptId] = {
+              walletTxnId: t.walletTxnId,
+              label: `${t.date} ${t.description ?? ""} ¥${(t.amount ?? 0).toLocaleString()}`.trim(),
+            };
+          }
+        }
+        setCardMatches(m);
+      })
+      .catch(() => setCardMatches({}));
+  }
+
   function load() {
     fetch("/api/receipts")
       .then((r) => r.json())
       .then((j) => setReceipts(j.receipts ?? []))
       .catch(() => setReceipts([]));
+    loadMatches();
   }
   useEffect(load, []);
+
+  // 領収書1件を、対応する銀行明細に紐づけてfreeeに登録する
+  async function registerCard(id: string) {
+    const m = cardMatches[id];
+    if (!m) return;
+    if (!confirm(`この明細で登録します。\n${m.label}`)) return;
+    setBusy(id);
+    try {
+      const res = await fetch("/api/freee/match-card-receipts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiptId: id, walletTxnId: m.walletTxnId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "登録に失敗");
+      setMsg("freeeに登録しました");
+      load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "登録に失敗");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function register(id: string) {
     setBusy(id);
@@ -514,6 +564,12 @@ export default function Receipts() {
                           🛒 {l.name || "（品目なし）"}
                           {r.lines!.length > 1 && ` ¥${l.amount.toLocaleString()}`}
                           <span style={{ color: "var(--muted)" }}>（{l.category}）</span>
+                          {l.item && (
+                            <span style={{
+                              marginLeft: 5, fontSize: 10.5, fontWeight: 700, padding: "1px 6px",
+                              borderRadius: 4, background: "#e8f1fb", color: "#1f5f8b",
+                            }}>品目: {l.item}</span>
+                          )}
                           {l.tags && l.tags.length > 0 && (
                             <span style={{ color: "var(--muted)" }}> [{l.tags.join("・")}]</span>
                           )}
@@ -547,7 +603,13 @@ export default function Receipts() {
                       <div style={{ marginTop: 4 }}>
                         {g.lines.map((l, i) => (
                           <div key={i} className="meisai-sub" style={{ color: "#5b4a1a" }}>
-                            🛒 {l.name || "（品目なし）"} ¥{(Number(l.amount) || 0).toLocaleString()}（{l.category}）
+                            🛒 {l.name || "（品名なし）"} ¥{(Number(l.amount) || 0).toLocaleString()}（{l.category}）
+                            {l.item && (
+                              <span style={{
+                                marginLeft: 5, fontSize: 10.5, fontWeight: 700, padding: "1px 6px",
+                                borderRadius: 4, background: "#e8f1fb", color: "#1f5f8b",
+                              }}>品目: {l.item}</span>
+                            )}
                             {l.tags && l.tags.length > 0 && ` [${l.tags.join("・")}]`}
                           </div>
                         ))}
@@ -578,13 +640,31 @@ export default function Receipts() {
                         }`}
                   </div>
                 ) : r.expenseKind === "card" ? (
-                  <a
-                    href="/meisai"
-                    className="pay-btn"
-                    style={{ width: "100%", display: "block", textAlign: "center", textDecoration: "none" }}
-                  >
-                    🏦 明細タブでマッチングして登録（借)　{r.category}）
-                  </a>
+                  cardMatches[r.id] ? (
+                    <>
+                      <button
+                        className="pay-btn"
+                        style={{ width: "100%" }}
+                        disabled={busy === r.id}
+                        onClick={() => registerCard(r.id)}
+                      >
+                        {busy === r.id
+                          ? "登録中…"
+                          : `🏦 この明細で登録（借) ${r.category}）`}
+                      </button>
+                      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4, textAlign: "center" }}>
+                        {cardMatches[r.id].label}
+                      </div>
+                    </>
+                  ) : (
+                    <a
+                      href="/meisai"
+                      className="pay-btn"
+                      style={{ width: "100%", display: "block", textAlign: "center", textDecoration: "none", opacity: 0.7 }}
+                    >
+                      🏦 一致する明細なし・明細タブで探す（借) {r.category}）
+                    </a>
+                  )
                 ) : (
                   <button
                     className="pay-btn"
