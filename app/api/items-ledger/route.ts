@@ -76,6 +76,8 @@ export async function GET() {
         if (!name || !l.amount) continue;
         // 消費税の調整行は品目にしない
         if (/^消費税/.test(name)) continue;
+        // 小口現金の入出金はお金の移動であって購入ではない
+        if (/小口現金/.test(name)) continue;
         const buy: Buy = {
           date: r.date,
           vendor: r.vendor,
@@ -96,8 +98,14 @@ export async function GET() {
     }
 
     // 注文（Amazonなど）。見送った分は買っていないので入れない
+    // 同じ注文が「注文確認」と「出荷通知」の2通から二重に入ることがある。
+    // 注文番号＋金額が同じものは1回だけ数える
+    const seenOrder = new Set<string>();
     for (const o of orders) {
       if (o.status === "skipped") continue;
+      const dupKey = `${o.source}_${o.orderNumber}_${o.total}`;
+      if (o.orderNumber && seenOrder.has(dupKey)) continue;
+      seenOrder.add(dupKey);
       for (const it of o.items ?? []) {
         const name = (it.name || "").trim();
         const amount = (it.price ?? 0) * (it.quantity ?? 1);
