@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getReceipts, receiptLines } from "@/lib/receipts";
+import type { PendingOrder } from "../cron/amazon-sync/route";
 import { getOverrides, resolveWithOverrides } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
@@ -7,6 +8,10 @@ export const maxDuration = 60;
 
 // 品目ごとの購入台帳。仕訳（勘定科目）とは別に、
 // 「ペーパータオルを何回・いくらで買ったか」を積み上げて見るためのもの。
+//
+// もとになるのは領収書と、Gmailから取り込んだ注文（Amazon・モノタロウなど）の2つ。
+// ネット購入はレシートを撮らないので、注文を入れないと台帳から丸ごと抜ける。
+// 注文メールの商品名はOCRより正確なので、品目の判定精度もこちらの方が高い。
 
 export type Buy = {
   date: string;
@@ -14,6 +19,8 @@ export type Buy = {
   name: string;
   amount: number;
   category: string;
+  /** どこから来た記録か。領収書＝レシート撮影、注文＝Gmail取り込み */
+  from: "領収書" | "注文";
 };
 
 export type Ledger = {
@@ -34,9 +41,27 @@ const today = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 1
 const dayDiff = (a: string, b: string) =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
 
+// Gmailから取り込んだ注文。取り込めなくても台帳自体は出したいので、失敗しても空で返す
+async function getOrders(): Promise<PendingOrder[]> {
+  try {
+    const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!url || !token) return [];
+    const { createClient } = await import("@vercel/kv");
+    const store = createClient({ url, token });
+    return (await store.get<PendingOrder[]>("orders:pending")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   try {
-    const [overrides, receipts] = await Promise.all([getOverrides(), getReceipts()]);
+    const [overrides, receipts, orders] = await Promise.all([
+      getOverrides(),
+      getReceipts(),
+      getOrders(),
+    ]);
 
     const map = new Map<string, Buy[]>();
     const unclassified: Buy[] = [];
@@ -53,6 +78,33 @@ export async function GET() {
           name,
           amount: l.amount,
           category: l.category,
+          from: "領収書",
+        };
+        const item = resolveWithOverrides(name, overrides);
+        if (!item) {
+          unclassified.push(buy);
+          continue;
+        }
+        const arr = map.get(item) ?? [];
+        arr.push(buy);
+        map.set(item, arr);
+      }
+    }
+
+    // 注文（Amazonなど）。見送った分は買っていないので入れない
+    for (const o of orders) {
+      if (o.status === "skipped") continue;
+      for (const it of o.items ?? []) {
+        const name = (it.name || "").trim();
+        const amount = (it.price ?? 0) * (it.quantity ?? 1);
+        if (!name || !amount) continue;
+        const buy: Buy = {
+          date: (o.orderDate || "").slice(0, 10),
+          vendor: o.source,
+          name,
+          amount,
+          category: o.account || "仕入高",
+          from: "注文",
         };
         const item = resolveWithOverrides(name, overrides);
         if (!item) {
