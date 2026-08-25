@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CopyField from "@/components/CopyField";
 import TagInput from "@/components/TagInput";
 
@@ -56,6 +56,25 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
     txn.decision,
   );
   const [tags, setTags] = useState<string[]>([]);
+  // 行ごとの品目。AIの提案を初期値に、決定前に直せるようにする。
+  // freeeの品目別レポートと品目台帳の両方がこの値で集計される。
+  const [lineItems, setLineItems] = useState<Record<number, string>>({});
+  const [itemNames, setItemNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!advice?.ready) return;
+    const init: Record<number, string> = {};
+    advice.lines.forEach((l, i) => { init[i] = l.item ?? ""; });
+    setLineItems(init);
+    // 選択肢は開いたときに一度だけ取る
+    if (itemNames.length === 0) {
+      fetch("/api/items-map")
+        .then((r) => r.json())
+        .then((j) => setItemNames(j.items ?? []))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advice]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const sideOut = txn.side === "expense";
@@ -170,7 +189,10 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
           description: txn.description,
           amount: txn.amount,
           partner: advice.partner,
-          lines: advice.lines,
+          lines: advice.lines.map((l, i) => ({
+            ...l,
+            item: (lineItems[i] ?? l.item ?? "").trim() || undefined,
+          })),
           kbKeyword: advice.kb_keyword,
           kbNote: advice.kb_note,
           taxReview: advice.tax_review,
@@ -179,7 +201,13 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "保存失敗");
-      setDecided({ lines: advice.lines, partner: advice.partner });
+      setDecided({
+        lines: advice.lines.map((l, i) => ({
+          ...l,
+          item: (lineItems[i] ?? l.item ?? "").trim() || undefined,
+        })),
+        partner: advice.partner,
+      });
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -284,10 +312,28 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
             <div className="propose">
               <div className="propose-title">提案された仕訳</div>
               <div className="propose-partner">取引先: {advice.partner || "—"}</div>
+              <datalist id={`items-${txn.id}`}>
+                {itemNames.map((n) => <option key={n} value={n} />)}
+              </datalist>
               {advice.lines.map((l, i) => (
-                <div key={i} className="propose-line">
-                  <span>{l.category}{l.memo ? `（${l.memo}）` : ""}</span>
-                  <span>¥{l.amount.toLocaleString()}</span>
+                <div key={i}>
+                  <div className="propose-line">
+                    <span>{l.category}{l.memo ? `（${l.memo}）` : ""}</span>
+                    <span>¥{l.amount.toLocaleString()}</span>
+                  </div>
+                  {/* 経費や資産の行は品目を使わないので、仕入高・消耗品費のときだけ出す */}
+                  {/仕入高|消耗品費/.test(l.category) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "2px 0 6px" }}>
+                      <span style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>品目</span>
+                      <input
+                        list={`items-${txn.id}`}
+                        value={lineItems[i] ?? ""}
+                        placeholder="選ぶか入力（例: グラス・食器）"
+                        onChange={(e) => setLineItems((p) => ({ ...p, [i]: e.target.value }))}
+                        style={{ flex: 1, fontSize: 12.5, padding: "5px 8px" }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
               {advice.kb_note && (
