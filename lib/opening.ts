@@ -51,7 +51,13 @@ export const TASKS: Task[] = [
     name: "前日洗った食器類を片付ける",
     detail: "ワッフルの準備をしながら進める",
   },
-  { id: "duster", phase: "朝", name: "ダスターを畳んで片付ける" },
+  {
+    id: "duster",
+    phase: "朝",
+    name: "ダスターを畳んで片付ける",
+    detail:
+      "前の晩に干したものが乾いていたら畳む。汚れたダスターが溜まっていたら、その場で煮沸して干す",
+  },
   {
     id: "stock-check",
     phase: "営業中",
