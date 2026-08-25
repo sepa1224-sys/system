@@ -17,6 +17,7 @@ export default function Nav() {
     { href: "/labor", label: "🕒 労働枠" },
     { href: "/kintai", label: "⏰ 勤怠" },
     { href: "/shift", label: "🗓️ シフト" },
+    { href: "/shift-submit", label: "📝 シフト提出" },
     { href: "/opening", label: "✅ 業務チェック" },
     { href: "/shikomi", label: "📆 週間予定" },
     { href: "/schedule", label: "🗓️ 店舗予定" },

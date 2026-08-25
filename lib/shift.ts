@@ -21,75 +21,57 @@ export type Staff = (typeof STAFF)[number];
 export const OPEN_MIN = 10 * 60; // 10:00
 export const CLOSE_MIN = 24 * 60 + 30; // 24:30（翌0:30）
 
-/** 手で1件足すときの時間帯の雛形 */
+/** 手で1件足すときの時間帯の雛形。1オペ3交代が基本 */
 export const PATTERNS: { label: string; start: string; end: string; staff?: Staff }[] = [
-  { label: "早番", start: "9:00", end: "14:00" },
-  { label: "仕込み", start: "9:00", end: "10:00" },
-  { label: "午後", start: "15:00", end: "17:00" },
-  { label: "中番", start: "14:00", end: "18:00" },
-  { label: "遅番", start: "19:00", end: "22:30" },
-  { label: "閉め", start: "20:00", end: "24:30" },
-  { label: "バイト", start: "10:00", end: "14:00", staff: "バイト" },
+  { label: "朝番", start: "9:00", end: "14:30" },
+  { label: "昼番", start: "14:30", end: "19:30" },
+  { label: "夜番", start: "19:30", end: "24:30" },
+  { label: "土曜昼", start: "9:00", end: "17:00" },
+  { label: "土曜夜", start: "17:00", end: "24:00" },
+  { label: "バイト", start: "9:00", end: "14:00", staff: "バイト" },
 ];
 
 export type Block = { staff: Staff; start: string; end: string; note?: string };
 
 /**
- * 曜日ごとの定型シフト。ここを直すと以降の割当がすべて変わる。
- *
- * 元の指定は「15:00-18:00は14:00-15:00に入っている方がそのまま続ける」という
- * 条件付きだったので、火曜=坂本・水曜=町田 に解決したうえで連続する枠を
- * 1本にまとめてある（14:00-15:00 と 15:00-18:00 → 14:00-18:00）。
- *
- * 火曜と水曜は坂本と町田が入れ替わっているだけで、櫻井は両日とも同じ。
+ * 曜日ごとの定型シフト。2026-08-25に1オペ3交代へ切り替えた。
+ * 朝番9:00-14:30 / 昼番14:30-19:30 / 夜番19:30-24:30。土曜だけ2交代。
+ * 今後はシフト提出（/shift-submit）を見て担当を入れ替えていく。
  */
 export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[]; note?: string }[] = [
-  {
-    weekday: 2,
-    label: "火曜",
-    blocks: [
-      { staff: "櫻井", start: "9:00", end: "14:00" },
-      { staff: "櫻井", start: "15:00", end: "17:00" },
-      { staff: "坂本", start: "14:00", end: "18:00" },
-      { staff: "坂本", start: "19:00", end: "24:30" },
-      { staff: "町田", start: "9:00", end: "10:00" },
-      { staff: "町田", start: "20:00", end: "22:30" },
-    ],
-  },
   {
     weekday: 3,
     label: "水曜",
     blocks: [
-      { staff: "櫻井", start: "9:00", end: "14:00" },
-      { staff: "櫻井", start: "15:00", end: "17:00" },
-      { staff: "町田", start: "14:00", end: "18:00" },
-      { staff: "町田", start: "20:00", end: "24:30" },
-      { staff: "坂本", start: "9:00", end: "10:00" },
-      { staff: "坂本", start: "19:00", end: "22:30" },
+      { staff: "櫻井", start: "9:00", end: "14:30" },
+      { staff: "町田", start: "14:30", end: "19:30" },
+      { staff: "坂本", start: "19:30", end: "24:30" },
     ],
   },
   {
     weekday: 4,
     label: "木曜",
     blocks: [
-      { staff: "櫻井", start: "9:00", end: "14:00" },
-      { staff: "櫻井", start: "15:00", end: "17:00" },
-      { staff: "町田", start: "14:00", end: "18:00" },
-      { staff: "町田", start: "20:00", end: "24:30" },
-      { staff: "坂本", start: "9:00", end: "10:00" },
-      { staff: "坂本", start: "19:00", end: "22:30" },
+      { staff: "町田", start: "9:00", end: "14:30" },
+      { staff: "坂本", start: "14:30", end: "19:30" },
+      { staff: "櫻井", start: "19:30", end: "24:30" },
     ],
   },
   {
     weekday: 5,
     label: "金曜",
     blocks: [
-      { staff: "坂本", start: "9:00", end: "10:00" },
-      { staff: "坂本", start: "19:00", end: "24:30" },
-      { staff: "櫻井", start: "9:00", end: "14:00" },
-      { staff: "櫻井", start: "15:00", end: "17:00" },
-      { staff: "町田", start: "14:00", end: "18:00" },
-      { staff: "町田", start: "20:00", end: "22:30" },
+      { staff: "町田", start: "9:00", end: "14:30" },
+      { staff: "櫻井", start: "14:30", end: "19:30" },
+      { staff: "坂本", start: "19:30", end: "24:30" },
+    ],
+  },
+  {
+    weekday: 6,
+    label: "土曜",
+    blocks: [
+      { staff: "櫻井", start: "9:00", end: "17:00" },
+      { staff: "坂本", start: "17:00", end: "24:00" },
     ],
   },
 ];
@@ -249,10 +231,10 @@ export function gaps(entries: ShiftEntry[]): string[] {
   return out;
 }
 
-/** 開店準備の時間帯。掃除とエスプレッソマシンの立ち上げがあるので必ず2人 */
+/** 開店準備の時間帯。1オペ体制なので朝番1人で回す */
 export const PREP_START = 9 * 60;
 export const PREP_END = 10 * 60;
-export const PREP_REQUIRED = 2;
+export const PREP_REQUIRED = 1;
 
 /** 9:00-10:00 に入っている人数。PREP_REQUIRED を下回っていたら要修正 */
 export function prepCount(entries: ShiftEntry[]): number {
