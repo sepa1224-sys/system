@@ -8,10 +8,11 @@ import Nav from "@/components/Nav";
 
 type Task = {
   id: string;
-  phase: "朝" | "営業中";
+  phase: "朝" | "営業中" | "締め" | "週次";
   name: string;
   detail?: string;
   everyDays?: number;
+  weekday?: number;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
@@ -66,7 +67,7 @@ export default function OpeningPage() {
   const pct = total ? Math.round((doneCount / total) * 100) : 0;
 
   const row = (t: Task) => {
-    const skip = t.everyDays && !t.due;
+    const skip = (t.everyDays || t.weekday !== undefined) && !t.due;
     return (
       <div
         key={t.id}
@@ -95,6 +96,16 @@ export default function OpeningPage() {
             color: t.done ? "var(--muted)" : "var(--ink)",
           }}>
             {t.name}
+            {t.weekday !== undefined && (
+              <span style={{
+                marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: "2px 6px",
+                borderRadius: 4, verticalAlign: "middle",
+                background: t.due ? "#fdf0e6" : "#eef1f4",
+                color: t.due ? "#9c5f22" : "var(--muted)",
+              }}>
+                毎週{["日","月","火","水","木","金","土"][t.weekday]}曜{t.due ? "・今日やる" : "・今日はなし"}
+              </span>
+            )}
             {t.everyDays && (
               <span style={{
                 marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: "2px 6px",
@@ -124,8 +135,8 @@ export default function OpeningPage() {
   return (
     <div className="wrap">
       <header>
-        <h1>✅ 出勤チェック</h1>
-        <p>店に来たらこの順番で進めてください</p>
+        <h1>✅ 業務チェック</h1>
+        <p>その日にやることを、上から順に進めてください</p>
       </header>
       <Nav />
 
@@ -147,13 +158,19 @@ export default function OpeningPage() {
 
       {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>読み込み中…</div>}
 
-      {!loading && (["朝", "営業中"] as const).map((phase) => {
+      {!loading && (["朝", "営業中", "締め", "週次"] as const).map((phase) => {
         const list = tasks.filter((t) => t.phase === phase);
         if (!list.length) return null;
         return (
           <div key={phase} className="card" style={{ padding: "12px 14px" }}>
             <div className="cat-title">
-              {phase === "朝" ? "🌅 朝（開店前）" : "🕙 営業中（手が空いたとき）"}
+              {phase === "朝"
+                ? "🌅 朝（開店前）"
+                : phase === "営業中"
+                  ? "🕙 営業中（手が空いたとき）"
+                  : phase === "締め"
+                    ? "🌙 締め（閉店後）"
+                    : "📅 週次"}
             </div>
             {list.map(row)}
           </div>

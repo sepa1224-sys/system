@@ -1,4 +1,4 @@
-// 出勤したらやることのチェックリスト。
+// 業務チェックリスト。朝・営業中・締め・週次でやることをまとめる。
 // 手順書ではなく「今日やったかどうか」を見るためのもので、
 // 日付が変わればまっさらに戻る。
 //
@@ -15,8 +15,8 @@ async function kv() {
   return createClient({ url, token });
 }
 
-/** 朝＝開店前にやること／営業中＝手が空いたときにやること */
-export type Phase = "朝" | "営業中";
+/** 朝＝開店前 ／ 営業中＝手が空いたとき ／ 締め＝閉店後 ／ 週次＝曜日が決まっているもの */
+export type Phase = "朝" | "営業中" | "締め" | "週次";
 
 export type Task = {
   id: string;
@@ -26,6 +26,8 @@ export type Task = {
   detail?: string;
   /** 毎日ではない作業。何日おきか */
   everyDays?: number;
+  /** 決まった曜日だけの作業。0=日 */
+  weekday?: number;
 };
 
 export const TASKS: Task[] = [
@@ -71,6 +73,34 @@ export const TASKS: Task[] = [
     name: "足りないものを発注する",
     detail: "在庫チェックで補充できなかったものを発注する",
     everyDays: 3,
+  },
+
+  {
+    id: "waffle-count",
+    phase: "締め",
+    name: "22時にワッフルの残りを数える",
+    detail:
+      "3フレーバーそれぞれ3個残っていたら翌日の仕込みはしない。2個以下なら翌日用に仕込む",
+  },
+  { id: "dishes-wash", phase: "締め", name: "食器を洗う" },
+  {
+    id: "duster-boil",
+    phase: "締め",
+    name: "ダスターを煮沸して干す",
+    detail: "翌朝、乾いていたら畳んで片付ける",
+  },
+  {
+    id: "cash-close",
+    phase: "締め",
+    name: "レジを締める",
+    detail: "手順は「レジ締め」のページにあります",
+  },
+  {
+    id: "grinder-wash",
+    phase: "週次",
+    name: "グラインダーの備品を洗う",
+    detail: "毎週水曜の締め作業で行う。それ以外の日は拭くだけ",
+    weekday: 3,
   },
 ];
 

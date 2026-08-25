@@ -18,6 +18,11 @@ export async function GET(req: NextRequest) {
 
     const tasks = await Promise.all(
       TASKS.map(async (t) => {
+        if (t.weekday !== undefined) {
+          // 曜日が決まっている作業。その曜日以外は「今日はなし」
+          const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+          return { ...t, done: done.includes(t.id), due: wd === t.weekday };
+        }
         if (!t.everyDays) return { ...t, done: done.includes(t.id) };
         // 何日おきの作業は、前回からの経過で今日やるべきか判断する
         const last = await lastDoneDate(t.id);
