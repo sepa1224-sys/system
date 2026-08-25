@@ -52,7 +52,7 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [advice, setAdvice] = useState<Advice | null>(null);
-  const [decided, setDecided] = useState<{ lines: Line[]; partner: string } | null>(
+  const [decided, setDecided] = useState<{ lines: Line[]; partner: string; dealId?: number } | null>(
     txn.decision,
   );
   const [tags, setTags] = useState<string[]>([]);
@@ -198,15 +198,18 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
           taxReview: advice.tax_review,
           taxReviewReason: advice.tax_review_reason,
           tags,
+          side: txn.side,
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? "保存失敗");
+      const resJson = await res.json();
+      if (!res.ok) throw new Error(resJson.error ?? "保存失敗");
       setDecided({
         lines: advice.lines.map((l, i) => ({
           ...l,
           item: (lineItems[i] ?? l.item ?? "").trim() || undefined,
         })),
         partner: advice.partner,
+        dealId: resJson.dealId,
       });
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存に失敗しました");
@@ -242,9 +245,20 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
 
       {decided && (
         <div className="decided-box">
+          {decided.dealId && (
+            <div style={{
+              padding: "10px 12px", borderRadius: 8, marginBottom: 10,
+              background: "#eaf6ec", border: "1px solid #b7dfc0", fontSize: 13, lineHeight: 1.7,
+            }}>
+              ✅ <strong>freeeに未決済取引を作成しました（#{decided.dealId}）。手入力は不要です。</strong><br />
+              freeeの明細画面で「<strong>未決済取引の消込</strong>」タブ → この取引を選んで「登録」を押すだけで完了します。
+            </div>
+          )}
           <div className="freee-panel">
             <div className="freee-panel-title">
-              📋 freee入力用（各項目の「コピー」→ freeeの「明細の詳細」に貼り付け）
+              {decided.dealId
+                ? "📋 参考（作成済みの内容。コピペは不要です）"
+                : "📋 freee入力用（各項目の「コピー」→ freeeの「明細の詳細」に貼り付け）"}
             </div>
             <CopyField label="発生日" value={txn.date} />
             <CopyField label="取引先" value={decided.partner} />
