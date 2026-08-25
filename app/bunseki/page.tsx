@@ -10,8 +10,8 @@ type Analytics = {
   period: { from: string; to: string };
   excludedEvents: {
     applied: boolean;
-    windows: { date: string; fromHour: number; label: string }[];
-    sales: { label: string; sales: number; count: number }[];
+    windows: { date: string; fromHour: number; label: string; reason: string }[];
+    sales: { label: string; sales: number; count: number; reason: string }[];
     total: number;
   };
   sales: {
@@ -117,12 +117,14 @@ export default function Bunseki() {
           {data.excludedEvents?.applied && data.excludedEvents.total > 0 && (
             <div className="card" style={{ padding: "10px 14px", background: "#fdf6ec", borderColor: "#e8d5b0" }}>
               <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
-                <strong>イベントの売上を分析から外しています。</strong>
-                {data.excludedEvents.sales.map((e) => (
-                  <span key={e.label}> {e.label} {fmt(e.sales)}（{e.count}件）</span>
-                ))}
+                <strong>通常営業でない日を分析から外しています。</strong>
                 <br />
-                通常営業とは客層も単価も違うため、平常日の傾向がぶれないように除いています。
+                {data.excludedEvents.sales.map((e) => (
+                  <span key={e.label} style={{ display: "block" }}>
+                    ・{e.label}（{e.reason}） {fmt(e.sales)} / {e.count}件
+                  </span>
+                ))}
+                平常日と混ぜると、曜日別や時間帯別の平均が実態からずれるためです。
               </div>
             </div>
           )}

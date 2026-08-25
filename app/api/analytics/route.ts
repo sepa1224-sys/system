@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { EVENT_WINDOWS, eventOf } from "@/lib/salesEvents";
+import { EXCLUDE_WINDOWS, excludeOf } from "@/lib/salesEvents";
 import { getReceipts, receiptLines } from "@/lib/receipts";
 import { getMenuItems } from "@/lib/menu";
 
@@ -53,7 +53,7 @@ async function fetchOrders(beginISO: string, endISO: string) {
 }
 
 // GET /api/analytics?from=2026-08-01&to=2026-08-15&withEvents=1
-//   withEvents=1 を付けるとイベント日も混ぜる。既定では外して平常日だけを見る。
+//   withEvents=1 を付けると通常営業でない日も混ぜる。既定では外して平常日だけを見る。
 // 売上（Square）・支出（領収書）・商品別粗利（原価表と突き合わせ）を一括で返す。
 // 経営判断用。freeeに登録済みかどうかは問わず、領収書の全件を支出として扱う。
 export async function GET(req: NextRequest) {
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     const from = searchParams.get("from") || today.slice(0, 8) + "01";
     const to = searchParams.get("to") || today;
-    // 既定ではイベント日を外す。傾向を見るのが目的で、イベントは平常日と性質が違うため
+    // 既定では通常営業でない日を外す。傾向を見るのが目的のため
     const withEvents = searchParams.get("withEvents") === "1";
 
     // 営業日は朝6時切替
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     const byWeekday: Record<number, { sales: number; count: number; days: Set<string> }> = {};
     const byMonth: Record<string, { sales: number; count: number; days: Set<string> }> = {};
     // 外したイベント分。除外した額が分かるように別で持つ
-    const eventSales: Record<string, { sales: number; count: number }> = {};
+    const eventSales: Record<string, { sales: number; count: number; reason: string }> = {};
 
     for (const o of orders) {
       const amt = o.total_money?.amount || 0;
@@ -105,11 +105,12 @@ export async function GET(req: NextRequest) {
       const realJst = new Date(new Date(o.created_at).getTime() + 9 * 3600_000);
       const hour = realJst.getUTCHours();
 
-      const ev = eventOf(day, hour);
-      if (ev && !withEvents) {
-        eventSales[ev.label] = eventSales[ev.label] || { sales: 0, count: 0 };
-        eventSales[ev.label].sales += amt;
-        eventSales[ev.label].count += 1;
+      const ex = excludeOf(day, hour);
+      if (ex && !withEvents) {
+        const k = ex.label;
+        eventSales[k] = eventSales[k] || { sales: 0, count: 0, reason: ex.reason };
+        eventSales[k].sales += amt;
+        eventSales[k].count += 1;
         continue; // 平常日の集計には入れない
       }
 
@@ -187,10 +188,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       period: { from, to },
-      // 分析から外したイベント。withEvents=1 を付けると混ぜて集計する
+      // 分析から外した日。withEvents=1 を付けると混ぜて集計する
       excludedEvents: {
         applied: !withEvents,
-        windows: EVENT_WINDOWS,
+        windows: EXCLUDE_WINDOWS,
         sales: Object.entries(eventSales).map(([label, v]) => ({ label, ...v })),
         total: Object.values(eventSales).reduce((n, v) => n + v.sales, 0),
       },
