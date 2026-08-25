@@ -4,6 +4,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { matchKb, getDecisions } from "@/lib/kb";
 import { getReceipts } from "@/lib/receipts";
+import { ITEM_RULES, getOverrides } from "@/lib/freeeItems";
 import { ACCOUNTS } from "@/lib/accounts";
 
 export const runtime = "nodejs";
@@ -30,7 +31,7 @@ const AdviceSchema = z.object({
         item: z
           .string()
           .describe(
-            "品目タグ。仕入高のとき: 酒類/ソフトドリンク・炭酸/コーヒー豆・茶葉/フード材料/牛乳・乳製品 等。消耗品費のとき: グラス・食器/掃除・衛生用品 等。経費・資産・負債の行は空。",
+            "品目。あとで示す『使える品目』の中から必ず選ぶ。新しい名前は作らない（表記が割れると品目別に集計できなくなるため）。どれにも当てはまらない、または経費・資産・負債の行なら空。",
           ),
         amount: z.number().describe("金額（円）。複数科目に分かれる場合は分割。"),
         memo: z.string().describe("備考（この行の内容。例: 7月分賃料）。"),
@@ -112,6 +113,20 @@ export async function POST(req: NextRequest) {
   if (body.emailContext) {
     system += `\n# Gmailで見つかった関連メール（この明細の金額に一致）\n${body.emailContext}\nこのメールの取引の支払いである可能性がある。メール内容から取引先・用途を読み取り、科目を提案。確証が薄ければ確認質問を。`;
   }
+  try {
+    // 品目は領収書経由と同じ語彙から選ばせる。名前が割れると
+    // 品目別の集計が「コーヒー豆」と「コーヒー豆・茶葉」に割れて意味をなさない
+    const overrides = await getOverrides();
+    const items = [
+      ...new Set([...ITEM_RULES.map((r) => r.item), ...Object.values(overrides)]),
+    ].sort();
+    if (items.length) {
+      system += `\n# 使える品目（この中から選ぶ。新しい名前は作らない）\n[${items.join(", ")}]`;
+    }
+  } catch {
+    /* KV未設定でも継続 */
+  }
+
   try {
     const tset = new Set<string>();
     for (const r of await getReceipts()) for (const t of r.tags ?? []) if (t) tset.add(t);

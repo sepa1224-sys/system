@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getReceipts, receiptLines } from "@/lib/receipts";
 import type { PendingOrder } from "../cron/amazon-sync/route";
+import { getDecisions } from "@/lib/kb";
 import { getOverrides, resolveWithOverrides } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
@@ -9,9 +10,11 @@ export const maxDuration = 60;
 // 品目ごとの購入台帳。仕訳（勘定科目）とは別に、
 // 「ペーパータオルを何回・いくらで買ったか」を積み上げて見るためのもの。
 //
-// もとになるのは領収書と、Gmailから取り込んだ注文（Amazon・モノタロウなど）の2つ。
-// ネット購入はレシートを撮らないので、注文を入れないと台帳から丸ごと抜ける。
-// 注文メールの商品名はOCRより正確なので、品目の判定精度もこちらの方が高い。
+// もとになるのは3つ。買い方が違っても同じ台帳に集まるようにしている。
+//   1. 領収書        … 店で買ってレシートを撮ったもの
+//   2. 注文          … Gmailから取り込んだネット購入（Amazon・モノタロウなど）
+//   3. 明細で決めた分 … 銀行明細をAIと相談して仕訳したもの（注文メールが無いもの）
+// 3つ目は品名から判定するのではなく、そのとき人が決めた品目をそのまま使う。
 
 export type Buy = {
   date: string;
@@ -19,8 +22,8 @@ export type Buy = {
   name: string;
   amount: number;
   category: string;
-  /** どこから来た記録か。領収書＝レシート撮影、注文＝Gmail取り込み */
-  from: "領収書" | "注文";
+  /** どこから来た記録か */
+  from: "領収書" | "注文" | "明細";
 };
 
 export type Ledger = {
@@ -57,10 +60,11 @@ async function getOrders(): Promise<PendingOrder[]> {
 
 export async function GET() {
   try {
-    const [overrides, receipts, orders] = await Promise.all([
+    const [overrides, receipts, orders, decisions] = await Promise.all([
       getOverrides(),
       getReceipts(),
       getOrders(),
+      getDecisions().catch(() => ({})),
     ]);
 
     const map = new Map<string, Buy[]>();
@@ -111,6 +115,25 @@ export async function GET() {
           unclassified.push(buy);
           continue;
         }
+        const arr = map.get(item) ?? [];
+        arr.push(buy);
+        map.set(item, arr);
+      }
+    }
+
+    // 明細で決めた分。品目は人が決めているので、品名からの判定はしない
+    for (const d of Object.values(decisions)) {
+      for (const l of d.lines ?? []) {
+        const item = (l.item || "").trim();
+        if (!item || !l.amount) continue;
+        const buy: Buy = {
+          date: (d.date || d.decidedAt || "").slice(0, 10),
+          vendor: d.partner || d.description || "明細",
+          name: l.memo || item,
+          amount: l.amount,
+          category: l.category,
+          from: "明細",
+        };
         const arr = map.get(item) ?? [];
         arr.push(buy);
         map.set(item, arr);
