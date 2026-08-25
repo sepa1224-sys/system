@@ -321,8 +321,9 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
                     <span>{l.category}{l.memo ? `（${l.memo}）` : ""}</span>
                     <span>¥{l.amount.toLocaleString()}</span>
                   </div>
-                  {/* 経費や資産の行は品目を使わないので、仕入高・消耗品費のときだけ出す */}
-                  {/仕入高|消耗品費/.test(l.category) && (
+                  {/* どの科目でも品目は付けられる（工具器具備品→机・テーブル など）。
+                      家賃のように要らない行は空のままでいい */}
+                  {(
                     <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "2px 0 6px" }}>
                       <span style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>品目</span>
                       <input
