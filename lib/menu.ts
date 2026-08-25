@@ -207,35 +207,35 @@ export const DEFAULT_MENU: MenuItem[] = [
   // 🧇 Sweets (Waffle)
   {
     id: "plain-waffle", name: "プレーンワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 34, price: 350, note: "1バッチ ¥343 → 50g×10枚",
+    cost: 35, price: 350, note: "1バッチ ¥349 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
       { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-      { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
+      { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
     ],
   },
   {
     id: "choco-chip-waffle", name: "チョコチップワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 36, price: 400, note: "1バッチ ¥365 → 50g×10枚",
+    cost: 37, price: 400, note: "1バッチ ¥371 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
       { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-      { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
+      { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 30, cost: 10 },
       { name: "チョコチップ", unit: "g", capacity: 500, purchasePrice: 525, usage: 30, cost: 32 },
     ],
   },
   {
     id: "matcha-waffle", name: "抹茶ワッフル", category: "🧇 Sweets (Waffle)",
-    cost: 40, price: 420, note: "1バッチ ¥404 → 50g×10枚",
+    cost: 41, price: 420, note: "1バッチ ¥410 → 50g×10枚",
     ingredients: [
       { name: "ワッフルミックス", unit: "g", capacity: 1000, purchasePrice: 847, usage: 200, cost: 169 },
       { name: "卵", unit: "個", capacity: 10, purchasePrice: 300, usage: 1, cost: 30 },
       { name: "牛乳", unit: "ml", capacity: 1000, purchasePrice: 150, usage: 120, cost: 18 },
-      { name: "バター", unit: "g", capacity: 150, purchasePrice: 398, usage: 40, cost: 106 },
+      { name: "バター（雪印 業務用450g）", unit: "g", capacity: 450, purchasePrice: 1264, usage: 40, cost: 112 },
       { name: "ざらめ", unit: "g", capacity: 1000, purchasePrice: 332, usage: 60, cost: 20 },
       { name: "抹茶", unit: "g", capacity: 30, purchasePrice: 610, usage: 3, cost: 61 },
     ],
