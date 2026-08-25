@@ -5,8 +5,8 @@
       "schedule": "0 21 * * *"
     },
     {
-      "path": "/api/cron/natsumatsuri-remind",
-      "schedule": "0 23 * * *"
+      "path": "/api/cron/shift-remind",
+      "schedule": "0 1 * * 3"
     }
   ]
 }

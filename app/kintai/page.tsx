@@ -90,6 +90,14 @@ export default function Kintai() {
         const p = await window.liff!.getProfile();
         setLiffName(p.displayName);
         if (!saved) setName(p.displayName);
+        // シフト提出のリマインドをLINEで送れるように、IDを覚えておく。
+        // 名前がスタッフ名簿と一致したときだけサーバー側が保存する
+        const staffName = saved || p.displayName;
+        fetch("/api/staff-line", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: staffName, userId: p.userId }),
+        }).catch(() => {});
       } catch {
         /* LIFF外で開いた場合など。名前選択で使えるので無視 */
       }
