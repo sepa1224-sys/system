@@ -24,6 +24,7 @@ export default function Nav() {
     { href: "/report", label: "📊 用途別" },
     { href: "/zeirishi", label: "🧑‍💼 税理士" },
     { href: "/menu", label: "🍽️ メニュー" },
+    { href: "/food", label: "🍳 フードレシピ" },
     { href: "/orders", label: "📬 発注" },
     { href: "/items", label: "🧺 品目台帳" },
     { href: "/shiire", label: "🛒 仕入れ" },
