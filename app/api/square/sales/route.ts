@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getFixes } from "@/lib/salesFix";
 
 export const runtime = "nodejs";
 
@@ -145,9 +146,16 @@ export async function GET(req: NextRequest) {
      * 会計は品目つきの注文を作った直後に打たれるので、120秒以内で探す。
      */
     const usedOpen = new Set<string>();
+    // 手で入れた中身の対応表。Squareが書き換えられない分をここで補う
+    const itemFixes = await getFixes();
     function recoverItems(o: any): any[] | null {
       const hasName = (o.line_items || []).some((li: any) => named(li));
       if (hasName) return null;
+      // 対応表にあればそれを最優先で使う
+      const fixed = itemFixes[o.id];
+      if (fixed?.length) {
+        return fixed.map((f) => ({ ...f, note: "", recovered: true, manual: true }));
+      }
       const t = new Date(o.created_at).getTime();
       const total = o.total_money?.amount || 0;
       const hit = openOrders.find(
