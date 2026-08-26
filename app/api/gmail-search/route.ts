@@ -47,6 +47,7 @@ type AmzOrder = { orderNumber: string; date: string; items: AmzItem[] };
 
 function parseAmazonOrders(mails: Mail[]): AmzOrder[] {
   const out: AmzOrder[] = [];
+  const seenOrder = new Set<string>();
   for (const m of mails) {
     const lines = m.body.split("\n").map((l) => l.trim());
     const on = lines.find((l) => /^\d{3}-\d{7}-\d{7}$/.test(l)) || "";
@@ -63,6 +64,9 @@ function parseAmazonOrders(mails: Mail[]): AmzOrder[] {
       }
       if (unit > 0) items.push({ name, qty, unit });
     }
+    // 同じ注文の通知が2通来ることがあるので、注文番号でまとめる
+    if (on && seenOrder.has(on)) continue;
+    if (on) seenOrder.add(on);
     if (items.length) out.push({ orderNumber: on, date: m.date, items });
   }
   return out;
@@ -71,6 +75,18 @@ function parseAmazonOrders(mails: Mail[]): AmzOrder[] {
 /** 注文内の商品（個数の分割も含む）から、合計がamountに一致する組み合わせを探す */
 function findAmazonCombos(orders: AmzOrder[], amount: number): string[] {
   const hits: string[] = [];
+  // まず「注文の合計そのものと一致」を探す。これが一番確実
+  for (const o of orders) {
+    const total = o.items.reduce((n, it) => n + it.unit * it.qty, 0);
+    if (total === amount) {
+      hits.push(
+        `注文${o.orderNumber || "(番号不明)"}（${o.date.slice(0, 16)}）の合計と完全一致（ほぼ確実）: ` +
+          o.items.map((it) => `${it.name.slice(0, 40)}×${it.qty}`).join(" + ") +
+          ` = ¥${amount.toLocaleString()}`,
+      );
+    }
+  }
+  if (hits.length) return hits;
   for (const o of orders) {
     // 単位は「商品×個数」。出荷が分かれることがあるので1個単位まで割る
     const units: { label: string; value: number }[] = [];
@@ -107,7 +123,7 @@ export async function POST(req: NextRequest) {
   if (!(await isGoogleConnected())) {
     return NextResponse.json({ connected: false, mails: [] });
   }
-  let body: { amount?: number; description?: string; keyword?: string };
+  let body: { amount?: number; description?: string; keyword?: string; date?: string };
   try {
     body = await req.json();
   } catch {
@@ -115,6 +131,7 @@ export async function POST(req: NextRequest) {
   }
   const amount = body.amount ?? 0;
   const description = body.description ?? "";
+  const txnDate = body.date ?? "";
   const keyword = (body.keyword ?? "").trim();
 
   // 検索クエリ群を用意：①ユーザー指定 or AI生成キーワード ②金額(カンマ無し)
@@ -131,7 +148,17 @@ export async function POST(req: NextRequest) {
     let amazonMatch = "";
     if (amount && /AMAZON|アマゾン/i.test(description)) {
       try {
-        const orderMails = await gmailSearch("from:auto-confirm@amazon.co.jp", 12);
+        // 引き落としは出荷時に起きるので、注文は明細日より前（数日〜数週間）にある。
+        // 明細の日付を基準に前後を区切って、古い注文も取りこぼさない
+        let q = "from:auto-confirm@amazon.co.jp";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(txnDate)) {
+          const base = new Date(`${txnDate}T00:00:00Z`);
+          const after = new Date(base); after.setUTCDate(after.getUTCDate() - 35);
+          const before = new Date(base); before.setUTCDate(before.getUTCDate() + 2);
+          const f = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "/");
+          q += ` after:${f(after)} before:${f(before)}`;
+        }
+        const orderMails = await gmailSearch(q, 30);
         const combos = findAmazonCombos(parseAmazonOrders(orderMails), amount);
         if (combos.length) {
           amazonMatch =

@@ -154,7 +154,7 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
       const res = await fetch("/api/gmail-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: txn.amount, description: txn.description, keyword: kw || undefined }),
+        body: JSON.stringify({ amount: txn.amount, description: txn.description, date: txn.date, keyword: kw || undefined }),
       });
       const j = await res.json();
       if (!j.connected) {
