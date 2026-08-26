@@ -134,6 +134,13 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
       r.readAsDataURL(file);
     });
     send(input, dataUrl);
+    // 明細書は原本ごと書類保管庫（/shorui）にも保存しておく。
+    // 判定に使って終わりではなく、あとから見返せるようにするため
+    fetch("/api/docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: dataUrl, fileName: file.name }),
+    }).catch(() => {});
   }
 
   async function searchEmail() {
@@ -161,7 +168,7 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
         setLoading(false);
         return;
       }
-      ctx = j.mails
+      ctx = (j.amazonMatch ? j.amazonMatch + "\n\n" : "") + j.mails
         .map(
           (mm: { subject: string; from: string; date: string; body: string; snippet: string }, i: number) =>
             `【メール${i + 1}】件名:${mm.subject}\n差出人:${mm.from}\n日付:${mm.date}\n本文:${(mm.body || mm.snippet).slice(0, 800)}`,

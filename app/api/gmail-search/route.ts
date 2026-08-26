@@ -38,6 +38,71 @@ async function genQueries(amount: number, description: string): Promise<string[]
   }
 }
 
+// ── Amazon専用の突き合わせ ──────────────────────────────
+// Amazonは注文単位ではなく「出荷単位」で請求するため、明細の金額が
+// 注文メールの合計と一致しないことが多い。そこで直近の注文メールから
+// 商品と単価を拾い、金額がぴったり合う商品の組み合わせを探す。
+type AmzItem = { name: string; qty: number; unit: number };
+type AmzOrder = { orderNumber: string; date: string; items: AmzItem[] };
+
+function parseAmazonOrders(mails: Mail[]): AmzOrder[] {
+  const out: AmzOrder[] = [];
+  for (const m of mails) {
+    const lines = m.body.split("\n").map((l) => l.trim());
+    const on = lines.find((l) => /^\d{3}-\d{7}-\d{7}$/.test(l)) || "";
+    const items: AmzItem[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i].startsWith("*")) continue;
+      const name = lines[i].replace(/^\*\s*/, "");
+      let qty = 1, unit = 0;
+      for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+        const q = /^数量:\s*(\d+)/.exec(lines[j]);
+        if (q) qty = Number(q[1]);
+        const pr = /^([\d,]+)\s*JPY/.exec(lines[j]);
+        if (pr) { unit = Number(pr[1].replace(/,/g, "")); break; }
+      }
+      if (unit > 0) items.push({ name, qty, unit });
+    }
+    if (items.length) out.push({ orderNumber: on, date: m.date, items });
+  }
+  return out;
+}
+
+/** 注文内の商品（個数の分割も含む）から、合計がamountに一致する組み合わせを探す */
+function findAmazonCombos(orders: AmzOrder[], amount: number): string[] {
+  const hits: string[] = [];
+  for (const o of orders) {
+    // 単位は「商品×個数」。出荷が分かれることがあるので1個単位まで割る
+    const units: { label: string; value: number }[] = [];
+    for (const it of o.items) {
+      for (let k = 1; k <= Math.min(it.qty, 5); k++) {
+        units.push({ label: `${it.name.slice(0, 40)}×${k}`, value: it.unit * k });
+      }
+    }
+    // 商品ごとに1エントリだけ選ぶ全探索（商品数は多くても6程度）
+    const per = o.items.map((it) => {
+      const arr = [{ label: "", value: 0 }];
+      for (let k = 1; k <= Math.min(it.qty, 5); k++) {
+        arr.push({ label: `${it.name.slice(0, 40)}×${k}(¥${it.unit * k})`, value: it.unit * k });
+      }
+      return arr;
+    });
+    const walk = (i: number, sum: number, picked: string[]) => {
+      if (hits.length >= 3) return;
+      if (sum > amount) return;
+      if (i === per.length) {
+        if (sum === amount && picked.length) {
+          hits.push(`注文${o.orderNumber || "(番号不明)"}（${o.date.slice(0, 16)}）: ${picked.join(" + ")} = ¥${amount.toLocaleString()}`);
+        }
+        return;
+      }
+      for (const c of per[i]) walk(i + 1, sum + c.value, c.label ? [...picked, c.label] : picked);
+    };
+    if (per.length <= 8) walk(0, 0, []);
+  }
+  return hits;
+}
+
 export async function POST(req: NextRequest) {
   if (!(await isGoogleConnected())) {
     return NextResponse.json({ connected: false, mails: [] });
@@ -61,6 +126,32 @@ export async function POST(req: NextRequest) {
   try {
     const seen = new Set<string>();
     const mails: Mail[] = [];
+
+    // Amazonの明細なら、先に注文メールから金額一致の組み合わせを探す
+    let amazonMatch = "";
+    if (amount && /AMAZON|アマゾン/i.test(description)) {
+      try {
+        const orderMails = await gmailSearch("from:auto-confirm@amazon.co.jp", 12);
+        const combos = findAmazonCombos(parseAmazonOrders(orderMails), amount);
+        if (combos.length) {
+          amazonMatch =
+            "【Amazonの出荷単位の突き合わせ】Amazonは出荷ごとに請求するため、注文合計と一致しないことがある。" +
+            "直近の注文メールから金額が一致する組み合わせを機械的に探した結果:\n" +
+            combos.map((c) => `・${c}`).join("\n") +
+            "\nこの組み合わせの商品が、この明細の内容である可能性が高い。";
+          // 該当注文のメールも文脈に含める
+          for (const m of orderMails) {
+            if (mails.length >= 3) break;
+            if (combos.some((c) => m.body.includes(c.split("（")[0].replace("注文", ""))) && !seen.has(m.id)) {
+              seen.add(m.id);
+              mails.push(m);
+            }
+          }
+        }
+      } catch {
+        /* 突き合わせに失敗しても通常の検索は続ける */
+      }
+    }
     for (const q of queries) {
       if (mails.length >= 4) break;
       const found = await gmailSearch(q, 3);
@@ -71,7 +162,7 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-    return NextResponse.json({ connected: true, queries, mails });
+    return NextResponse.json({ connected: true, queries, mails, amazonMatch: amazonMatch || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "エラー";
     return NextResponse.json({ connected: true, error: msg, queries, mails: [] });
