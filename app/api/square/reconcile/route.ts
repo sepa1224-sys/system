@@ -21,6 +21,9 @@ function hdrs() {
 //
 // そこで「同じ日に同じ金額の会計済み注文があるOPEN注文」を探して閉じる。
 // 金額と日付が一致していれば、その会計はこの注文のものとみなせる。
+//
+// 閉じ方はCANCELED。決済が紐づいていない注文はCOMPLETEDにできないため。
+// 売上は会計済み(COMPLETED)の方で立っているので、二重計上にはならない。
 // dryRun=false を付けたときだけ実際に閉じる。
 
 type Order = {
@@ -127,7 +130,10 @@ export async function POST(req: NextRequest) {
           method: "PUT",
           headers: hdrs(),
           body: JSON.stringify({
-            order: { version: o.version, state: "COMPLETED" },
+            // COMPLETEDにはできない（決済が紐づいていないとSquareが拒否する）。
+            // 会計自体は別の注文で済んでいるので、こちらはCANCELEDで閉じる。
+            // 売上はCOMPLETED側で計上済みなので、二重計上にはならない。
+            order: { version: o.version, state: "CANCELED" },
             idempotency_key: `rec_${o.id.slice(-10)}_${Date.now().toString(36)}`,
           }),
         });
