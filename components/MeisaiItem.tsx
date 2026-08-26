@@ -52,7 +52,7 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [advice, setAdvice] = useState<Advice | null>(null);
-  const [decided, setDecided] = useState<{ lines: Line[]; partner: string; dealId?: number } | null>(
+  const [decided, setDecided] = useState<{ lines: Line[]; partner: string; dealId?: number; dealError?: string } | null>(
     txn.decision,
   );
   const [tags, setTags] = useState<string[]>([]);
@@ -210,6 +210,7 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
         })),
         partner: advice.partner,
         dealId: resJson.dealId,
+        dealError: resJson.dealError,
       });
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存に失敗しました");
@@ -245,6 +246,15 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
 
       {decided && (
         <div className="decided-box">
+          {!decided.dealId && decided.dealError && (
+            <div style={{
+              padding: "10px 12px", borderRadius: 8, marginBottom: 10,
+              background: "#fdf6ec", border: "1px solid #e8d5b0", fontSize: 12.5, lineHeight: 1.7,
+            }}>
+              ⚠️ freeeへの自動作成ができませんでした（{decided.dealError}）。<br />
+              下の値をコピーして、freeeの「取引登録」タブに貼り付けてください。
+            </div>
+          )}
           {decided.dealId && (
             <div style={{
               padding: "10px 12px", borderRadius: 8, marginBottom: 10,
