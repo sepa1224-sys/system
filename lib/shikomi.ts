@@ -55,6 +55,17 @@ export const TASKS: Task[] = [
     minutes: 20,
   },
   {
+    id: "ajillo-set",
+    name: "アヒージョのセット仕込み",
+    kind: "仕込み",
+    intervalDays: 7,
+    qty: "数セット",
+    materials:
+      "1セット: オリーブオイル50ml / ミニトマト2個くし切り / マッシュルーム1個厚スライス / ブロッコリー2個 / 殻付き大アサリ2個 / むき海老2尾",
+    note: "セットにして冷凍保存。提供時はスキレットで火を入れるだけにする",
+    minutes: 30,
+  },
+  {
     id: "cold-brew",
     name: "コールドブリューの仕込み",
     kind: "仕込み",

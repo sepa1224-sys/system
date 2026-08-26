@@ -26,6 +26,36 @@ export default function OpeningPage() {
   const [doneCount, setDoneCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [recon, setRecon] = useState("");
+  const [reconBusy, setReconBusy] = useState(false);
+
+  // 会計済みなのに残っているOPEN注文を照合して閉じる。
+  // Squareで会計したあとアプリに戻らないと注文が閉じられないので、締めでまとめて片付ける
+  const runReconcile = async () => {
+    setReconBusy(true);
+    setRecon("");
+    try {
+      const res = await fetch("/api/square/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false, days: 30 }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "照合に失敗");
+      const left = (d.openCount ?? 0) - (d.closed ?? 0);
+      setRecon(
+        d.closed > 0
+          ? `${d.closed}件を閉じました。${left > 0 ? `${left}件は会計が見つからないので確認してください` : "すべて片付きました"}`
+          : left > 0
+            ? `閉じられるものはありません。${left}件は会計が見つからないので、会計漏れかもしれません`
+            : "残っている注文はありません",
+      );
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "照合に失敗");
+    } finally {
+      setReconBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +150,26 @@ export default function OpeningPage() {
           {t.detail && (
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.6 }}>
               {t.detail}
+            </div>
+          )}
+          {t.id === "order-reconcile" && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={runReconcile}
+                disabled={reconBusy}
+                style={{
+                  marginTop: 7, fontSize: 13, fontWeight: 700, padding: "8px 14px",
+                  borderRadius: 8, border: "none", cursor: "pointer",
+                  background: "var(--accent)", color: "#fff",
+                }}
+              >
+                {reconBusy ? "照合中…" : "🧹 残った注文を片付ける"}
+              </button>
+              {recon && (
+                <div style={{ fontSize: 12.5, color: "var(--ok)", fontWeight: 700, marginTop: 6, lineHeight: 1.7 }}>
+                  {recon}
+                </div>
+              )}
             </div>
           )}
           {t.everyDays && t.lastDate && (
