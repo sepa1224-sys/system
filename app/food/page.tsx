@@ -53,17 +53,43 @@ export default function FoodPage() {
     fileRef.current?.click();
   };
 
+  // iPhoneの写真はHEICで来ることがある。ブラウザはHEICを表示できないので
+  // canvasを通してJPEGに変換する。ついでに長辺1600pxに縮めて容量も落とす。
+  const toJpeg = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const max = 1600;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        const ctx = cv.getContext("2d");
+        if (!ctx) return reject(new Error("画像を変換できません"));
+        ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        // ブラウザが読めない形式（HEICなど）
+        reject(
+          new Error(
+            "この形式の写真は読めませんでした。iPhoneの場合は「設定 → カメラ → フォーマット → 互換性優先」にするか、一度スクリーンショットを撮って選び直してください。",
+          ),
+        );
+      };
+      img.src = url;
+    });
+
   const onPhoto = async (file: File) => {
     const target = pendingRef.current;
     if (!target) return;
+    setErr("");
     setUploading(`${target.recipeId}_${target.stepIndex}`);
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result as string);
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
+      const dataUrl = await toJpeg(file);
       const up = await fetch("/api/food-recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
