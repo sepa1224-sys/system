@@ -6,7 +6,7 @@ import Nav from "@/components/Nav";
 // フードのレシピ。厨房で見ながら作る前提なので、
 // 手順は大きな文字で1ステップずつ。押すと済みになって、どこまでやったか分かる。
 
-type Step = { text: string; timing?: string; photoId?: string };
+type Step = { text: string; timing?: string; photoId?: string; videoId?: string };
 type Recipe = {
   id: string;
   name: string;
@@ -89,7 +89,16 @@ export default function FoodPage() {
     setErr("");
     setUploading(`${target.recipeId}_${target.stepIndex}`);
     try {
-      const dataUrl = await toJpeg(file);
+      const isVideo = file.type.startsWith("video/");
+      // 動画は変換できないのでそのまま送る。大きすぎるものはサーバー側で弾く
+      const dataUrl = isVideo
+        ? await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          })
+        : await toJpeg(file);
       const up = await fetch("/api/food-recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +110,11 @@ export default function FoodPage() {
       const rec = recipes.find((r) => r.id === target.recipeId);
       if (!rec) return;
       const steps = rec.steps.map((s, i) =>
-        i === target.stepIndex ? { ...s, photoId: ud.photoId } : s,
+        i === target.stepIndex
+          ? isVideo
+            ? { ...s, videoId: ud.photoId }
+            : { ...s, photoId: ud.photoId }
+          : s,
       );
       const save = await fetch("/api/food-recipe", {
         method: "POST",
@@ -129,10 +142,23 @@ export default function FoodPage() {
 
       {err && <p className="err">{err}</p>}
 
+      <div className="card" style={{ padding: 12, textAlign: "center" }}>
+        <a
+          href="/food/print"
+          style={{
+            display: "inline-block", padding: "9px 18px", borderRadius: 8,
+            border: "1px solid var(--line)", fontSize: 13.5, fontWeight: 700,
+            textDecoration: "none",
+          }}
+        >
+          🖨 印刷用ページを開く（PDFで保存できます）
+        </a>
+      </div>
+
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         style={{ display: "none" }}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPhoto(f); }}
       />
@@ -220,7 +246,15 @@ export default function FoodPage() {
                             ⏱ {s.timing}
                           </div>
                         )}
-                        {s.photoId ? (
+                        {s.videoId ? (
+                          <video
+                            src={`/api/food-recipe/photo?id=${s.videoId}`}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            style={{ display: "block", marginTop: 8, maxWidth: "100%", borderRadius: 8 }}
+                          />
+                        ) : s.photoId ? (
                           <img
                             src={`/api/food-recipe/photo?id=${s.photoId}`}
                             alt=""
@@ -236,7 +270,7 @@ export default function FoodPage() {
                               color: "var(--muted)", cursor: "pointer",
                             }}
                           >
-                            {uploading === `${r.id}_${i}` ? "保存中…" : "＋ 写真を足す"}
+                            {uploading === `${r.id}_${i}` ? "保存中…" : "＋ 写真・動画を足す"}
                           </button>
                         )}
                       </div>

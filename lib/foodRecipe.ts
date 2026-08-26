@@ -20,6 +20,8 @@ export type Step = {
   timing?: string;
   /** 写真のid。/api/food-recipe/photo?id=... で取れる */
   photoId?: string;
+  /** 動画のid。包み方など、静止画では伝わらない動きを残すため */
+  videoId?: string;
 };
 
 export type FoodRecipe = {
@@ -309,6 +311,13 @@ export async function saveRecipe(r: FoodRecipe): Promise<void> {
   const all = await load();
   all[r.id] = { ...r, updatedAt: new Date().toISOString() };
   await store.set(KEY, all);
+}
+
+// 動画は写真より重いので、KVに入る大きさかどうかは呼び出し側で確認する
+export async function saveVideo(id: string, dataUrl: string): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  await store.set(PHOTO_PREFIX + id, dataUrl);
 }
 
 export async function savePhoto(id: string, dataUrl: string): Promise<void> {

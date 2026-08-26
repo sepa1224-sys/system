@@ -35,12 +35,22 @@ export async function POST(req: NextRequest) {
     };
 
     if (b.photo) {
-      if (b.photo.length > 4_000_000) {
-        return NextResponse.json({ error: "写真が大きすぎます（4MBまで）" }, { status: 400 });
+      // 動画も同じ入り口で受ける。KVの上限があるので大きさで弾く
+      const isVideo = b.photo.startsWith("data:video/");
+      const limit = isVideo ? 12_000_000 : 4_000_000;
+      if (b.photo.length > limit) {
+        return NextResponse.json(
+          {
+            error: isVideo
+              ? "動画が大きすぎます。10秒程度に短く切ってから入れてください"
+              : "写真が大きすぎます（4MBまで）",
+          },
+          { status: 400 },
+        );
       }
       const id = b.photoId || newRecipeId();
       await savePhoto(id, b.photo);
-      return NextResponse.json({ ok: true, photoId: id });
+      return NextResponse.json({ ok: true, photoId: id, isVideo });
     }
 
     const r = b.recipe;
