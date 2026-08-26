@@ -5,8 +5,6 @@ export const maxDuration = 60;
 
 const SQUARE_API = "https://connect.squareup.com/v2";
 const SQUARE_VERSION = "2024-11-20";
-const LOCATION = process.env.SQUARE_LOCATION_ID || "";
-
 function hdrs() {
   return {
     "Square-Version": SQUARE_VERSION,
@@ -35,7 +33,14 @@ type Order = {
   tenders?: unknown[];
 };
 
-async function search(states: string[], beginISO: string): Promise<Order[]> {
+// ロケーションIDは環境変数ではなくAPIから引く（他の画面と同じ取り方に揃える）
+async function getLocationId(): Promise<string> {
+  const res = await fetch(`${SQUARE_API}/locations`, { headers: hdrs() });
+  const data = await res.json();
+  return data.locations?.[0]?.id || "";
+}
+
+async function search(location: string, states: string[], beginISO: string): Promise<Order[]> {
   const out: Order[] = [];
   let cursor: string | undefined;
   do {
@@ -43,7 +48,7 @@ async function search(states: string[], beginISO: string): Promise<Order[]> {
       method: "POST",
       headers: hdrs(),
       body: JSON.stringify({
-        location_ids: [LOCATION],
+        location_ids: [location],
         cursor,
         limit: 200,
         query: {
@@ -70,9 +75,13 @@ export async function POST(req: NextRequest) {
     const days = b.days ?? 30;
 
     const begin = new Date(Date.now() - days * 86400_000).toISOString();
+    const location = await getLocationId();
+    if (!location) {
+      return NextResponse.json({ error: "ロケーションが取得できません" }, { status: 500 });
+    }
     const [open, completed] = await Promise.all([
-      search(["OPEN"], begin),
-      search(["COMPLETED"], begin),
+      search(location, ["OPEN"], begin),
+      search(location, ["COMPLETED"], begin),
     ]);
 
     // 会計済みの注文を「営業日 + 金額」で引けるようにする。
