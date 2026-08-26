@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/shift-remind",
       "schedule": "0 1 * * 3"
+    },
+    {
+      "path": "/api/cron/invoice-sync",
+      "schedule": "30 21 * * *"
     }
   ]
 }

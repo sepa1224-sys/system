@@ -186,6 +186,75 @@ export async function gmailProfile(): Promise<{ emailAddress: string; messagesTo
 }
 
 /** Gmailを検索して上位メールを返す（本文は抜粋） */
+// 添付PDF付きのメールを探して、添付の中身(base64)まで取る。
+// 請求書・明細書をGmailから書類庫へ自動で取り込むのに使う。
+export type MailAttachment = {
+  mailId: string;
+  subject: string;
+  from: string;
+  date: string;
+  filename: string;
+  base64: string; // 標準のbase64（data URLではない）
+};
+
+export async function gmailFetchPdfAttachments(
+  query: string,
+  maxMails = 8,
+): Promise<MailAttachment[]> {
+  const token = await getAccessToken();
+  const listRes = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxMails}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!listRes.ok) throw new Error(`Gmail検索失敗(${listRes.status})`);
+  const list = await listRes.json();
+  const ids: string[] = (list.messages ?? []).map((m: { id: string }) => m.id);
+  const out: MailAttachment[] = [];
+
+  for (const id of ids) {
+    const r = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!r.ok) continue;
+    const m = await r.json();
+    const headers: { name: string; value: string }[] = m.payload?.headers ?? [];
+    const h = (n: string) => headers.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+
+    // 添付はpartsの中に入れ子で入っているので、再帰で拾う
+    const parts: { filename?: string; mimeType?: string; body?: { attachmentId?: string } }[] = [];
+    const walk = (p: { parts?: unknown[] } & Record<string, unknown>) => {
+      if (!p) return;
+      parts.push(p as (typeof parts)[number]);
+      for (const c of (p.parts as (typeof p)[]) ?? []) walk(c);
+    };
+    walk(m.payload);
+
+    for (const p of parts) {
+      if (!p.filename || !p.body?.attachmentId) continue;
+      if (!/\.pdf$/i.test(p.filename) && p.mimeType !== "application/pdf") continue;
+      const ar = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/attachments/${p.body.attachmentId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!ar.ok) continue;
+      const a = await ar.json();
+      // GmailはURL-safe base64で返すので標準形式に直す
+      const b64 = String(a.data || "").replace(/-/g, "+").replace(/_/g, "/");
+      if (!b64) continue;
+      out.push({
+        mailId: id,
+        subject: h("subject"),
+        from: h("from"),
+        date: h("date"),
+        filename: p.filename,
+        base64: b64,
+      });
+    }
+  }
+  return out;
+}
+
 export async function gmailSearch(query: string, max = 4): Promise<Mail[]> {
   const token = await getAccessToken();
   const listRes = await fetch(
