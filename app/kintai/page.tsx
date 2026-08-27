@@ -69,6 +69,10 @@ export default function Kintai() {
   const [busy, setBusy] = useState(false);
   // 自由入力
   const [text, setText] = useState("");
+  // LINE通知の登録状態。うまくいかないとき原因が分かるように画面に出す
+  const [lineReg, setLineReg] = useState<string>("");
+  // 表示名が名簿と一致しなかったときに、本人が名前を選んで登録するための情報
+  const [lineUserId, setLineUserId] = useState<string>("");
   const [proposed, setProposed] = useState<Entry[] | null>(null);
   const [aiReply, setAiReply] = useState("");
 
@@ -93,11 +97,24 @@ export default function Kintai() {
         // シフト提出のリマインドをLINEで送れるように、IDを覚えておく。
         // 名前がスタッフ名簿と一致したときだけサーバー側が保存する
         const staffName = saved || p.displayName;
-        fetch("/api/staff-line", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: staffName, userId: p.userId }),
-        }).catch(() => {});
+        try {
+          const r = await fetch("/api/staff-line", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: staffName, userId: p.userId }),
+          });
+          const rd = await r.json();
+          if (rd.skipped) setLineUserId(p.userId);
+          setLineReg(
+            rd.skipped
+              ? `⚠️ LINEの表示名「${p.displayName}」が名簿と一致しないため、通知の登録ができませんでした`
+              : rd.name
+                ? `✅ ${rd.name}さんとしてLINE通知に登録しました`
+                : "",
+          );
+        } catch {
+          setLineReg("⚠️ LINE通知の登録に失敗しました");
+        }
       } catch {
         /* LIFF外で開いた場合など。名前選択で使えるので無視 */
       }
@@ -195,6 +212,39 @@ export default function Kintai() {
         <p>{liffName ? `LINE: ${liffName}` : "出勤・退勤の記録"}</p>
       </header>
       <Nav />
+
+      {lineReg && (
+        <div className="card" style={{ padding: "10px 14px", fontSize: 12.5, lineHeight: 1.7 }}>
+          {lineReg}
+          {lineUserId && (
+            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {["坂本", "町田", "櫻井"].map((n) => (
+                <button
+                  key={n}
+                  onClick={async () => {
+                    const r = await fetch("/api/staff-line", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: n, userId: lineUserId, forceName: n }),
+                    });
+                    const rd = await r.json();
+                    if (rd.name) {
+                      setLineReg(`✅ ${rd.name}さんとしてLINE通知に登録しました`);
+                      setLineUserId("");
+                    }
+                  }}
+                  style={{
+                    padding: "7px 14px", borderRadius: 7, fontSize: 13, fontWeight: 700,
+                    border: "1px solid var(--line)", background: "#fff", cursor: "pointer",
+                  }}
+                >
+                  {n}として登録
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 名前 */}
       <div className="card" style={{ padding: 14 }}>
