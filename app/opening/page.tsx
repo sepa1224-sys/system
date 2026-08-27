@@ -13,6 +13,8 @@ type Task = {
   detail?: string;
   everyDays?: number;
   weekday?: number;
+  waffleCount?: boolean;
+  waffleMorning?: boolean;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
@@ -27,6 +29,17 @@ export default function OpeningPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [recon, setRecon] = useState("");
+  // ワッフルの残数。夜に入れて、翌朝の判断に使う
+  const [waffle, setWaffle] = useState<{
+    flavors: string[];
+    morning: { text: string; bake: string[]; mustBake?: boolean };
+    night: { text: string; prep: boolean };
+    today: Record<string, number> | null;
+  } | null>(null);
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [bakedAt, setBakedAt] = useState("");
+  const [wSaving, setWSaving] = useState(false);
+  const [wMsg, setWMsg] = useState("");
   const [reconBusy, setReconBusy] = useState(false);
 
   // 会計済みなのに残っているOPEN注文を照合して閉じる。
@@ -68,6 +81,12 @@ export default function OpeningPage() {
       setDate(d.date || "");
       setTotal(d.total || 0);
       setDoneCount(d.doneCount || 0);
+      setWaffle(d.waffle || null);
+      if (d.waffle?.today) {
+        const c: Record<string, string> = {};
+        for (const [k, v] of Object.entries(d.waffle.today)) c[k] = String(v);
+        setCounts(c);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "取得失敗");
     } finally {
@@ -95,6 +114,29 @@ export default function OpeningPage() {
   };
 
   const pct = total ? Math.round((doneCount / total) * 100) : 0;
+
+  const saveWaffle = async () => {
+    if (!waffle) return;
+    setWSaving(true);
+    setWMsg("");
+    try {
+      const nums: Record<string, number> = {};
+      for (const f of waffle.flavors) nums[f] = Number(counts[f] || 0);
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ waffleCounts: nums, bakedAt: bakedAt || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "保存に失敗");
+      setWMsg(d.night?.text || "記録しました");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setWSaving(false);
+    }
+  };
 
   const row = (t: Task) => {
     const skip = (t.everyDays || t.weekday !== undefined) && !t.due;
@@ -150,6 +192,64 @@ export default function OpeningPage() {
           {t.detail && (
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.6 }}>
               {t.detail}
+            </div>
+          )}
+          {t.waffleMorning && waffle && (
+            <div style={{
+              marginTop: 7, padding: "9px 11px", borderRadius: 7, fontSize: 13, lineHeight: 1.7,
+              background: waffle.morning.bake.length ? "#fde8e8" : "#eaf6ec",
+              border: `1px solid ${waffle.morning.bake.length ? "#e0b4b4" : "#b7dfc0"}`,
+              color: waffle.morning.bake.length ? "#c0392b" : "var(--ok)",
+              fontWeight: 700,
+            }}>
+              {waffle.morning.bake.length ? "🔥 " : "✅ "}
+              {waffle.morning.text}
+            </div>
+          )}
+          {t.waffleCount && waffle && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {waffle.flavors.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 12.5 }}>{f}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={counts[f] ?? ""}
+                      onChange={(e) => setCounts((p) => ({ ...p, [f]: e.target.value }))}
+                      style={{ width: 56, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7 }}>
+                <span style={{ fontSize: 11.5, color: "var(--muted)" }}>いま冷蔵庫にあるものを焼いた日</span>
+                <input
+                  type="date"
+                  value={bakedAt}
+                  onChange={(e) => setBakedAt(e.target.value)}
+                  style={{ fontSize: 12.5, padding: "5px 7px" }}
+                />
+              </div>
+              <button
+                onClick={saveWaffle}
+                disabled={wSaving}
+                style={{
+                  marginTop: 8, padding: "8px 16px", borderRadius: 8, border: "none",
+                  background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                {wSaving ? "記録中…" : "残りを記録する"}
+              </button>
+              {wMsg && (
+                <div style={{
+                  marginTop: 7, padding: "8px 10px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
+                  background: "#fdf6ec", border: "1px solid #e8d5b0", fontWeight: 700,
+                }}>
+                  {wMsg}
+                </div>
+              )}
             </div>
           )}
           {t.id === "order-reconcile" && (

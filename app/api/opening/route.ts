@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   TASKS,
+  WAFFLE_FLAVORS,
   daysBetween,
   getDone,
+  getWaffleCounts,
   lastDoneDate,
+  morningPlan,
+  nightPlan,
+  saveWaffleCount,
   todayJST,
   toggle,
+  yesterdayOf,
 } from "@/lib/opening";
 
 export const runtime = "nodejs";
@@ -15,6 +21,14 @@ export async function GET(req: NextRequest) {
   try {
     const date = req.nextUrl.searchParams.get("date") || todayJST();
     const done = await getDone(date);
+
+    // ワッフルは前夜に数えた残数を朝の判断に使う。
+    // 廃棄期限が2日あるので、いつ焼いたものかも見て出し分ける
+    const waffle = await getWaffleCounts();
+    const yst = waffle[yesterdayOf(date)];
+    const tdy = waffle[date];
+    const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
+    const night = nightPlan(tdy?.counts ?? yst?.counts, tdy?.bakedAt ?? yst?.bakedAt, date);
 
     const tasks = await Promise.all(
       TASKS.map(async (t) => {
@@ -42,6 +56,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       date,
       tasks,
+      waffle: {
+        flavors: WAFFLE_FLAVORS,
+        yesterday: yst?.counts ?? null,
+        yesterdayBakedAt: yst?.bakedAt ?? null,
+        today: tdy?.counts ?? null,
+        morning,
+        night,
+      },
       total: need.length,
       doneCount: need.filter((t) => t.done).length,
     });
@@ -53,10 +75,25 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/opening { taskId, done, date? } → チェックの付け外し
+// POST /api/opening
+//   { taskId, done, date? }              … チェックの付け外し
+//   { waffleCounts, bakedAt?, date? }    … 夜のワッフル残数の記録
 export async function POST(req: NextRequest) {
   try {
-    const b = (await req.json()) as { taskId?: string; done?: boolean; date?: string };
+    const b = (await req.json()) as {
+      taskId?: string;
+      done?: boolean;
+      date?: string;
+      waffleCounts?: Record<string, number>;
+      bakedAt?: string;
+    };
+
+    if (b.waffleCounts) {
+      const date = b.date || todayJST();
+      await saveWaffleCount(date, b.waffleCounts, b.bakedAt);
+      const plan = nightPlan(b.waffleCounts, b.bakedAt, date);
+      return NextResponse.json({ ok: true, date, night: plan });
+    }
     if (!b.taskId) return NextResponse.json({ error: "taskIdが必要です" }, { status: 400 });
     if (!TASKS.some((t) => t.id === b.taskId)) {
       return NextResponse.json({ error: `知らない作業: ${b.taskId}` }, { status: 400 });

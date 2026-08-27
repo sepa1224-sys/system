@@ -28,6 +28,10 @@ export type Task = {
   everyDays?: number;
   /** 決まった曜日だけの作業。0=日 */
   weekday?: number;
+  /** 夜にワッフルの残数を入力する作業 */
+  waffleCount?: boolean;
+  /** 前夜の残数を見て、朝焼くかどうかを出す作業 */
+  waffleMorning?: boolean;
 };
 
 export const TASKS: Task[] = [
@@ -46,6 +50,8 @@ export const TASKS: Task[] = [
     name: "ワッフルをセットする",
     detail:
       "前日に焼いたものが冷蔵庫にあればそれをセット。無ければ前日に仕込んだ生地を焼く。廃棄期限は2日",
+    /** 前夜に数えた残数から、焼くかどうかを出し分ける */
+    waffleMorning: true,
   },
   {
     id: "dishes",
@@ -95,7 +101,9 @@ export const TASKS: Task[] = [
     phase: "締め",
     name: "22時にワッフルの残りを数える",
     detail:
-      "3フレーバーそれぞれ3個残っていたら翌日の仕込みはしない。2個以下なら翌日用に仕込む",
+      "3フレーバーそれぞれの残りを入力する。2個以下のフレーバーがあれば翌日用に生地を仕込む",
+    /** 残数を入力してもらう。翌朝の判断にそのまま使う */
+    waffleCount: true,
   },
   { id: "dishes-wash", phase: "締め", name: "食器を洗う" },
   {
@@ -163,6 +171,129 @@ export async function lastDoneDate(taskId: string): Promise<string | null> {
     .filter((d) => (m[d] ?? []).includes(taskId))
     .sort();
   return days.length ? days[days.length - 1] : null;
+}
+
+const WAFFLE_KEY = "opening:waffle";
+
+/** フレーバー名。ワッフルは3種類 */
+export const WAFFLE_FLAVORS = ["プレーン", "チョコチップ", "抹茶"] as const;
+
+/** 日付 → フレーバーごとの残数。bakedAt はいま冷蔵庫にあるものを焼いた日 */
+type WaffleDay = { counts: Record<string, number>; bakedAt?: string };
+type WaffleMap = Record<string, WaffleDay>;
+
+export async function getWaffleCounts(): Promise<WaffleMap> {
+  const store = await kv();
+  if (!store) return {};
+  return (await store.get<WaffleMap>(WAFFLE_KEY)) ?? {};
+}
+
+export async function saveWaffleCount(
+  date: string,
+  counts: Record<string, number>,
+  bakedAt?: string,
+): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const all = await getWaffleCounts();
+  all[date] = { counts, ...(bakedAt ? { bakedAt } : {}) };
+  const keep = Object.keys(all).sort().slice(-60);
+  const next: WaffleMap = {};
+  for (const d of keep) next[d] = all[d];
+  await store.set(WAFFLE_KEY, next);
+}
+
+export function yesterdayOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 前夜の残数から、朝どうするかを決める。
+ *
+ * ワッフルの廃棄期限は2日なので、朝焼いたものは明後日には出せない。
+ * そのため状態は次のように連鎖する。
+ *
+ *   夜に2個以下 → 生地を仕込む → 翌朝その生地を焼く
+ *   夜に3個以上 → 仕込まない  → 翌朝は冷蔵庫のものをセット（＝持ち越し）
+ *                              → その持ち越しは翌々日には期限切れになるので、
+ *                                 その日の夜は必ず仕込み、翌朝は確定で焼く
+ *
+ * bakedAt は、いま冷蔵庫にあるワッフルを焼いた日。
+ * これが2日前なら、今日はもう出せないので確定で焼く。
+ */
+export function morningPlan(
+  counts: Record<string, number> | undefined,
+  bakedAt?: string,
+  today?: string,
+) {
+  // 期限切れの判定を最優先。焼いた日から2日経っていたら出せない
+  if (bakedAt && today) {
+    const age = daysBetween(bakedAt, today);
+    if (age >= 2) {
+      return {
+        known: true,
+        bake: [...WAFFLE_FLAVORS],
+        mustBake: true,
+        text: `冷蔵庫のワッフルは${bakedAt.slice(5).replace("-", "/")}に焼いたもので期限切れです。今朝は全フレーバーを焼いてください`,
+      };
+    }
+  }
+  if (!counts || Object.keys(counts).length === 0) {
+    return {
+      known: false,
+      bake: [] as string[],
+      mustBake: false,
+      text: "前夜の残数が記録されていません。冷蔵庫を見て判断してください",
+    };
+  }
+  const bake = WAFFLE_FLAVORS.filter((f) => (counts[f] ?? 0) <= 2);
+  const detail = WAFFLE_FLAVORS.map((f) => `${f}${counts[f] ?? 0}個`).join("・");
+  if (!bake.length) {
+    const extra = bakedAt
+      ? `（今あるものは${bakedAt.slice(5).replace("-", "/")}焼き。明日は期限切れになるので、今夜は必ず仕込んでください）`
+      : "";
+    return {
+      known: true,
+      bake: [],
+      mustBake: false,
+      text: `昨夜は${detail}。すべて3個以上あるので、今朝は焼かずに冷蔵庫のものをセットする${extra}`,
+    };
+  }
+  return {
+    known: true,
+    bake: [...bake],
+    mustBake: false,
+    text: `昨夜は${detail}。${bake.join("・")}が2個以下なので、仕込んである生地を今朝焼く`,
+  };
+}
+
+/**
+ * 夜に生地を仕込むべきか。
+ * 2個以下があれば仕込む。加えて、持ち越したワッフルが翌日に期限切れになるなら、
+ * 残数にかかわらず必ず仕込む（翌朝焼くものが無くなるため）。
+ */
+export function nightPlan(
+  counts: Record<string, number> | undefined,
+  bakedAt?: string,
+  today?: string,
+) {
+  const low = counts
+    ? WAFFLE_FLAVORS.filter((f) => (counts[f] ?? 0) <= 2)
+    : [];
+  // 今あるものが1日前に焼いたもの＝明日は2日目で出せない
+  const expiring = !!(bakedAt && today && daysBetween(bakedAt, today) >= 1);
+  if (expiring) {
+    return {
+      prep: true,
+      text: `今あるワッフルは${bakedAt!.slice(5).replace("-", "/")}焼きで明日は期限切れです。残数にかかわらず今夜は生地を仕込んでください`,
+    };
+  }
+  if (low.length) {
+    return { prep: true, text: `${low.join("・")}が2個以下なので、明日用の生地を仕込んでください` };
+  }
+  return { prep: false, text: "すべて3個以上あるので、今夜は仕込まなくて大丈夫です" };
 }
 
 export function daysBetween(from: string, to: string): number {
