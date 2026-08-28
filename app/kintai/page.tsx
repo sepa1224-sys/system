@@ -93,6 +93,7 @@ export default function Kintai() {
         }
         const p = await window.liff!.getProfile();
         setLiffName(p.displayName);
+        setLineUserId(p.userId); // 名前を選び直したときに登録できるよう常に持っておく
         if (!saved) setName(p.displayName);
         // シフト提出のリマインドをLINEで送れるように、IDを覚えておく。
         // 名前がスタッフ名簿と一致したときだけサーバー側が保存する
@@ -104,7 +105,6 @@ export default function Kintai() {
             body: JSON.stringify({ name: staffName, userId: p.userId }),
           });
           const rd = await r.json();
-          if (rd.skipped) setLineUserId(p.userId);
           setLineReg(
             rd.skipped
               ? `⚠️ LINEの表示名「${p.displayName}」が名簿と一致しないため、通知の登録ができませんでした`
@@ -125,6 +125,22 @@ export default function Kintai() {
   useEffect(() => {
     if (name) localStorage.setItem("kintai:name", name);
   }, [name]);
+
+  // 名前を選び直したら、その名前でLINE通知の登録もやり直す。
+  // 端末に保存されていた名前が名簿と違うと弾かれるため
+  useEffect(() => {
+    if (!lineUserId || !name) return;
+    fetch("/api/staff-line", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, userId: lineUserId, forceName: name }),
+    })
+      .then((r) => r.json())
+      .then((rd) => {
+        if (rd.name) setLineReg(`✅ ${rd.name}さんとしてLINE通知に登録しました`);
+      })
+      .catch(() => {});
+  }, [name, lineUserId]);
 
   const load = useCallback(async () => {
     try {
