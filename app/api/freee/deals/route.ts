@@ -17,16 +17,20 @@ export async function GET(req: NextRequest) {
     const startDate = sp.get("start_date") || sp.get("from") || "2026-05-01";
     const endDate = sp.get("end_date") || sp.get("to") || today;
 
-    // freee deals API で取引一覧を取得
-    const query: Record<string, string> = {
-      company_id: FREEE_COMPANY_ID,
-      start_issue_date: startDate,
-      end_issue_date: endDate,
-      limit: "100",
-      offset: "0",
-    };
-
-    const { deals } = await freeeGet<{ deals: any[] }>("/api/1/deals", query);
+    // freee deals API で取引一覧を取得（100件ずつ全ページたどる）
+    const deals: any[] = [];
+    for (let offset = 0; ; offset += 100) {
+      const query: Record<string, string> = {
+        company_id: FREEE_COMPANY_ID,
+        start_issue_date: startDate,
+        end_issue_date: endDate,
+        limit: "100",
+        offset: String(offset),
+      };
+      const page = (await freeeGet<{ deals: any[] }>("/api/1/deals", query)).deals ?? [];
+      deals.push(...page);
+      if (page.length < 100) break;
+    }
 
     // 全取引の概要を返す
     const summary = deals.map((d: any) => ({
