@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, freeePut, isConnected } from "@/lib/freee";
 import { getOrCreateItemId, newItemCache } from "@/lib/freeeItems";
+import { CATEGORY_MAP } from "@/lib/freeeMap";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,8 +23,10 @@ export async function POST(req: NextRequest) {
       item?: string;
       byAmount?: Record<string, string>;
       byDesc?: Record<string, string>;
+      /** 備考の部分一致で勘定科目を変える（例: {"お～いお茶":"仕入高"}） */
+      byDescAccount?: Record<string, string>;
     };
-    if (!b.dealId || (!b.item && !b.byAmount && !b.byDesc)) {
+    if (!b.dealId || (!b.item && !b.byAmount && !b.byDesc && !b.byDescAccount)) {
       return NextResponse.json({ error: "dealIdとitem（またはbyAmount）が必要です" }, { status: 400 });
     }
 
@@ -43,9 +46,14 @@ export async function POST(req: NextRequest) {
         : undefined;
       const name = descHit ?? (b.byAmount ? b.byAmount[String(d.amount)] : b.item);
       const itemId = name ? await getOrCreateItemId(name, cache) : d.item_id ?? null;
+      // 科目の変更。名前は科目対応表（CATEGORY_MAP）で引く
+      const accName = b.byDescAccount
+        ? Object.entries(b.byDescAccount).find(([k]) => (d.description || "").includes(k))?.[1]
+        : undefined;
+      const accountId = accName ? CATEGORY_MAP[accName]?.accountItemId : undefined;
       details.push({
         id: d.id,
-        account_item_id: d.account_item_id,
+        account_item_id: accountId ?? d.account_item_id,
         tax_code: d.tax_code,
         amount: d.amount,
         ...(itemId ? { item_id: itemId } : {}),
