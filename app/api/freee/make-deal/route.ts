@@ -100,10 +100,13 @@ export async function POST(req: NextRequest) {
       feeCategory?: string;
       dryRun?: boolean;
       ids?: number[];
+      /** 取引を作らず「作成済み」として記録だけする（手動で作った分の重複防止用） */
+      markOnly?: { txnId: number; dealId: number }[];
       /** 入金の明細に対して取引を作るときは "income" */
       side?: "expense" | "income";
     };
     const dryRun = body.dryRun !== false;
+    const markOnly = body.markOnly;
     const side = body.side === "income" ? "income" : "expense";
     const matchStr = body.match || "ATM";
     const category = body.category || "現金";
@@ -132,12 +135,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 一度取引を作った明細はKVに記録し、次回はスキップする（cronで繰り返し呼んでも安全）
+    const doneKey = "makedeal:created";
+    const kvUrl = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+    const kvToken = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+    let store: { get<T>(k: string): Promise<T | null>; set(k: string, v: unknown): Promise<unknown> } | null = null;
+    if (kvUrl && kvToken) {
+      const { createClient } = await import("@vercel/kv");
+      store = createClient({ url: kvUrl, token: kvToken });
+    }
+    const done: Record<string, number> = store
+      ? ((await store.get<Record<string, number>>(doneKey)) ?? {})
+      : {};
+
+    if (markOnly?.length) {
+      for (const m of markOnly) done[String(m.txnId)] = m.dealId;
+      if (store) await store.set(doneKey, done);
+      return NextResponse.json({ ok: true, marked: markOnly.length });
+    }
+
     const re = new RegExp(matchStr, "i");
     const all = await bankTxns();
     const targets = all.filter(
       (t) =>
         t.entry_side === side &&
         re.test(t.description) &&
+        !done[String(t.id)] &&
         (!body.ids?.length || body.ids.includes(t.id)),
     );
 
@@ -181,10 +204,12 @@ export async function POST(req: NextRequest) {
           ],
         });
         results.push({ txnId: p.txnId, dealId: res.deal?.id });
+        if (res.deal?.id) done[String(p.txnId)] = res.deal.id;
       } catch (e) {
         results.push({ txnId: p.txnId, error: e instanceof Error ? e.message : "失敗" });
       }
     }
+    if (store) await store.set(doneKey, done);
     return NextResponse.json({
       ok: true,
       created: results.filter((r) => r.dealId).length,
