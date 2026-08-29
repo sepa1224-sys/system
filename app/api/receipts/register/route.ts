@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
 import { getReceipt, markRegistered, receiptLines } from "@/lib/receipts";
+import {
+  getOverrides,
+  resolveWithOverrides,
+  getOrCreateItemId,
+  newItemCache,
+} from "@/lib/freeeItems";
 import { mapCategory, clampIssueDate, YAKUIN_KARIIRE_ID, YAKUIN_KARIIRE_TAX } from "@/lib/freeeMap";
 
 export const runtime = "nodejs";
@@ -91,18 +97,25 @@ export async function POST(req: NextRequest) {
   const desc = ((r.memo || r.summary || r.vendor || "") + dateNote).slice(0, 100);
 
   // 内訳（用途/科目ごと）→ 借方を複数行に。合計＝貸方1行。
+  // 品目は明細処理と同じ判定（ルール＋覚えさせた対応）で品名から決め、
+  // freeeのitem_idにして各行に付ける。決まらない行は品目なしで登録する。
   const lines = receiptLines(r);
-  const debitDetails = lines.map((l) => {
+  const overrides = await getOverrides().catch(() => ({}) as Record<string, string>);
+  const itemCache = newItemCache();
+  const debitDetails = [];
+  for (const l of lines) {
     const m = mapCategory(l.category);
-    return {
+    const itemName = resolveWithOverrides((l.name || "").trim(), overrides);
+    const itemId = itemName ? await getOrCreateItemId(itemName, itemCache) : null;
+    debitDetails.push({
       entry_side: "debit",
       account_item_id: m.accountItemId,
       tax_code: m.taxCode,
       amount: l.amount,
-      ...(m.itemId ? { item_id: m.itemId } : {}),
+      ...(itemId ?? m.itemId ? { item_id: itemId ?? m.itemId } : {}),
       description: (l.name || desc).slice(0, 100),
-    };
-  });
+    });
+  }
   const total = lines.reduce((s, l) => s + l.amount, 0);
 
   // 振替伝票: 借)科目（内訳分だけ複数行） / 貸)現金・普通預金・役員借入金のいずれか
