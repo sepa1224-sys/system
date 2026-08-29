@@ -10,6 +10,8 @@ export const maxDuration = 60;
 //
 // POST { dealId, item }                    … 全行に同じ品目
 // POST { dealId, byAmount: {"2997":"寝具・ファブリック", ...} } … 金額ごとに品目を分ける
+// POST { dealId, byDesc: {"ユニボスカ":"文房具", ...} }        … 備考の部分一致で品目を分ける
+//   同じ金額の行が複数あるときはbyDescで（byDescが最優先）
 export async function POST(req: NextRequest) {
   if (!(await isConnected())) {
     return NextResponse.json({ error: "freee未接続" }, { status: 400 });
@@ -19,8 +21,9 @@ export async function POST(req: NextRequest) {
       dealId?: number;
       item?: string;
       byAmount?: Record<string, string>;
+      byDesc?: Record<string, string>;
     };
-    if (!b.dealId || (!b.item && !b.byAmount)) {
+    if (!b.dealId || (!b.item && !b.byAmount && !b.byDesc)) {
       return NextResponse.json({ error: "dealIdとitem（またはbyAmount）が必要です" }, { status: 400 });
     }
 
@@ -35,7 +38,10 @@ export async function POST(req: NextRequest) {
     const details = [];
     const applied: { amount: number; item: string | null }[] = [];
     for (const d of deal.details) {
-      const name = b.byAmount ? b.byAmount[String(d.amount)] : b.item;
+      const descHit = b.byDesc
+        ? Object.entries(b.byDesc).find(([k]) => (d.description || "").includes(k))?.[1]
+        : undefined;
+      const name = descHit ?? (b.byAmount ? b.byAmount[String(d.amount)] : b.item);
       const itemId = name ? await getOrCreateItemId(name, cache) : d.item_id ?? null;
       details.push({
         id: d.id,
