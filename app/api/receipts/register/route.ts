@@ -69,6 +69,14 @@ export async function POST(req: NextRequest) {
   if (!r.date || !r.total) {
     return NextResponse.json({ error: "日付・金額が不足しています" }, { status: 400 });
   }
+  // 会社デビットカード払いは銀行明細フロー（明細タブ→取引→消込）で計上する。
+  // ここで伝票を切ると同じ買い物が二重計上になる（2026-08-30に84件発覚した事故の再発防止）。
+  if (r.expenseKind === "card") {
+    return NextResponse.json(
+      { error: "会社カード払いは明細タブ側で処理されます（二重計上防止のため登録しません）" },
+      { status: 400 },
+    );
+  }
 
   // 支払い元によって貸方が変わる。
   //   立替 / 労働枠 → 役員借入金（取引先＝立替えた人。あとで会社から返す）

@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       status: d.status,
       details: d.details?.map((det: any) => ({
         account_item_name: det.account_item_id,
+        item_id: det.item_id ?? null,
         amount: det.amount,
         description: det.description,
         tax_code: det.tax_code,

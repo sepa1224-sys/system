@@ -77,6 +77,10 @@ const CATEGORY_HINTS: { re: RegExp; expect: string[]; label: string }[] = [
 
 // 登録前に1件ずつ点検する。errorが1つでもあれば、その領収書は登録しない。
 function inspect(r: SavedReceipt, bank: BankTxn[]): Issue[] {
+  // 会社カード払いは明細フローで計上するため、一括登録の対象から外す
+  if (r.expenseKind === "card") {
+    return [{ level: "error" as const, message: "会社カード払い＝明細タブ側で処理（二重計上防止）" }];
+  }
   const out: Issue[] = [];
   if (!r.date) out.push({ level: "error", message: "日付が空" });
   if (!r.total) out.push({ level: "error", message: "金額が空" });
