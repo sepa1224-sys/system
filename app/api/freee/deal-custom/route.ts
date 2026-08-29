@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FREEE_COMPANY_ID, freeeGet, freeePost, isConnected } from "@/lib/freee";
+import { FREEE_COMPANY_ID, freeeDelete, freeeGet, freeePost, isConnected } from "@/lib/freee";
 import { CATEGORY_MAP, clampIssueDate } from "@/lib/freeeMap";
 import { getOrCreateItemId, newItemCache } from "@/lib/freeeItems";
 
@@ -90,6 +90,24 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "登録に失敗" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE ?dealId=123 … 間違えて作った未決済取引を消す
+export async function DELETE(req: NextRequest) {
+  if (!(await isConnected())) {
+    return NextResponse.json({ error: "freee未接続です" }, { status: 400 });
+  }
+  const dealId = req.nextUrl.searchParams.get("dealId");
+  if (!dealId) return NextResponse.json({ error: "dealIdが必要です" }, { status: 400 });
+  try {
+    await freeeDelete(`/api/1/deals/${dealId}`, { company_id: String(COMPANY) });
+    return NextResponse.json({ ok: true, deleted: Number(dealId) });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "削除に失敗" },
       { status: 500 },
     );
   }
