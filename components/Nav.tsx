@@ -34,6 +34,7 @@ export default function Nav() {
     { href: "/kitchen", label: "🍳 KDS" },
     { href: "/accounting", label: "📊 経営" },
     { href: "/bunseki", label: "🔍 分析" },
+    { href: "/seiseki", label: "🏅 今月の成績" },
     { href: "/sales", label: "📈 売上" },
     { href: "/soudan", label: "💬 相談" },
     { href: "/help", label: "❓ 使い方" },
