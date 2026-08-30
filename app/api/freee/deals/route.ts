@@ -32,6 +32,18 @@ export async function GET(req: NextRequest) {
       if (page.length < 100) break;
     }
 
+    // 品目IDだけだと画面で読めないので、名前も一緒に返す
+    const itemNames = new Map<number, string>();
+    try {
+      const r = await freeeGet<{ items: { id: number; name: string }[] }>("/api/1/items", {
+        company_id: FREEE_COMPANY_ID,
+        limit: "3000",
+      });
+      for (const i of r.items ?? []) itemNames.set(i.id, i.name);
+    } catch {
+      /* 品目が引けなくても取引一覧は返す */
+    }
+
     // 全取引の概要を返す
     const summary = deals.map((d: any) => ({
       id: d.id,
@@ -42,6 +54,7 @@ export async function GET(req: NextRequest) {
       details: d.details?.map((det: any) => ({
         account_item_name: det.account_item_id,
         item_id: det.item_id ?? null,
+        item_name: det.item_id ? (itemNames.get(det.item_id) ?? null) : null,
         amount: det.amount,
         description: det.description,
         tax_code: det.tax_code,
