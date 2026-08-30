@@ -19,9 +19,10 @@ export async function GET(req: NextRequest) {
 
     const settings = await getSettings();
     const res = await fetch(
-      `${req.nextUrl.origin}/api/analytics?from=${from}&to=${to}`,
+      `${req.nextUrl.origin}/api/analytics?from=${from}&to=${to}&withEvents=1`,
       { cache: "no-store" },
     );
+    // イベントの日も実際の売上なので含める（withEvents=1）
     const a = await res.json();
     const byDay: { day: string; sales: number; count: number }[] = a?.sales?.byDay ?? [];
     const sales = a?.sales?.total ?? 0;
