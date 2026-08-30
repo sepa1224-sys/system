@@ -172,3 +172,80 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "更新失敗" }, { status: 500 });
   }
 }
+
+// PUT: 既存アイテムのバリエーション（チョコ・抹茶など選べる種類）を作り直す。
+// body: { item_id, variations: [{ id?, name, price }] }
+//   id を渡した行は既存のバリエーションを名前変更するだけなので、
+//   過去の注文履歴との紐づきが切れない。
+export async function PUT(req: NextRequest) {
+  try {
+    const { item_id, variations } = (await req.json()) as {
+      item_id: string;
+      variations: { id?: string; name: string; price: number }[];
+    };
+    if (!item_id || !variations?.length) {
+      return NextResponse.json({ error: "item_id と variations が必要" }, { status: 400 });
+    }
+
+    const cur = await fetch(`${SQUARE_API}/catalog/object/${item_id}`, { headers: headers() });
+    const curData = await cur.json();
+    if (!cur.ok) {
+      return NextResponse.json(
+        { error: curData.errors?.[0]?.detail || `取得エラー ${cur.status}` },
+        { status: cur.status },
+      );
+    }
+    const obj = curData.object;
+    const existing: Record<string, any> = {};
+    for (const v of obj?.item_data?.variations ?? []) existing[v.id] = v;
+
+    const nextVars = variations.map((v, i) => {
+      const base = v.id ? existing[v.id] : null;
+      return {
+        type: "ITEM_VARIATION",
+        id: v.id ?? `#newvar_${i}`,
+        ...(base ? { version: base.version } : {}),
+        item_variation_data: {
+          item_id,
+          name: v.name,
+          pricing_type: "FIXED_PRICING",
+          price_money: { amount: v.price, currency: "JPY" },
+        },
+      };
+    });
+
+    const res = await fetch(`${SQUARE_API}/catalog/object`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        idempotency_key: `vars_${item_id.slice(-8)}_${Date.now().toString(36)}`,
+        object: {
+          type: "ITEM",
+          id: obj.id,
+          version: obj.version,
+          item_data: { ...obj.item_data, variations: nextVars },
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data.errors?.[0]?.detail || `更新エラー ${res.status}`, details: data.errors },
+        { status: res.status },
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      variations: (data.catalog_object?.item_data?.variations ?? []).map((v: any) => ({
+        id: v.id,
+        name: v.item_variation_data?.name,
+        price: v.item_variation_data?.price_money?.amount,
+      })),
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "更新失敗" },
+      { status: 500 },
+    );
+  }
+}

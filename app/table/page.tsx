@@ -129,8 +129,17 @@ export default function TablePage() {
   const [orderType, setOrderType] = useState<"店内" | "テイクアウト" | "パーティ受付">("店内");
   // パーティモード：参加費だけを出す受付用の画面
   const [party, setParty] = useState(false);
-  // 別会計：会計する品目のuid。空なら注文全体を会計する
-  const [splitSel, setSplitSel] = useState<Set<string>>(new Set());
+  // 別会計：uid → 会計する個数。同じ品を2つ頼んでいても1つだけ選べる。
+  // 空なら注文全体を会計する。
+  const [splitSel, setSplitSel] = useState<Record<string, number>>({});
+  const pickQty = (uid: string) => splitSel[uid] ?? 0;
+  const setPickQty = (uid: string, n: number) =>
+    setSplitSel((prev) => {
+      const next = { ...prev };
+      if (n <= 0) delete next[uid];
+      else next[uid] = n;
+      return next;
+    });
   // 昼モード: カウンター注文のstate
   const [dayOrderId, setDayOrderId] = useState<string | null>(null);
   const [dayVersion, setDayVersion] = useState(0);
@@ -229,7 +238,7 @@ export default function TablePage() {
   // テーブルタップ
   const tapTable = (tableId: string) => {
     setSelected(tableId);
-    setSplitSel(new Set());
+    setSplitSel({});
     setCart([]);
     setErr("");
     setMsg("");
@@ -438,26 +447,31 @@ export default function TablePage() {
   const settle = async (method: "cash" | "card" | "paypay", tenderedAmt?: number) => {
     const order = selected ? orders.find((o) => o.ticket_name === selected) : null;
     if (!order) return;
-    const picked = order.items.filter((i) => splitSel.has(i.uid));
-    const split = picked.length > 0 && picked.length < order.items.length;
+    // 選んだ個数だけを切り出す。全部選んでいれば普通の会計にする。
+    const picked = order.items
+      .map((i) => ({ item: i, qty: Math.min(splitSel[i.uid] ?? 0, i.qty) }))
+      .filter((p) => p.qty > 0);
+    const pickedQty = picked.reduce((s, p) => s + p.qty, 0);
+    const totalQty = order.items.reduce((s, i) => s + i.qty, 0);
+    const split = pickedQty > 0 && pickedQty < totalQty;
     let targetId = order.id;
     let amount = order.total;
     setPaying(true);
     setErr("");
     try {
       if (split) {
-        amount = picked.reduce((sum, i) => sum + i.amount, 0);
+        amount = picked.reduce((sum, p) => sum + Math.round((p.item.amount / p.item.qty) * p.qty), 0);
         // 1) 選択分を新しい注文として作る
         const res = await fetch("/api/square/order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             table: `${order.ticket_name}分`,
-            items: picked.map((i) => ({
-              catalog_object_id: i.catalog_object_id,
-              quantity: i.qty,
-              note: i.note,
-              name: i.name, // 消費税の判定に使う
+            items: picked.map((p) => ({
+              catalog_object_id: p.item.catalog_object_id,
+              quantity: p.qty,
+              note: p.item.note,
+              name: p.item.name, // 消費税の判定に使う
             })),
           }),
         });
@@ -472,7 +486,11 @@ export default function TablePage() {
           body: JSON.stringify({
             order_id: order.id,
             version: order.version,
-            item_uids: picked.map((i) => i.uid),
+            // 全部選んだ行は消し、一部だけの行は数量を減らして残す
+            item_uids: picked.filter((p) => p.qty >= p.item.qty).map((p) => p.item.uid),
+            keep: picked
+              .filter((p) => p.qty < p.item.qty)
+              .map((p) => ({ uid: p.item.uid, quantity: p.item.qty - p.qty })),
           }),
         });
         if (!delRes.ok) {
@@ -514,7 +532,7 @@ export default function TablePage() {
       const pd = await payRes.json();
       if (!payRes.ok) throw new Error(pd.error || "会計に失敗");
       setPayResult({ change: pd.payment?.change ?? (tenderedAmt || amount) - amount });
-      setSplitSel(new Set());
+      setSplitSel({});
       setPayMode(false);
       setTendered("");
       await loadOrders();
@@ -527,10 +545,16 @@ export default function TablePage() {
 
   const currentOrder = selected ? orderFor(selected) : null;
   // 別会計で選ばれている品目。1つも選ばれていなければ注文全体が対象。
-  const splitItems = currentOrder ? currentOrder.items.filter((i) => splitSel.has(i.uid)) : [];
-  const isSplit = splitItems.length > 0 && splitItems.length < (currentOrder?.items.length ?? 0);
+  const splitItems = currentOrder
+    ? currentOrder.items
+        .map((i) => ({ item: i, qty: Math.min(splitSel[i.uid] ?? 0, i.qty) }))
+        .filter((p) => p.qty > 0)
+    : [];
+  const pickedQty = splitItems.reduce((s, p) => s + p.qty, 0);
+  const orderQty = currentOrder ? currentOrder.items.reduce((s, i) => s + i.qty, 0) : 0;
+  const isSplit = pickedQty > 0 && pickedQty < orderQty;
   const payTargetTotal = isSplit
-    ? splitItems.reduce((s, i) => s + i.amount, 0)
+    ? splitItems.reduce((s, p) => s + Math.round((p.item.amount / p.item.qty) * p.qty), 0)
     : currentOrder?.total ?? 0;
 
   return (
@@ -991,19 +1015,39 @@ export default function TablePage() {
               )}
               {currentOrder.items.map((item, i) => (
                 <div key={i} className="result-row" style={{ alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={splitSel.has(item.uid)}
-                    onChange={(e) => {
-                      setSplitSel((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(item.uid);
-                        else next.delete(item.uid);
-                        return next;
-                      });
-                    }}
-                    style={{ width: 20, height: 20, marginRight: 10, flexShrink: 0 }}
-                  />
+                  {item.qty > 1 ? (
+                    // 同じ品が複数あるときは「何個ぶん会計するか」を選ぶ
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, marginRight: 8, flexShrink: 0 }}>
+                      <button
+                        onClick={() => setPickQty(item.uid, pickQty(item.uid) - 1)}
+                        disabled={pickQty(item.uid) <= 0}
+                        style={{
+                          width: 26, height: 26, borderRadius: 6, padding: 0, fontSize: 15,
+                          border: "1px solid var(--line)", background: "#fff",
+                          opacity: pickQty(item.uid) <= 0 ? 0.35 : 1, cursor: "pointer",
+                        }}
+                      >−</button>
+                      <span className="mono" style={{ minWidth: 26, textAlign: "center", fontWeight: 700 }}>
+                        {pickQty(item.uid)}
+                      </span>
+                      <button
+                        onClick={() => setPickQty(item.uid, Math.min(item.qty, pickQty(item.uid) + 1))}
+                        disabled={pickQty(item.uid) >= item.qty}
+                        style={{
+                          width: 26, height: 26, borderRadius: 6, padding: 0, fontSize: 15,
+                          border: "1px solid var(--line)", background: "#fff",
+                          opacity: pickQty(item.uid) >= item.qty ? 0.35 : 1, cursor: "pointer",
+                        }}
+                      >＋</button>
+                    </span>
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={pickQty(item.uid) > 0}
+                      onChange={(e) => setPickQty(item.uid, e.target.checked ? 1 : 0)}
+                      style={{ width: 20, height: 20, marginRight: 10, flexShrink: 0 }}
+                    />
+                  )}
                   <span style={{ flex: 1 }}>
                     {item.name}
                     {item.qty > 1 && <span style={{ color: "var(--muted)", marginLeft: 4 }}>×{item.qty}</span>}
@@ -1042,20 +1086,20 @@ export default function TablePage() {
               <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, marginTop: 8, paddingTop: 8, borderTop: "2px solid var(--line)" }}>
                 合計 {fmt(currentOrder.total)}
               </div>
-              {splitSel.size > 0 && (
+              {pickedQty > 0 && (
                 <div style={{
                   marginTop: 8, padding: "8px 10px", borderRadius: 8,
                   background: "#f4efe7", display: "flex", justifyContent: "space-between",
                   alignItems: "center", fontSize: 14, fontWeight: 700,
                 }}>
                   <span>
-                    別会計 {splitItems.length}点
+                    別会計 {pickedQty}点
                     {!isSplit && <span style={{ color: "var(--muted)", fontWeight: 400 }}>（全部なので通常会計）</span>}
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {fmt(payTargetTotal)}
                     <button
-                      onClick={() => setSplitSel(new Set())}
+                      onClick={() => setSplitSel({})}
                       style={{
                         border: "1px solid var(--line)", background: "#fff", borderRadius: 6,
                         fontSize: 12, padding: "4px 8px", cursor: "pointer", fontWeight: 600,
@@ -1093,7 +1137,7 @@ export default function TablePage() {
                   </button>
                   <button
                     onClick={() => {
-                      if (!confirm(`${isSplit ? `選択した${splitItems.length}点（${fmt(payTargetTotal)}）` : selected} をPayPay支払い済みにしますか？`)) return;
+                      if (!confirm(`${isSplit ? `選択した${pickedQty}点（${fmt(payTargetTotal)}）` : selected} をPayPay支払い済みにしますか？`)) return;
                       settle("paypay");
                     }}
                     disabled={paying}

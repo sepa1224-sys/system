@@ -228,27 +228,38 @@ export async function PUT(req: NextRequest) {
 // 別会計で複数品目を切り出すときは、versionが1回しか使えないので item_uids でまとめて渡す。
 export async function DELETE(req: NextRequest) {
   try {
-    const { order_id, version, item_uid, item_uids } = (await req.json()) as {
+    const { order_id, version, item_uid, item_uids, keep } = (await req.json()) as {
       order_id: string;
       version: number;
       item_uid?: string;
       item_uids?: string[];
+      /** 数量を減らして残す行。別会計で「2つのうち1つだけ」を切り出すときに使う */
+      keep?: { uid: string; quantity: number }[];
     };
     if (!order_id) {
       return NextResponse.json({ error: "order_id が必要" }, { status: 400 });
     }
 
     const uids = item_uids?.length ? item_uids : item_uid ? [item_uid] : [];
-    if (uids.length > 0) {
-      // 指定アイテムをまとめて削除
+    if (uids.length > 0 || keep?.length) {
+      // 指定アイテムをまとめて削除。versionは1回しか使えないので、
+      // 数量を減らすだけの行（keep）も同じリクエストに載せる。
       const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {
         method: "PUT",
         headers: hdrs(),
         body: JSON.stringify({
           order: {
             version,
+            ...(keep?.length
+              ? {
+                  line_items: keep.map((k) => ({
+                    uid: k.uid,
+                    quantity: String(k.quantity),
+                  })),
+                }
+              : {}),
           },
-          fields_to_clear: uids.map((u) => `line_items[${u}]`),
+          ...(uids.length ? { fields_to_clear: uids.map((u) => `line_items[${u}]`) } : {}),
           idempotency_key: `del_${order_id.slice(-10)}_${Date.now().toString(36)}`,
         }),
       });
