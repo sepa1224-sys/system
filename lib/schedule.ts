@@ -41,10 +41,10 @@ export const SEED_EVENTS: EventItem[] = [
     note: "盆踊りパーティ／花火。2Fはポップアップ出店",
   },
   {
-    id: "game-night-0922",
+    id: "game-night-0921",
     title: "ゲームナイト",
     kind: "店舗",
-    date: "2026-09-22",
+    date: "2026-09-21",
     place: "flat.",
   },
   {
