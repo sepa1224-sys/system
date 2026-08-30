@@ -48,6 +48,14 @@ export const SEED_EVENTS: EventItem[] = [
     place: "flat.",
   },
   {
+    id: "oboe-live-0926",
+    title: "オーボエ演奏会（昼・夜 2部）",
+    kind: "店舗",
+    date: "2026-09-26",
+    place: "flat.",
+    note: "昼の部・夜の部の2回公演",
+  },
+  {
     id: "shigadai-gakusai-2026",
     title: "滋賀大学 学祭",
     kind: "出店",
