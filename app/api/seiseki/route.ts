@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, saveSettings, type Settings } from "@/lib/seiseki";
+import { paymentsIn } from "@/lib/loans";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,9 +56,20 @@ export async function GET(req: NextRequest) {
     // 赤字にならないための最低ライン（月商）
     const breakEven = Math.round((settings.fixedCost + settings.laborCost) / (1 - settings.costRate));
 
+    // 借入の返済。元金は費用にならないので利益からは引かないが、
+    // 現金は出ていくので別枠で見せる。
+    const loanPays = paymentsIn(month);
+    const loan = {
+      total: loanPays.reduce((s, p) => s + p.total, 0),
+      principal: loanPays.reduce((s, p) => s + p.principal, 0),
+      interest: loanPays.reduce((s, p) => s + p.interest, 0),
+    };
+
     return NextResponse.json({
       month,
       today,
+      loan,
+      cashLeft: profit - loan.principal,
       settings,
       days: { total: lastDay, done: doneDays, left: leftDays },
       sales: { total: sales, orderCount, byDay, avgPerDay: Math.round(pace) },

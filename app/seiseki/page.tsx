@@ -21,6 +21,8 @@ type Data = {
   achieveRate: number | null;
   needPerDay: number;
   pnl: { sales: number; cogs: number; gross: number; fixed: number; labor: number; profit: number };
+  loan: { total: number; principal: number; interest: number };
+  cashLeft: number;
   forecast: { sales: number; profit: number };
   breakEven: number;
 };
@@ -153,6 +155,13 @@ export default function Seiseki() {
                 <tr className="total"><th>残り</th><td className={profitPositive ? "good" : "bad"}>{fmt(d.pnl.profit)}</td></tr>
               </tbody>
             </table>
+            {d.loan.total > 0 && (
+              <p className="note loan">
+                このほかに借入の返済が {fmt(d.loan.total)}（元金 {fmt(d.loan.principal)}／利息 {fmt(d.loan.interest)}）。
+                元金は経費ではないので上の計算には入っていませんが、お金は出ていきます。
+                手元に残るのは <b>{fmt(d.cashLeft)}</b> です。
+              </p>
+            )}
             <p className="note">
               赤字にならない月商は {fmt(d.breakEven)}（1日 {fmt(Math.round(d.breakEven / d.days.total))}）。
               月の途中は経費を日割りで計算しています。
@@ -222,7 +231,9 @@ export default function Seiseki() {
         table.pnl tr.total th, table.pnl tr.total td { border-top: 2px solid #333; font-weight: 700; font-size: 16px; padding-top: 8px; }
         table.pnl .good { color: #1a7f37; }
         table.pnl .bad { color: #c53030; }
-        .note { font-size: 12px; color: #777; margin: 10px 0 0; }
+        .note { font-size: 12px; color: #777; margin: 10px 0 0; line-height: 1.7; }
+        .note.loan { background: #f6f2ea; border-radius: 8px; padding: 9px 11px; color: #6b5b43; }
+        .note.loan b { color: #3a2f1f; }
         ul { list-style: none; margin: 0; padding: 0; }
         .bd li { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed #eee; }
         .bd li.labor { color: #2b6cb0; }
