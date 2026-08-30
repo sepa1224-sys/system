@@ -25,8 +25,16 @@ export async function POST(req: NextRequest) {
       byDesc?: Record<string, string>;
       /** 備考の部分一致で勘定科目を変える（例: {"お～いお茶":"仕入高"}） */
       byDescAccount?: Record<string, string>;
+      /** 内訳行を丸ごと入れ替える。1行でまとめた取引を商品ごとに分けたいとき用 */
+      replaceLines?: {
+        account?: string;
+        amount: number;
+        item?: string;
+        description?: string;
+        taxCode?: number;
+      }[];
     };
-    if (!b.dealId || (!b.item && !b.byAmount && !b.byDesc && !b.byDescAccount)) {
+    if (!b.dealId || (!b.item && !b.byAmount && !b.byDesc && !b.byDescAccount && !b.replaceLines)) {
       return NextResponse.json({ error: "dealIdとitem（またはbyAmount）が必要です" }, { status: 400 });
     }
 
@@ -38,6 +46,34 @@ export async function POST(req: NextRequest) {
     if (!deal) return NextResponse.json({ error: "取引が見つかりません" }, { status: 404 });
 
     const cache = newItemCache();
+
+    // 行の入れ替え。freeeは id を付けた行を更新、付けない行を追加、
+    // 送らなかった行を削除するので、1行を複数行に割るのもこれで足りる。
+    if (b.replaceLines?.length) {
+      const base = deal.details[0];
+      const newDetails = [];
+      for (const [i, l] of b.replaceLines.entries()) {
+        const itemId = l.item ? await getOrCreateItemId(l.item, cache) : null;
+        const accountId = l.account ? CATEGORY_MAP[l.account]?.accountItemId : undefined;
+        newDetails.push({
+          ...(i === 0 && base ? { id: base.id } : {}),
+          account_item_id: accountId ?? base?.account_item_id,
+          tax_code: l.taxCode ?? base?.tax_code,
+          amount: l.amount,
+          ...(itemId ? { item_id: itemId } : {}),
+          ...(l.description ? { description: l.description } : {}),
+        });
+      }
+      await freeePut(`/api/1/deals/${deal.id}`, {
+        company_id: Number(FREEE_COMPANY_ID),
+        issue_date: deal.issue_date,
+        type: deal.type,
+        ...(deal.partner_id ? { partner_id: deal.partner_id } : {}),
+        details: newDetails,
+      });
+      return NextResponse.json({ ok: true, dealId: deal.id, replaced: newDetails.length });
+    }
+
     const details = [];
     const applied: { amount: number; item: string | null }[] = [];
     for (const d of deal.details) {
