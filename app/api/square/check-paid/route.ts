@@ -49,22 +49,33 @@ export async function POST(req: NextRequest) {
     }
 
     const total = order.total_money?.amount ?? 0;
-    // 注文を作ってから今までの支払いを見る。前後に少し幅を持たせる。
-    const from = new Date(Date.parse(order.created_at) - 10 * 60_000).toISOString();
-    const to = new Date(Date.now() + 60_000).toISOString();
-    const payRes = await fetch(
-      `${SQUARE_API}/payments?begin_time=${encodeURIComponent(from)}&end_time=${encodeURIComponent(to)}&sort_order=DESC&limit=100`,
-      { headers: hdrs() },
-    );
-    const payData = await payRes.json();
-    if (!payRes.ok) {
-      return NextResponse.json(
-        { error: payData.errors?.[0]?.detail || "支払いを調べられませんでした" },
-        { status: payRes.status },
-      );
+    // 注文を作った前後の支払いだけを見る。ここを広く取ると件数が多くなり、
+    // 100件の枠から古い決済がこぼれて「見つからない」ことになる。
+    const created = Date.parse(order.created_at);
+    const from = new Date(created - 10 * 60_000).toISOString();
+    const to = new Date(Math.min(created + 12 * 3600_000, Date.now() + 60_000)).toISOString();
+
+    const all: any[] = [];
+    let cursor = "";
+    for (let page = 0; page < 5; page++) {
+      const url =
+        `${SQUARE_API}/payments?begin_time=${encodeURIComponent(from)}` +
+        `&end_time=${encodeURIComponent(to)}&sort_order=ASC&limit=100` +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
+      const payRes = await fetch(url, { headers: hdrs() });
+      const payData = await payRes.json();
+      if (!payRes.ok) {
+        return NextResponse.json(
+          { error: payData.errors?.[0]?.detail || "支払いを調べられませんでした" },
+          { status: payRes.status },
+        );
+      }
+      all.push(...(payData.payments || []));
+      cursor = payData.cursor || "";
+      if (!cursor) break;
     }
 
-    const payments = (payData.payments || []).filter(
+    const payments = all.filter(
       (p: any) =>
         (p.status === "COMPLETED" || p.status === "APPROVED") &&
         (p.amount_money?.amount ?? 0) === total &&
