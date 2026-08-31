@@ -40,6 +40,14 @@ export type Block = { staff: Staff; start: string; end: string; note?: string };
  */
 export const WEEKDAY_TEMPLATES: { weekday: number; label: string; blocks: Block[]; note?: string }[] = [
   {
+    // 2026年9月から火曜を定休日にした。人手を1日ぶん空けて、
+    // 仕込み・発注・外向きの営業に回すため。
+    weekday: 2,
+    label: "火曜",
+    blocks: [],
+    note: "定休日",
+  },
+  {
     weekday: 3,
     label: "水曜",
     blocks: [

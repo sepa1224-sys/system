@@ -397,6 +397,13 @@ export default function Shift() {
                   <span style={{ marginLeft: 6, fontSize: 12.5, color: wd === 0 ? "#c0392b" : wd === 6 ? "#2d6a9f" : "var(--muted)" }}>
                     ({WD[wd]})
                   </span>
+                  {wd === 2 && (
+                    <span style={{
+                      marginLeft: 8, fontSize: 11, fontWeight: 700,
+                      background: "#efeae2", color: "#7a6a55",
+                      padding: "2px 8px", borderRadius: 99,
+                    }}>定休日</span>
+                  )}
                   {date === today && (
                     <span style={{ marginLeft: 6, fontSize: 11, color: "var(--accent)" }}>今日</span>
                   )}

@@ -22,6 +22,7 @@ type Data = {
   needPerDay: number;
   pnl: { sales: number; cogs: number; gross: number; fixed: number; labor: number; profit: number };
   loan: { total: number; principal: number; interest: number };
+  split: { カフェ: { sales: number; qty: number }; 物販: { sales: number; qty: number } };
   cashLeft: number;
   forecast: { sales: number; profit: number };
   breakEven: number;
@@ -141,6 +142,26 @@ export default function Seiseki() {
             <div className="gauge">
               <div className="fill" style={{ width: `${Math.min(100, d.achieveRate ?? 0)}%` }} />
             </div>
+          )}
+
+          {d.split && d.split.物販.sales > 0 && (
+            <section className="card">
+              <h2>売上の内訳</h2>
+              <ul className="bd">
+                <li>
+                  <span>☕ カフェ</span>
+                  <b>{fmt(d.split.カフェ.sales)}</b>
+                </li>
+                <li>
+                  <span>👕 物販（Tシャツ・ステッカーなど）</span>
+                  <b>{fmt(d.split.物販.sales)}</b>
+                </li>
+              </ul>
+              <p className="note">
+                物販は売上の {Math.round((d.split.物販.sales / Math.max(1, d.sales.total)) * 1000) / 10}%。
+                カフェとしての実力を見るときは、こちらを除いた {fmt(d.split.カフェ.sales)} で考えます。
+              </p>
+            </section>
           )}
 
           <section className="card">

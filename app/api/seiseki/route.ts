@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, saveSettings, type Settings } from "@/lib/seiseki";
 import { paymentsIn } from "@/lib/loans";
+import { getOverrides, splitByCategory } from "@/lib/salesCategory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
     );
     // イベントの日も実際の売上なので含める（withEvents=1）
     const a = await res.json();
+    // Tシャツやステッカーが混ざるとカフェの実力が見えないので分けて出す
+    const catOverrides = await getOverrides().catch(() => ({}));
+    const split = splitByCategory(a?.products ?? [], catOverrides);
+
     const byDay: { day: string; sales: number; count: number }[] = a?.sales?.byDay ?? [];
     const sales = a?.sales?.total ?? 0;
     const orderCount = a?.sales?.orderCount ?? 0;
@@ -70,6 +75,7 @@ export async function GET(req: NextRequest) {
       today,
       loan,
       cashLeft: profit - loan.principal,
+      split,
       settings,
       days: { total: lastDay, done: doneDays, left: leftDays },
       sales: { total: sales, orderCount, byDay, avgPerDay: Math.round(pace) },

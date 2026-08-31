@@ -37,9 +37,9 @@ export default function ShiftSubmitPage() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<"submit" | "all">("submit");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (w?: string) => {
     try {
-      const res = await fetch("/api/shift-request");
+      const res = await fetch(`/api/shift-request${w ? `?week=${w}` : ""}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "取得失敗");
       setWeek(d.week);
@@ -51,6 +51,16 @@ export default function ShiftSubmitPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 月曜をまたぐと「来週」の指す週が人によって変わり、別の週に出してしまう。
+  // 週を選べるようにして、日付をはっきり出す。
+  const shiftWeek = (days: number) => {
+    if (!week) return;
+    const d = new Date(`${week}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    load(d.toISOString().slice(0, 10));
+  };
+
 
   // 名前を選んだら、提出済みの内容を呼び出して直せるようにする
   useEffect(() => {
@@ -106,15 +116,37 @@ export default function ShiftSubmitPage() {
     }
   };
 
-  const weekLabel = week
-    ? `${Number(week.slice(5, 7))}/${Number(week.slice(8, 10))}の週（月〜日）`
-    : "";
+  // 月曜をまたぐと「来週」の指す週が人によって変わるので、
+  // 何月何日から何月何日までなのかをはっきり出す。
+  const weekLabel = (() => {
+    if (!week) return "";
+    const s0 = new Date(`${week}T00:00:00Z`);
+    const e0 = new Date(`${week}T00:00:00Z`);
+    e0.setUTCDate(e0.getUTCDate() + 6);
+    const f = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    return `${f(s0)}（月）〜 ${f(e0)}（日）`;
+  })();
 
   return (
     <div className="wrap">
       <header>
         <h1>📝 シフト提出</h1>
         <p>毎週水曜までに、翌週の働ける時間を出してください</p>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 8, margin: "10px 0 4px", padding: "8px 10px",
+          background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10,
+        }}>
+          <button type="button" onClick={() => shiftWeek(-7)} style={{
+            fontSize: 12, padding: "5px 10px", borderRadius: 6,
+            border: "1px solid var(--line)", background: "#fff", cursor: "pointer",
+          }}>← 前の週</button>
+          <strong style={{ fontSize: 14 }}>{weekLabel}</strong>
+          <button type="button" onClick={() => shiftWeek(7)} style={{
+            fontSize: 12, padding: "5px 10px", borderRadius: 6,
+            border: "1px solid var(--line)", background: "#fff", cursor: "pointer",
+          }}>次の週 →</button>
+        </div>
       </header>
       <Nav />
 
