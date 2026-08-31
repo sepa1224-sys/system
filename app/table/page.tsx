@@ -118,6 +118,8 @@ export default function TablePage() {
   const [payMode, setPayMode] = useState(false);
   // お客さんが席を移ったときの移動先。空なら移動UIを閉じている
   const [moveTo, setMoveTo] = useState<string | null>(null);
+  // Squareに飛んだまま戻らないと注文が開いたまま残る。その確認中かどうか。
+  const [checking, setChecking] = useState(false);
   const [tendered, setTendered] = useState("");
   const [paying, setPaying] = useState(false);
   const [payResult, setPayResult] = useState<{ change: number } | null>(null);
@@ -945,6 +947,33 @@ export default function TablePage() {
                   }}
                 >
                   ↔ 席を移動・テーブルをまとめる
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!currentOrder || checking) return;
+                    setChecking(true); setErr("");
+                    try {
+                      const res = await fetch("/api/square/check-paid", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ order_id: currentOrder.id }),
+                      });
+                      const d = await res.json();
+                      if (!res.ok) throw new Error(d.error);
+                      alert(d.message);
+                      if (d.closed || d.alreadyClosed) setSelected(null);
+                      await loadOrders();
+                    } catch (e: any) { setErr(e.message); }
+                    finally { setChecking(false); }
+                  }}
+                  style={{
+                    fontSize: 11, padding: "4px 10px", borderRadius: 6,
+                    border: "1px solid var(--line)", background: "var(--card)",
+                    cursor: "pointer", fontWeight: 600,
+                    opacity: checking ? 0.5 : 1,
+                  }}
+                >
+                  {checking ? "確認中…" : "🔍 会計を確認する"}
                 </button>
                 <button
                   onClick={async () => {
