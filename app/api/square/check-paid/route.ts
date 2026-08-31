@@ -75,13 +75,23 @@ export async function POST(req: NextRequest) {
       if (!cursor) break;
     }
 
-    const payments = all.filter(
-      (p: any) =>
-        (p.status === "COMPLETED" || p.status === "APPROVED") &&
-        (p.amount_money?.amount ?? 0) === total &&
-        // この注文にひも付いた支払いなら確実。ひも付いていないPOS決済も拾う。
-        (!p.order_id || p.order_id === order_id),
-    );
+    // Squareアプリで決済すると、その決済はアプリ側が作った別の注文にひも付く。
+    // こちらの注文IDとは一致しないので、金額と時刻の近さで探す。
+    const payments = all
+      .filter(
+        (p: any) =>
+          (p.status === "COMPLETED" || p.status === "APPROVED") &&
+          (p.amount_money?.amount ?? 0) === total,
+      )
+      .sort((a: any, b: any) => {
+        // この注文にひも付いているものが最優先。次に注文時刻に近いもの。
+        const link = (p: any) => (p.order_id === order_id ? 0 : 1);
+        if (link(a) !== link(b)) return link(a) - link(b);
+        return (
+          Math.abs(Date.parse(a.created_at) - created) -
+          Math.abs(Date.parse(b.created_at) - created)
+        );
+      });
 
     if (payments.length === 0) {
       return NextResponse.json({
