@@ -944,7 +944,7 @@ export default function TablePage() {
                     cursor: "pointer", fontWeight: 600,
                   }}
                 >
-                  ↔ 席を移動
+                  ↔ 席を移動・テーブルをまとめる
                 </button>
                 <button
                   onClick={async () => {
