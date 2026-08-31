@@ -1,5 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const USED_KEY = "checkpaid:used";
+
+async function kv() {
+  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token =
+    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const { createClient } = await import("@vercel/kv");
+  return createClient({ url, token });
+}
+
+/** どの決済をどの注文に使ったか。決済ID → 注文ID */
+async function getUsed(): Promise<Record<string, string>> {
+  const store = await kv();
+  if (!store) return {};
+  return (await store.get<Record<string, string>>(USED_KEY)) ?? {};
+}
+
+async function markUsed(paymentId: string, orderId: string): Promise<void> {
+  const store = await kv();
+  if (!store) return;
+  const used = await getUsed();
+  used[paymentId] = orderId;
+  await store.set(USED_KEY, used);
+}
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -21,6 +47,10 @@ function hdrs() {
 //
 // この画面から「Squareに同じ金額の支払いがあるか」を見に行き、
 // 見つかれば注文を閉じる。無ければ「まだ払われていない」と伝える。
+//
+// 同じ金額の注文が複数開いていることがあるので、一度使った決済は
+// 使い回さない。記録しておいて次からは候補から外す。
+// （これをやらないと、決済1件で複数の注文を閉じてしまう）
 //
 // POST { order_id }
 export async function POST(req: NextRequest) {
@@ -77,7 +107,10 @@ export async function POST(req: NextRequest) {
 
     // Squareアプリで決済すると、その決済はアプリ側が作った別の注文にひも付く。
     // こちらの注文IDとは一致しないので、金額と時刻の近さで探す。
+    // ただし他の注文に使った決済は除く。
+    const used = await getUsed();
     const payments = all
+      .filter((p: any) => !used[p.id] || used[p.id] === order_id)
       .filter(
         (p: any) =>
           (p.status === "COMPLETED" || p.status === "APPROVED") &&
@@ -94,13 +127,23 @@ export async function POST(req: NextRequest) {
       });
 
     if (payments.length === 0) {
+      // 同額の決済はあるが、すでに他の注文に使われていた場合は理由を分けて伝える
+      const taken = all.filter(
+        (p: any) =>
+          (p.status === "COMPLETED" || p.status === "APPROVED") &&
+          (p.amount_money?.amount ?? 0) === total &&
+          used[p.id] &&
+          used[p.id] !== order_id,
+      );
       return NextResponse.json({
         ok: true,
         paid: false,
         total,
-        message:
-          `¥${total.toLocaleString()} の支払いはSquareに見つかりませんでした。` +
-          "まだ会計が済んでいないか、金額が違う可能性があります。",
+        message: taken.length
+          ? `¥${total.toLocaleString()} の決済はありますが、すでに別の注文に使われています。` +
+            "この注文はまだ会計が済んでいない可能性があります。"
+          : `¥${total.toLocaleString()} の支払いはSquareに見つかりませんでした。` +
+            "まだ会計が済んでいないか、金額が違う可能性があります。",
       });
     }
 
@@ -128,6 +171,8 @@ export async function POST(req: NextRequest) {
     }
 
     const p = payments[0];
+    // この決済は使い切った印を付ける。次の注文では候補に出さない。
+    await markUsed(p.id, order_id);
     return NextResponse.json({
       ok: true,
       paid: true,
