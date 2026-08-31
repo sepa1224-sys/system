@@ -26,6 +26,7 @@ const GROUPS: Group[] = [
       { href: "/report", label: "📊 用途別" },
       { href: "/shorui", label: "📄 書類" },
       { href: "/contracts", label: "📜 契約書" },
+      { href: "/company", label: "🏢 会社書類" },
       { href: "/zeirishi", label: "🧑‍💼 税理士" },
     ],
   },
