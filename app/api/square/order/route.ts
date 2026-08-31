@@ -223,14 +223,16 @@ export async function PUT(req: NextRequest) {
 }
 
 // DELETE: 注文からアイテムを削除、または注文全体を削除
-// body: { order_id, version, item_uid? | item_uids? }
+// body: { order_id, version?, item_uid? | item_uids? }
+// versionは省略してよい（省略時はサーバーが最新を取りに行く）。
+// 画面のversionは注文を足した直後などにすぐ古くなるため。
 // item_uid / item_uids がある場合はそのアイテムだけ削除、ない場合は注文全体をキャンセル
 // 別会計で複数品目を切り出すときは、versionが1回しか使えないので item_uids でまとめて渡す。
 export async function DELETE(req: NextRequest) {
   try {
     const { order_id, version, item_uid, item_uids, keep } = (await req.json()) as {
       order_id: string;
-      version: number;
+      version?: number;
       item_uid?: string;
       item_uids?: string[];
       /** 数量を減らして残す行。別会計で「2つのうち1つだけ」を切り出すときに使う */
@@ -238,6 +240,19 @@ export async function DELETE(req: NextRequest) {
     };
     if (!order_id) {
       return NextResponse.json({ error: "order_id が必要" }, { status: 400 });
+    }
+
+    let ver = version;
+    if (ver == null) {
+      const cur = await fetch(`${SQUARE_API}/orders/${order_id}`, { headers: hdrs() });
+      const curData = await cur.json();
+      if (!cur.ok) {
+        return NextResponse.json(
+          { error: curData.errors?.[0]?.detail || `注文が読めません(${cur.status})` },
+          { status: cur.status },
+        );
+      }
+      ver = curData.order?.version;
     }
 
     const uids = item_uids?.length ? item_uids : item_uid ? [item_uid] : [];
@@ -249,7 +264,7 @@ export async function DELETE(req: NextRequest) {
         headers: hdrs(),
         body: JSON.stringify({
           order: {
-            version,
+            version: ver,
             ...(keep?.length
               ? {
                   line_items: keep.map((k) => ({
@@ -297,7 +312,7 @@ export async function DELETE(req: NextRequest) {
         headers: hdrs(),
         body: JSON.stringify({
           order: {
-            version,
+            version: ver,
             state: "CANCELED",
           },
           idempotency_key: `canc_${order_id.slice(-10)}_${Date.now().toString(36)}`,

@@ -485,7 +485,6 @@ export default function TablePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             order_id: order.id,
-            version: order.version,
             // 全部選んだ行は消し、一部だけの行は数量を減らして残す
             item_uids: picked.filter((p) => p.qty >= p.item.qty).map((p) => p.item.uid),
             keep: picked
@@ -954,7 +953,7 @@ export default function TablePage() {
                       const res = await fetch("/api/square/order", {
                         method: "DELETE",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ order_id: currentOrder.id, version: currentOrder.version }),
+                        body: JSON.stringify({ order_id: currentOrder.id }),
                       });
                       const d = await res.json();
                       if (!res.ok) throw new Error(d.error);
@@ -977,40 +976,58 @@ export default function TablePage() {
               {moveTo !== null && (
                 <div style={{ marginTop: 8, padding: 10, border: "1px solid var(--line)", borderRadius: 8 }}>
                   <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
-                    移動先の席を選んでください（{selected} → ?）
+                    行き先の席を選んでください（{selected} → ?）<br />
+                    空席なら席の移動、使用中の席を選ぶと注文をまとめます。
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {TABLES.filter((t) => t.id !== selected && !orderFor(t.id)).map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={async () => {
-                          if (!currentOrder) return;
-                          try {
-                            const res = await fetch("/api/square/move", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                order_id: currentOrder.id,
-                                version: currentOrder.version,
-                                to: t.id,
-                              }),
-                            });
-                            const d = await res.json();
-                            if (!res.ok) throw new Error(d.error);
-                            setMoveTo(null);
-                            setSelected(t.id);
-                            await loadOrders();
-                          } catch (e: any) { setErr(e.message); }
-                        }}
-                        style={{ fontSize: 13, fontWeight: 700, padding: "8px 14px" }}
-                      >
-                        {t.id}
-                      </button>
-                    ))}
+                    {TABLES.filter((t) => t.id !== selected).map((t) => {
+                      const there = orderFor(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={async () => {
+                            if (!currentOrder) return;
+                            if (there && !confirm(
+                              `${selected} の注文を ${t.id} にまとめますか？\n` +
+                              `会計は ${t.id} で1回になります。`,
+                            )) return;
+                            try {
+                              const res = there
+                                ? await fetch("/api/square/merge", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      from_order_id: currentOrder.id,
+                                      to_order_id: there.id,
+                                    }),
+                                  })
+                                : await fetch("/api/square/move", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      order_id: currentOrder.id,
+                                      to: t.id,
+                                    }),
+                                  });
+                              const d = await res.json();
+                              if (!res.ok) throw new Error(d.error);
+                              setMoveTo(null);
+                              setSplitSel({});
+                              setSelected(t.id);
+                              await loadOrders();
+                            } catch (e: any) { setErr(e.message); }
+                          }}
+                          style={{
+                            fontSize: 13, fontWeight: 700, padding: "8px 14px",
+                            border: there ? "1px solid #d9a441" : undefined,
+                            background: there ? "#fdf4e3" : undefined,
+                          }}
+                        >
+                          {t.id}{there ? `（まとめる ${fmt(there.total)}）` : ""}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {TABLES.filter((t) => t.id !== selected && !orderFor(t.id)).length === 0 && (
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>空いている席がありません</div>
-                  )}
                 </div>
               )}
               {currentOrder.items.map((item, i) => (
@@ -1062,7 +1079,6 @@ export default function TablePage() {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             order_id: currentOrder.id,
-                            version: currentOrder.version,
                             item_uid: item.uid,
                           }),
                         });

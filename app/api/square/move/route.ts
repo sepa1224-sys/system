@@ -16,7 +16,11 @@ function hdrs() {
 
 // お客さんが席を移ったときに、注文をそのまま別のテーブルへ付け替える。
 // テーブルはSquareの ticket_name で表しているので、そこだけ書き換える。
-// POST { order_id, version, to: "B2" }
+// POST { order_id, to: "B2", version? }
+//
+// versionは省略してよい。画面が持っているversionは注文を足した直後などに
+// すぐ古くなり、そのまま送るとSquareに弾かれる（VERSION_MISMATCH）。
+// 送らなければサーバーが最新を取りに行くので、席の移動が失敗しなくなる。
 export async function POST(req: NextRequest) {
   try {
     const { order_id, version, to } = (await req.json()) as {
@@ -24,11 +28,24 @@ export async function POST(req: NextRequest) {
       version?: number;
       to?: string;
     };
-    if (!order_id || !to || version == null) {
+    if (!order_id || !to) {
       return NextResponse.json(
-        { error: "order_id, version, to が必要です" },
+        { error: "order_id, to が必要です" },
         { status: 400 },
       );
+    }
+
+    let useVersion = version;
+    if (useVersion == null) {
+      const cur = await fetch(`${SQUARE_API}/orders/${order_id}`, { headers: hdrs() });
+      const curData = await cur.json();
+      if (!cur.ok) {
+        return NextResponse.json(
+          { error: curData.errors?.[0]?.detail || `注文が読めません(${cur.status})` },
+          { status: cur.status },
+        );
+      }
+      useVersion = curData.order?.version;
     }
 
     const res = await fetch(`${SQUARE_API}/orders/${order_id}`, {
@@ -36,7 +53,7 @@ export async function POST(req: NextRequest) {
       headers: hdrs(),
       body: JSON.stringify({
         order: {
-          version,
+          version: useVersion,
           ticket_name: to,
         },
         idempotency_key: `move_${order_id}_${Date.now()}`,
