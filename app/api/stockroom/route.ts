@@ -9,6 +9,7 @@ import {
   type Check,
   type Item,
 } from "@/lib/stockroom";
+import { openOrders } from "@/lib/purchase";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,9 +26,25 @@ export async function GET() {
       ? Object.entries(last.results).filter(([, v]) => v === "short").map(([k]) => k)
       : [];
     const byId = new Map(items.map((i) => [i.id, i]));
+
+    // 発注済みでまだ届いていないもの。倉庫に無くても、もう頼んであることを
+    // 在庫確認をしている本人の画面に出す。出さないと同じものをまた発注してしまう。
+    const pending: Record<string, { orderedAt: string; qty: number; unit: string; days: number }> = {};
+    for (const o of await openOrders()) {
+      for (const l of o.lines) {
+        pending[l.itemId] = {
+          orderedAt: o.orderedAt,
+          qty: l.qty,
+          unit: l.unit,
+          days: daysBetween(o.orderedAt, today),
+        };
+      }
+    }
+
     return NextResponse.json({
       today,
       items,
+      pending,
       lastDate: last?.date ?? null,
       daysSince: since,
       due: since === null || since >= 3,
@@ -61,14 +78,20 @@ export async function POST(req: NextRequest) {
       if (!b.item.id || !b.item.name) {
         return NextResponse.json({ error: "idとnameが必要です" }, { status: 400 });
       }
+      // 画面から送られてこない項目（発注先など）は今の値を残す。
+      // 適正在庫を直しただけで発注先が消えてしまうため。
+      const cur = (await getItems()).find((i) => i.id === String(b.item!.id));
       const item: Item = {
+        ...cur,
         id: String(b.item.id),
         name: String(b.item.name).trim(),
-        group: (b.item.group as Item["group"]) || "フード",
+        group: (b.item.group as Item["group"]) || cur?.group || "フード",
         par: Number(b.item.par ?? 0),
-        unit: String(b.item.unit || "個"),
-        madeInHouse: b.item.madeInHouse,
-        note: b.item.note,
+        unit: String(b.item.unit || cur?.unit || "個"),
+        madeInHouse: b.item.madeInHouse ?? cur?.madeInHouse,
+        note: b.item.note ?? cur?.note,
+        ...(b.item.buyId !== undefined ? { buyId: Number(b.item.buyId) } : {}),
+        ...(b.item.orderQty !== undefined ? { orderQty: Number(b.item.orderQty) } : {}),
       };
       await saveItem(item);
       return NextResponse.json({ ok: true, item });

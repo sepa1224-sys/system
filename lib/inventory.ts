@@ -392,6 +392,19 @@ export const DEFAULT_INVENTORY: InventoryItem[] = [
     note: "1本あたり¥67（税込）。定期おトク便5%OFFで¥67/本",
     addedDate: "2026-07-28",
   },
+  {
+    id: 29,
+    name: "ワッフルミックス",
+    brand: "",
+    category: "粉・製菓材料",
+    unit: "袋",
+    capacity: 1,
+    price: 0,
+    supplier: "アミカ ネットショップ",
+    url: "https://www.amicashop.com/",
+    note: "アミカのネットショップで購入。商品ページのURLと価格は次に買うときに入れる",
+    addedDate: "2026-09-03",
+  },
 ];
 
 // ─── CRUD ───

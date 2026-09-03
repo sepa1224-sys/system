@@ -4,6 +4,7 @@ import {
   buildCandidates,
   deleteOrder,
   getOrders,
+  itemStats,
   markArrived,
   todayJST,
   type OrderLine,
@@ -14,9 +15,14 @@ export const runtime = "nodejs";
 // GET → 発注すべきもの（候補）と、発注の履歴
 export async function GET() {
   try {
-    const [built, orders] = await Promise.all([buildCandidates(), getOrders()]);
+    const [built, orders, stats] = await Promise.all([
+      buildCandidates(),
+      getOrders(),
+      itemStats(),
+    ]);
     return NextResponse.json({
       ...built,
+      stats,
       today: todayJST(),
       open: orders.filter((o) => !o.arrivedAt),
       history: orders.filter((o) => o.arrivedAt).slice(0, 20),

@@ -17,6 +17,8 @@ type Item = {
   note?: string;
 };
 type Result = "ok" | "short";
+/** 発注済みでまだ届いていないもの */
+type Pending = { orderedAt: string; qty: number; unit: string; days: number };
 
 const GROUPS = [
   "ドリンク（ノンアル）",
@@ -31,6 +33,7 @@ const GROUPS = [
 export default function StockroomPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [results, setResults] = useState<Record<string, Result>>({});
+  const [pending, setPending] = useState<Record<string, Pending>>({});
   const [lastDate, setLastDate] = useState<string | null>(null);
   const [daysSince, setDaysSince] = useState<number | null>(null);
   const [due, setDue] = useState(false);
@@ -47,6 +50,7 @@ export default function StockroomPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "取得失敗");
       setItems(d.items || []);
+      setPending(d.pending || {});
       setLastDate(d.lastDate);
       setDaysSince(d.daysSince);
       setDue(!!d.due);
@@ -156,7 +160,24 @@ export default function StockroomPage() {
                             borderRadius: 4, background: "#eef1f4", color: "var(--muted)",
                           }}>仕込み</span>
                         )}
+                        {pending[i.id] && (
+                          <span style={{
+                            marginLeft: 5, fontSize: 10, fontWeight: 700, padding: "1px 6px",
+                            borderRadius: 4, background: "#fdf0e6", color: "#9c5f22",
+                          }}>発注済み・到着待ち</span>
+                        )}
                       </div>
+                      {pending[i.id] && (
+                        <div style={{
+                          fontSize: 11.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.6,
+                        }}>
+                          {pending[i.id].orderedAt.slice(5).replace("-", "/")}に
+                          {pending[i.id].qty}{pending[i.id].unit}を発注済み（{pending[i.id].days}日前）。
+                          <strong>倉庫に無くても、もう一度発注しないでください。</strong><br />
+                          届いていたら「✅ 業務チェック」の
+                          <strong>「発注したものが届いたか確認する」</strong>で「届いた」を押してください。
+                        </div>
+                      )}
                       {editId === i.id ? (
                         <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
                           <input

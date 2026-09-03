@@ -23,6 +23,12 @@ type Candidate = {
 };
 type Line = { itemId: string; name: string; unit: string; qty: number; url?: string; supplier?: string };
 type Order = { id: string; orderedAt: string; lines: Line[]; arrivedAt?: string; note?: string };
+type Stat = {
+  itemId: string; name: string; group: string;
+  shortCount: number; checkCount: number;
+  orderCount: number; orderedQty: number; unit: string;
+  lastOrderedAt?: string; leadDays?: number;
+};
 
 const md = (d: string) => d.slice(5).replace("-", "/");
 
@@ -34,6 +40,9 @@ export default function PurchasePage() {
   const [open, setOpen] = useState<Order[]>([]);
   const [history, setHistory] = useState<Order[]>([]);
   const [today, setToday] = useState("");
+  const [stats, setStats] = useState<Stat[]>([]);
+  const [statFrom, setStatFrom] = useState<string | null>(null);
+  const [showStats, setShowStats] = useState(false);
   const [pick, setPick] = useState<Record<string, boolean>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -55,6 +64,8 @@ export default function PurchasePage() {
       setOpen(d.open || []);
       setHistory(d.history || []);
       setToday(d.today || "");
+      setStats(d.stats?.stats || []);
+      setStatFrom(d.stats?.from ?? null);
       const q: Record<string, string> = {};
       const p: Record<string, boolean> = {};
       for (const c of d.candidates || []) {
@@ -350,6 +361,58 @@ export default function PurchasePage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 切らしやすいものと、届くまでの日数。適正在庫を決め直すのに使う */}
+      {stats.length > 0 && (
+        <div className="card" style={{ padding: "12px 14px" }}>
+          <div
+            className="cat-title"
+            onClick={() => setShowStats((v) => !v)}
+            style={{ cursor: "pointer", display: "flex", justifyContent: "space-between" }}
+          >
+            <span>📊 切らしやすいもの</span>
+            <span style={{ fontWeight: 400, color: "var(--muted)" }}>{showStats ? "閉じる" : "開く"}</span>
+          </div>
+          {showStats && (
+            <>
+              <p className="hint" style={{ margin: "6px 0 10px" }}>
+                {statFrom ? `${md(statFrom)}以降の在庫確認から集計` : ""}。
+                切らす回数が多いものは、ストックルームに置く数が少なすぎます。
+                届くまでの日数が在庫確認の間隔（3日）より長いものは、早めに頼まないと間に合いません。
+              </p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: "var(--muted)" }}>
+                      <th style={{ padding: "6px 4px" }}>品目</th>
+                      <th style={{ padding: "6px 4px", whiteSpace: "nowrap" }}>切らした</th>
+                      <th style={{ padding: "6px 4px", whiteSpace: "nowrap" }}>発注</th>
+                      <th style={{ padding: "6px 4px", whiteSpace: "nowrap" }}>届くまで</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.filter((st) => st.shortCount > 0 || st.orderCount > 0).map((st) => (
+                      <tr key={st.itemId} style={{ borderTop: "1px solid var(--line-soft, #eee)" }}>
+                        <td style={{ padding: "7px 4px" }}>{st.name}</td>
+                        <td style={{ padding: "7px 4px", whiteSpace: "nowrap" }}>
+                          <strong>{st.shortCount}</strong>
+                          <span style={{ color: "var(--muted)" }}>/{st.checkCount}回</span>
+                        </td>
+                        <td style={{ padding: "7px 4px", whiteSpace: "nowrap" }}>
+                          {st.orderCount ? `${st.orderCount}回 ${st.orderedQty}${st.unit}` : "—"}
+                        </td>
+                        <td style={{ padding: "7px 4px", whiteSpace: "nowrap" }}>
+                          {st.leadDays != null ? `${st.leadDays}日` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>

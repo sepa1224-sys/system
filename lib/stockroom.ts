@@ -113,7 +113,7 @@ export const SEED_ITEMS: Item[] = [
   { id: "shrimp", name: "むき海老", group: "フード", par: 1, unit: "パック" },
 
   // ワッフル
-  { id: "waffle-mix", name: "ワッフルミックス", group: "ワッフル", par: 2, unit: "袋" },
+  { id: "waffle-mix", name: "ワッフルミックス", group: "ワッフル", par: 2, unit: "袋", buyId: 29, orderQty: 2 },
   { id: "egg", name: "卵", group: "ワッフル", par: 6, unit: "個" },
   { id: "butter", name: "バター", group: "ワッフル", par: 1, unit: "個" },
   { id: "zarame", name: "ざらめ", group: "ワッフル", par: 1, unit: "袋" },
@@ -196,8 +196,10 @@ export async function saveCheck(c: Check): Promise<void> {
   if (!store) throw new Error("KV未設定");
   const all = await loadChecks();
   all[c.date] = c;
-  // 半年分だけ残す
-  const keep = Object.keys(all).sort().slice(-60);
+  // 在庫確認は3日に1回なので、400回で約3年分。
+  // 「この品目は月に何回切らしているか」を後から見たいので長めに残す。
+  // 1回の記録は品目idと ok/short だけで数KBしかなく、増えても困らない。
+  const keep = Object.keys(all).sort().slice(-400);
   const next: Record<string, Check> = {};
   for (const d of keep) next[d] = all[d];
   await store.set(CHECKS_KEY, next);
