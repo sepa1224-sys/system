@@ -45,6 +45,10 @@ export type Item = {
   buyId?: number;
   /** 1回に発注する数。空なら1 */
   orderQty?: number;
+  /** 週間予定（📆 週間予定）の作業id。いつ仕込んだか・日持ちを引く */
+  shikomiId?: string;
+  /** 仕込んでから何日もつか */
+  keepDays?: number;
   note?: string;
 };
 
@@ -126,8 +130,8 @@ export const SEED_ITEMS: Item[] = [
   { id: "coconut", name: "ココナッツミルク", group: "ワッフル", par: 4, unit: "缶", buyId: 3, orderQty: 1 },
 
   // 仕込み品（足りなければ発注ではなく仕込み）
-  { id: "mashed", name: "マッシュポテト", group: "仕込み品", par: 800, unit: "g", madeInHouse: true },
-  { id: "amiebi", name: "あみえびクリームチーズ", group: "仕込み品", par: 1, unit: "タッパ", madeInHouse: true },
+  { id: "mashed", name: "マッシュポテト", group: "仕込み品", par: 800, unit: "g", madeInHouse: true, shikomiId: "mashed-potato", keepDays: 10 },
+  { id: "amiebi", name: "あみえびクリームチーズ", group: "仕込み品", par: 1, unit: "タッパ", madeInHouse: true, shikomiId: "amiebi-cream-cheese", keepDays: 10 },
   { id: "ajillo", name: "アヒージョセット（冷凍）", group: "仕込み品", par: 6, unit: "セット", madeInHouse: true },
   { id: "cold-brew", name: "コールドブリュー", group: "仕込み品", par: 2, unit: "本", madeInHouse: true },
   { id: "bread-baked", name: "自家製パン（冷凍・焼き済み）", group: "仕込み品", par: 6, unit: "個", madeInHouse: true },

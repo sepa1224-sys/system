@@ -14,8 +14,11 @@ type Item = {
   par: number;
   unit: string;
   madeInHouse?: boolean;
+  keepDays?: number;
   note?: string;
 };
+/** 仕込み品を最後に仕込んだ日と、あと何日もつか */
+type MadeAt = { date: string; daysAgo: number; keepDays: number; daysLeft: number };
 type Result = "ok" | "short";
 /** 発注済みでまだ届いていないもの */
 type Pending = { orderedAt: string; qty: number; unit: string; days: number };
@@ -37,6 +40,7 @@ export default function StockroomPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [results, setResults] = useState<Record<string, Result>>({});
   const [pending, setPending] = useState<Record<string, Pending>>({});
+  const [madeAt, setMadeAt] = useState<Record<string, MadeAt>>({});
   const [lastDate, setLastDate] = useState<string | null>(null);
   const [daysSince, setDaysSince] = useState<number | null>(null);
   const [due, setDue] = useState(false);
@@ -62,6 +66,7 @@ export default function StockroomPage() {
       if (!res.ok) throw new Error(d.error || "取得失敗");
       setItems(d.items || []);
       setPending(d.pending || {});
+      setMadeAt(d.madeAt || {});
       setLastDate(d.lastDate);
       setDaysSince(d.daysSince);
       setDue(!!d.due);
@@ -259,7 +264,10 @@ export default function StockroomPage() {
         <strong style={{ color: "var(--ok)" }}>補充OK</strong> か
         <strong style={{ color: "#c0392b" }}>倉庫にない</strong> を押してください。<br />
         「倉庫にない」を押したものが、そのまま<strong>発注するもの</strong>になります。
-        数を変えたいときは数字をタップすると直せます。
+        数を変えたいときは数字をタップすると直せます。<br />
+        <strong>仕込み品</strong>（マッシュポテト・あみえびクリームチーズなど）は
+        <strong style={{ color: "#c0392b" }}>半分を切っていたらその日に仕込みます</strong>。
+        日持ちを過ぎているものは、残っていても仕込み直してください。
       </div>
 
       {GROUPS.map((g) => {
@@ -289,6 +297,19 @@ export default function StockroomPage() {
                           }}>発注済み・到着待ち</span>
                         )}
                       </div>
+                      {madeAt[i.id] && (
+                        <div style={{
+                          fontSize: 11.5, marginTop: 3, lineHeight: 1.6,
+                          color: madeAt[i.id].daysLeft <= 0 ? "#c0392b" : "var(--muted)",
+                          fontWeight: madeAt[i.id].daysLeft <= 0 ? 700 : 400,
+                        }}>
+                          {madeAt[i.id].date.slice(5).replace("-", "/")}に仕込み
+                          （{madeAt[i.id].daysAgo}日前・日持ち{madeAt[i.id].keepDays}日）
+                          {madeAt[i.id].daysLeft <= 0
+                            ? " → 日持ちを過ぎています。残っていても仕込み直してください"
+                            : ` → あと${madeAt[i.id].daysLeft}日`}
+                        </div>
+                      )}
                       {pending[i.id] && (
                         <div style={{
                           fontSize: 11.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.6,
@@ -332,7 +353,7 @@ export default function StockroomPage() {
                           background: r === "ok" ? "#eaf6ec" : "#fff",
                           color: r === "ok" ? "var(--ok)" : "var(--muted)",
                         }}
-                      >補充OK</button>
+                      >{i.madeInHouse ? "半分以上ある" : "補充OK"}</button>
                       <button
                         onClick={() => set(i.id, "short")}
                         style={{
@@ -341,7 +362,7 @@ export default function StockroomPage() {
                           background: r === "short" ? "#fde8e8" : "#fff",
                           color: r === "short" ? "#c0392b" : "var(--muted)",
                         }}
-                      >{i.madeInHouse ? "要仕込み" : "倉庫にない"}</button>
+                      >{i.madeInHouse ? "半分を切った" : "倉庫にない"}</button>
                     </div>
                   </div>
                 </div>
@@ -357,7 +378,7 @@ export default function StockroomPage() {
           {shortItems.map((i) => (
             <div key={i.id} style={{ fontSize: 13.5, lineHeight: 1.9 }}>
               ・{i.name} <span style={{ color: "var(--muted)" }}>（{i.par}{i.unit}）</span>
-              {i.madeInHouse && <span style={{ color: "#9c5f22", fontWeight: 700 }}> ← 仕込む</span>}
+              {i.madeInHouse && <span style={{ color: "#9c5f22", fontWeight: 700 }}> ← 今日仕込む</span>}
             </div>
           ))}
         </div>

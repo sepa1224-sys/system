@@ -10,6 +10,7 @@ import {
   type Item,
 } from "@/lib/stockroom";
 import { openOrders } from "@/lib/purchase";
+import { getRecords } from "@/lib/shikomi";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -65,10 +66,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 仕込み品は「いつ仕込んだか」と「あと何日もつか」を出す。
+    // 半分を切っていなくても、日持ちを過ぎていれば仕込み直す必要がある。
+    const records = await getRecords();
+    const madeAt: Record<string, { date: string; daysAgo: number; keepDays: number; daysLeft: number }> = {};
+    for (const i of items) {
+      if (!i.shikomiId || !i.keepDays) continue;
+      const days = records
+        .filter((r) => r.taskId === i.shikomiId)
+        .map((r) => r.date)
+        .sort();
+      const last = days[days.length - 1];
+      if (!last) continue;
+      const ago = daysBetween(last, today);
+      madeAt[i.id] = { date: last, daysAgo: ago, keepDays: i.keepDays, daysLeft: i.keepDays - ago };
+    }
+
     return NextResponse.json({
       today,
       items,
       pending,
+      madeAt,
       lastDate: last?.date ?? null,
       daysSince: since,
       due: since === null || since >= 3,

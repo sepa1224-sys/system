@@ -40,18 +40,19 @@ export const TASKS: Task[] = [
     id: "mashed-potato",
     name: "マッシュポテトの仕込み",
     kind: "仕込み",
-    intervalDays: 7,
+    intervalDays: 10,
     qty: "800g",
     materials: "ポテトフレーク 150g",
-    note: "タッパに入れて冷蔵",
+    note: "タッパに入れて冷蔵。日持ちは10日。半分を切ったらその日に仕込む",
     minutes: 20,
   },
   {
     id: "amiebi-cream-cheese",
     name: "あみえびのクリームチーズ",
     kind: "仕込み",
-    intervalDays: 11, // 1.5週間
+    intervalDays: 10,
     materials: "クリームチーズ・あみえびうま煮",
+    note: "日持ちは10日。半分を切ったらその日に仕込む",
     minutes: 20,
   },
   {
