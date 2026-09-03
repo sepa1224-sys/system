@@ -42,6 +42,10 @@ export type Task = {
   hotsand?: "morning" | "evening";
   /** ホットサンドが足りないときだけ出す仕込みの作業 */
   hotsandPrep?: boolean;
+  /** 牛乳・コールドブリュー・水を数える作業。朝か夜か */
+  daily?: "morning" | "evening";
+  /** 数えた結果、足りないときだけ出す手当ての作業 */
+  dailyAction?: "buy" | "prep" | "refill";
 };
 
 export const TASKS: Task[] = [
@@ -83,11 +87,45 @@ export const TASKS: Task[] = [
       "前の晩に干したものが乾いていたら畳む。煮沸は3日に1回だが、汚れが溜まっていればその場で煮沸して干す",
   },
   {
+    id: "daily-morning",
+    phase: "朝",
+    name: "牛乳・コールドブリュー・水を数える",
+    detail: "切れると出せなくなるものだけ、朝と夜に必ず見る",
+    daily: "morning",
+  },
+  {
+    id: "daily-buy",
+    phase: "朝",
+    name: "牛乳を手配する",
+    detail: "平和堂に電話して持ってきてもらうか、午後のシフトの人に買い出しを頼む",
+    dailyAction: "buy",
+  },
+  {
+    id: "daily-prep",
+    phase: "朝",
+    name: "コールドブリューを仕込む",
+    detail: "抽出に時間がかかるので、気づいた時点ですぐ仕込む",
+    dailyAction: "prep",
+  },
+  {
     id: "hotsand-morning",
     phase: "朝",
     name: "ホットサンドの在庫を数える",
     detail: "冷蔵庫と冷凍庫それぞれの個数と、タネが仕込んであるかを入れる",
     hotsand: "morning",
+  },
+  {
+    id: "dishes-put-away",
+    phase: "営業中",
+    name: "16時半に洗ってある食器を全部片付ける",
+    detail: "夜の営業前に洗い場を空にしておく",
+  },
+  {
+    id: "daily-evening",
+    phase: "締め",
+    name: "牛乳・コールドブリュー・水を数える（夜）",
+    detail: "翌朝の分が足りるか、閉める前に見ておく",
+    daily: "evening",
   },
   {
     id: "hotsand-evening",

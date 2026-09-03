@@ -18,6 +18,11 @@ import {
 } from "@/lib/opening";
 import { openOrders } from "@/lib/purchase";
 import { dayState, saveCount, saveMade, type Slot } from "@/lib/hotsand";
+import {
+  dayState as dailyState,
+  saveValues as saveDaily,
+  type Values as DailyValues,
+} from "@/lib/dailycheck";
 
 export const runtime = "nodejs";
 
@@ -37,6 +42,9 @@ export async function GET(req: NextRequest) {
     const pending = await openOrders();
     const choices = await getChoices(date);
     const hotsand = await dayState(date);
+    const daily = await dailyState(date);
+    // 朝と夜のどちらかで足りなければ手当てが要る
+    const dailyNeeds = [...daily.morning.needs, ...daily.evening.needs];
     const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
     const night = nightPlan(
       tdy?.counts ?? yst?.counts,
@@ -54,6 +62,13 @@ export async function GET(req: NextRequest) {
           // 朝か夕方のどちらかで足りていなければ仕込む
           const need = hotsand.morning.needPrep || hotsand.evening.needPrep;
           return { ...t, done: done.includes(t.id), due: need };
+        }
+        if (t.dailyAction) {
+          return {
+            ...t,
+            done: done.includes(t.id),
+            due: dailyNeeds.some((n) => n.action === t.dailyAction),
+          };
         }
         if (t.choices) {
           return { ...t, done: done.includes(t.id), answer: choices[t.id] ?? null };
@@ -96,6 +111,7 @@ export async function GET(req: NextRequest) {
       },
       pendingOrders: pending,
       hotsand,
+      daily,
       total: need.length,
       doneCount: need.filter((t) => t.done).length,
     });
@@ -110,6 +126,7 @@ export async function GET(req: NextRequest) {
 // POST /api/opening
 //   { taskId, done, date? }              … チェックの付け外し
 //   { choice: { taskId, answer }, date? } … 2択の作業でどちらを選んだか
+//   { dailyCount: {...}, date? }         … 牛乳・コールドブリュー・水を数えた結果
 //   { hotsandCount: {...}, date? }       … ホットサンドの個数を数えた結果
 //   { hotsandMade: {...}, date? }        … ホットサンドを仕込んだ数
 //   { waffleBaked: true|false, date? }   … 朝、焼いたか冷蔵庫から出したか
@@ -135,6 +152,7 @@ export async function POST(req: NextRequest) {
         fridge?: Record<string, number>;
         freezer?: Record<string, number>;
       };
+      dailyCount?: { slot?: Slot; values?: DailyValues };
     };
 
     if (b.choice?.taskId && b.choice.answer) {
@@ -147,6 +165,14 @@ export async function POST(req: NextRequest) {
       // どちらを選んでも「見た」ことに変わりはないので終わりにする
       await toggle(date, b.choice.taskId, true);
       return NextResponse.json({ ok: true, date, answers });
+    }
+
+    if (b.dailyCount) {
+      const date = b.date || todayJST();
+      const slot: Slot = b.dailyCount.slot === "evening" ? "evening" : "morning";
+      await saveDaily(date, slot, b.dailyCount.values ?? {});
+      await toggle(date, slot === "morning" ? "daily-morning" : "daily-evening", true);
+      return NextResponse.json({ ok: true, date, daily: await dailyState(date) });
     }
 
     if (b.hotsandCount) {

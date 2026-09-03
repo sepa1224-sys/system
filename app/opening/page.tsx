@@ -22,6 +22,8 @@ type Task = {
   answer?: string | null;
   hotsand?: "morning" | "evening";
   hotsandPrep?: boolean;
+  daily?: "morning" | "evening";
+  dailyAction?: "buy" | "prep" | "refill";
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
@@ -44,6 +46,15 @@ type Hotsand = {
   morning: SlotState;
   evening: SlotState;
 };
+
+type DailyItem = {
+  id: string; name: string; kind: "count" | "full";
+  unit?: string; par?: number; lowAt?: number;
+  action: "buy" | "prep" | "refill"; actionText: string;
+};
+type DailyNeed = { id: string; name: string; action: string; text: string };
+type DailySlot = { counted: boolean; values: Record<string, number | boolean> | null; needs: DailyNeed[] };
+type Daily = { items: DailyItem[]; morning: DailySlot; evening: DailySlot };
 
 type PendingOrder = {
   id: string;
@@ -77,6 +88,10 @@ export default function OpeningPage() {
   const [hs, setHs] = useState<Hotsand | null>(null);
   const [hsIn, setHsIn] = useState<Record<string, string>>({});
   const [hsBusy, setHsBusy] = useState(false);
+  // 牛乳・コールドブリュー・アメリカーノ用の水
+  const [daily, setDaily] = useState<Daily | null>(null);
+  const [dcIn, setDcIn] = useState<Record<string, string>>({});
+  const [dcBusy, setDcBusy] = useState(false);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [bakedAt, setBakedAt] = useState("");
   const [wSaving, setWSaving] = useState(false);
@@ -125,6 +140,7 @@ export default function OpeningPage() {
       setWaffle(d.waffle || null);
       setPendingOrders(d.pendingOrders || []);
       setHs(d.hotsand || null);
+      setDaily(d.daily || null);
       if (d.waffle?.today) {
         const c: Record<string, string> = {};
         for (const [k, v] of Object.entries(d.waffle.today)) c[k] = String(v);
@@ -254,6 +270,33 @@ export default function OpeningPage() {
       setErr(e instanceof Error ? e.message : "保存に失敗");
     } finally {
       setHsBusy(false);
+    }
+  };
+
+  const dcKey = (slot: Slot, id: string) => `${slot}:${id}`;
+
+  const saveDaily = async (slot: Slot) => {
+    if (!daily) return;
+    setDcBusy(true);
+    setErr("");
+    try {
+      const values: Record<string, number | boolean> = {};
+      for (const it of daily.items) {
+        const raw = dcIn[dcKey(slot, it.id)];
+        if (it.kind === "full") values[it.id] = raw === "1";
+        else values[it.id] = Number(raw || 0);
+      }
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyCount: { slot, values } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setDcBusy(false);
     }
   };
 
@@ -435,6 +478,85 @@ export default function OpeningPage() {
               </div>
             </div>
           )}
+          {t.daily && daily && (() => {
+            const slot = t.daily;
+            const st = daily[slot];
+            return (
+              <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+                {daily.items.map((it) => (
+                  <div key={it.id} style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    flexWrap: "wrap", padding: "5px 0",
+                  }}>
+                    <span style={{ fontSize: 13, minWidth: 150 }}>
+                      {it.name}
+                      <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>
+                        {it.kind === "full" ? "（満タンか）" : `（${it.par}${it.unit}あるか）`}
+                      </span>
+                    </span>
+                    {it.kind === "full" ? (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {[["1", "満タン"], ["0", "減っている"]].map(([v, label]) => {
+                          const cur = dcIn[dcKey(slot, it.id)] ?? (st.counted ? (st.values?.[it.id] ? "1" : "0") : "");
+                          const on = cur === v;
+                          return (
+                            <button
+                              key={v}
+                              onClick={() => setDcIn((p) => ({ ...p, [dcKey(slot, it.id)]: v }))}
+                              style={{
+                                padding: "6px 12px", borderRadius: 7, cursor: "pointer",
+                                fontSize: 12.5, fontWeight: 700,
+                                border: on ? "2px solid var(--accent)" : "1px solid var(--line)",
+                                background: on ? "var(--accent)" : "#fff",
+                                color: on ? "#fff" : "var(--ink)",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          type="number"
+                          min={0}
+                          value={dcIn[dcKey(slot, it.id)] ?? (st.counted ? String(st.values?.[it.id] ?? 0) : "")}
+                          onChange={(e) => setDcIn((p) => ({ ...p, [dcKey(slot, it.id)]: e.target.value }))}
+                          style={{ width: 56, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                        />
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>{it.unit}</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => saveDaily(slot)}
+                  disabled={dcBusy}
+                  style={{
+                    marginTop: 6, padding: "9px 16px", borderRadius: 8, border: "none",
+                    background: "var(--accent)", color: "#fff", fontSize: 13,
+                    fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  {dcBusy ? "記録中…" : "記録する"}
+                </button>
+                {st.counted && (
+                  <div style={{
+                    marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
+                    background: st.needs.length ? "#fde8e8" : "#eaf6ec",
+                    border: `1px solid ${st.needs.length ? "#e0b4b4" : "#b7dfc0"}`,
+                    color: st.needs.length ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                    whiteSpace: "pre-line",
+                  }}>
+                    {st.needs.length
+                      ? st.needs.map((n) => `${n.name} → ${n.text}`).join("\n")
+                      : "3つとも足りています"}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {t.hotsand && hs && (() => {
             const slot = t.hotsand;
             const st = hs[slot];
