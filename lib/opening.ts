@@ -89,22 +89,25 @@ export const TASKS: Task[] = [
   {
     id: "daily-morning",
     phase: "朝",
-    name: "牛乳・コールドブリュー・水を数える",
+    name: "牛乳・パン・コールドブリュー・水を数える",
     detail: "切れると出せなくなるものだけ、朝と夜に必ず見る",
     daily: "morning",
   },
   {
     id: "daily-buy",
     phase: "朝",
-    name: "牛乳を手配する",
-    detail: "平和堂に電話して持ってきてもらうか、午後のシフトの人に買い出しを頼む",
+    name: "牛乳・パンを手配する",
+    detail:
+      "平和堂に電話して持ってきてもらうか、午後のシフトの人に買い出しを頼む。" +
+      "前の晩に足りなかった場合も、翌朝ここに出る",
     dailyAction: "buy",
   },
   {
     id: "daily-prep",
-    phase: "朝",
+    phase: "営業中",
     name: "コールドブリューを仕込む",
-    detail: "抽出に時間がかかるので、気づいた時点ですぐ仕込む",
+    detail:
+      "抽出に時間がかかるので、気づいた時点ですぐ仕込む。夜21時の時点で1本しかなければ、その晩のうちに仕込む",
     dailyAction: "prep",
   },
   {
@@ -123,8 +126,8 @@ export const TASKS: Task[] = [
   {
     id: "daily-evening",
     phase: "締め",
-    name: "牛乳・コールドブリュー・水を数える（夜）",
-    detail: "翌朝の分が足りるか、閉める前に見ておく",
+    name: "牛乳・パン・コールドブリュー・水を数える（夜）",
+    detail: "21時ごろに数える。足りないものは翌朝の手当てとして自動で出る",
     daily: "evening",
   },
   {

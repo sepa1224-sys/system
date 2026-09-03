@@ -43,8 +43,11 @@ export async function GET(req: NextRequest) {
     const choices = await getChoices(date);
     const hotsand = await dayState(date);
     const daily = await dailyState(date);
-    // 朝と夜のどちらかで足りなければ手当てが要る
-    const dailyNeeds = [...daily.morning.needs, ...daily.evening.needs];
+    // 夜に足りなかったものは、翌朝の手当てとして持ち越す。
+    // ただし今朝もう数えているなら、そちらが最新なので持ち越さない。
+    const yEvening = (await dailyState(yesterdayOf(date))).evening;
+    const carried = daily.morning.counted ? [] : yEvening.needs;
+    const dailyNeeds = [...carried, ...daily.morning.needs, ...daily.evening.needs];
     const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
     const night = nightPlan(
       tdy?.counts ?? yst?.counts,
@@ -111,7 +114,7 @@ export async function GET(req: NextRequest) {
       },
       pendingOrders: pending,
       hotsand,
-      daily,
+      daily: { ...daily, carried },
       total: need.length,
       doneCount: need.filter((t) => t.done).length,
     });

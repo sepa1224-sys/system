@@ -45,6 +45,17 @@ export const CHECK_ITEMS: CheckItem[] = [
     actionText: "抽出に時間がかかるので、その場ですぐ仕込む",
   },
   {
+    id: "bread",
+    name: "食パン",
+    kind: "count",
+    unit: "斤",
+    par: 3,
+    lowAt: 2,
+    action: "buy",
+    actionText:
+      "日持ちが2〜3日しかないので、まとめ買いはしない。2日分だけ買い足す（1斤6枚＝ホットサンド3個分）",
+  },
+  {
     id: "americano-water",
     name: "アメリカーノ用の水",
     kind: "full",

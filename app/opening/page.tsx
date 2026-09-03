@@ -54,7 +54,7 @@ type DailyItem = {
 };
 type DailyNeed = { id: string; name: string; action: string; text: string };
 type DailySlot = { counted: boolean; values: Record<string, number | boolean> | null; needs: DailyNeed[] };
-type Daily = { items: DailyItem[]; morning: DailySlot; evening: DailySlot };
+type Daily = { items: DailyItem[]; morning: DailySlot; evening: DailySlot; carried?: DailyNeed[] };
 
 type PendingOrder = {
   id: string;
@@ -690,6 +690,26 @@ export default function OpeningPage() {
               )}
             </div>
           )}
+          {t.dailyAction && daily && (() => {
+            const list = [
+              ...(daily.carried ?? []),
+              ...daily.morning.needs,
+              ...daily.evening.needs,
+            ].filter((n) => n.action === t.dailyAction);
+            // 同じものが朝と夜の両方で出ることがあるのでまとめる
+            const seen = new Set<string>();
+            const uniq = list.filter((n) => (seen.has(n.id) ? false : (seen.add(n.id), true)));
+            if (!uniq.length) return null;
+            return (
+              <div style={{
+                marginTop: 7, padding: "9px 11px", borderRadius: 7,
+                background: "#fde8e8", border: "1px solid #e0b4b4",
+                fontSize: 12.5, lineHeight: 1.8, color: "#c0392b", fontWeight: 700,
+              }}>
+                {uniq.map((n) => <div key={n.id}>{n.name} → {n.text}</div>)}
+              </div>
+            );
+          })()}
           {t.orderList && (
             <div onClick={(e) => e.stopPropagation()}>
               <Link
