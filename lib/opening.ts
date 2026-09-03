@@ -36,6 +36,12 @@ export type Task = {
   orderList?: boolean;
   /** 届いていない発注があるときだけ出す作業 */
   pendingOrder?: boolean;
+  /** 「やった／今日はやらなくていい」を選ぶ作業。押したほうが記録される */
+  choices?: [string, string];
+  /** ホットサンドの個数を数える作業。朝か夕方か */
+  hotsand?: "morning" | "evening";
+  /** ホットサンドが足りないときだけ出す仕込みの作業 */
+  hotsandPrep?: boolean;
 };
 
 export const TASKS: Task[] = [
@@ -47,7 +53,12 @@ export const TASKS: Task[] = [
   },
   { id: "clean-floor", phase: "朝", name: "店舗掃除（掃除機・テーブル拭き）" },
   { id: "clean-toilet", phase: "朝", name: "トイレ掃除" },
-  { id: "trash-bag", phase: "朝", name: "ゴミ袋のチェック" },
+  {
+    id: "trash-bag",
+    phase: "朝",
+    name: "ゴミ袋がセットされているか確認",
+    detail: "袋をつけるのは締めの作業。抜けていたらここで気づく",
+  },
   {
     id: "waffle",
     phase: "朝",
@@ -70,6 +81,27 @@ export const TASKS: Task[] = [
     name: "ダスターを畳んで片付ける",
     detail:
       "前の晩に干したものが乾いていたら畳む。煮沸は3日に1回だが、汚れが溜まっていればその場で煮沸して干す",
+  },
+  {
+    id: "hotsand-morning",
+    phase: "朝",
+    name: "ホットサンドの在庫を数える",
+    detail: "冷蔵庫と冷凍庫それぞれの個数と、タネが仕込んであるかを入れる",
+    hotsand: "morning",
+  },
+  {
+    id: "hotsand-evening",
+    phase: "営業中",
+    name: "夕方にホットサンドの在庫を数える",
+    detail: "朝と同じように、冷蔵庫と冷凍庫の個数とタネを入れる",
+    hotsand: "evening",
+  },
+  {
+    id: "hotsand-prep",
+    phase: "営業中",
+    name: "ホットサンドを仕込む",
+    detail: "決めた数に足りない分だけ仕込む。仕込んだ数を入れると在庫に足される",
+    hotsandPrep: true,
   },
   {
     id: "stock-check",
@@ -121,6 +153,26 @@ export const TASKS: Task[] = [
     waffleCount: true,
   },
   { id: "dishes-wash", phase: "締め", name: "食器を洗う" },
+  {
+    id: "trash-burnable",
+    phase: "締め",
+    name: "燃えるゴミをまとめて新しい袋をつける",
+    detail: "トイレとホールのゴミも一緒に集めてから、新しい袋をセットする",
+  },
+  {
+    id: "trash-recycle",
+    phase: "締め",
+    name: "缶・瓶・牛乳パックのゴミ箱を見る",
+    detail:
+      "溜まっていたら分別してまとめておく。まとまった分はゴミセンターへ持って行く",
+    choices: ["溜まったので分別した", "まだ溜まっていない"],
+  },
+  {
+    id: "drain-clean",
+    phase: "締め",
+    name: "排水溝を掃除する",
+    weekday: 1,
+  },
   {
     id: "duster-boil",
     phase: "締め",
@@ -208,6 +260,29 @@ export async function lastDoneDate(taskId: string): Promise<string | null> {
     .filter((d) => (m[d] ?? []).includes(taskId))
     .sort();
   return days.length ? days[days.length - 1] : null;
+}
+
+const CHOICE_KEY = "opening:choice";
+
+/** 日付 → 作業id → 選んだ答え */
+type ChoiceMap = Record<string, Record<string, string>>;
+
+export async function getChoices(date: string): Promise<Record<string, string>> {
+  const store = await kv();
+  if (!store) return {};
+  return ((await store.get<ChoiceMap>(CHOICE_KEY)) ?? {})[date] ?? {};
+}
+
+export async function saveChoice(date: string, taskId: string, answer: string) {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const all = (await store.get<ChoiceMap>(CHOICE_KEY)) ?? {};
+  all[date] = { ...(all[date] ?? {}), [taskId]: answer };
+  const keep = Object.keys(all).sort().slice(-120);
+  const next: ChoiceMap = {};
+  for (const d of keep) next[d] = all[d];
+  await store.set(CHOICE_KEY, next);
+  return all[date];
 }
 
 const WAFFLE_KEY = "opening:waffle";

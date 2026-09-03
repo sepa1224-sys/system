@@ -18,10 +18,31 @@ type Task = {
   waffleMorning?: boolean;
   orderList?: boolean;
   pendingOrder?: boolean;
+  choices?: [string, string];
+  answer?: string | null;
+  hotsand?: "morning" | "evening";
+  hotsandPrep?: boolean;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
   due?: boolean;
+};
+
+type Slot = "morning" | "evening";
+type SlotState = {
+  counted: boolean;
+  fridge: Record<string, number> | null;
+  freezer: Record<string, number> | null;
+  tane: boolean | null;
+  made: { fridge: Record<string, number>; freezer: Record<string, number> } | null;
+  shortages: { flavor: string; fridge: number; freezer: number }[];
+  needPrep: boolean;
+};
+type Hotsand = {
+  flavors: string[];
+  par: { fridge: number; freezer: number };
+  morning: SlotState;
+  evening: SlotState;
 };
 
 type PendingOrder = {
@@ -52,6 +73,10 @@ export default function OpeningPage() {
   // 発注したがまだ届いていないもの
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [wBusy, setWBusy] = useState(false);
+  // ホットサンドの在庫。朝と夕方で別々に数える
+  const [hs, setHs] = useState<Hotsand | null>(null);
+  const [hsIn, setHsIn] = useState<Record<string, string>>({});
+  const [hsBusy, setHsBusy] = useState(false);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [bakedAt, setBakedAt] = useState("");
   const [wSaving, setWSaving] = useState(false);
@@ -99,6 +124,7 @@ export default function OpeningPage() {
       setDoneCount(d.doneCount || 0);
       setWaffle(d.waffle || null);
       setPendingOrders(d.pendingOrders || []);
+      setHs(d.hotsand || null);
       if (d.waffle?.today) {
         const c: Record<string, string> = {};
         for (const [k, v] of Object.entries(d.waffle.today)) c[k] = String(v);
@@ -150,6 +176,84 @@ export default function OpeningPage() {
       setErr(e instanceof Error ? e.message : "保存に失敗");
     } finally {
       setWBusy(false);
+    }
+  };
+
+  // 2択の作業。押したほうを記録して、その作業を終わりにする
+  const choose = async (taskId: string, answer: string) => {
+    try {
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choice: { taskId, answer } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    }
+  };
+
+  // key は "morning:fridge:クラシックメルト" のように作る
+  const hsKey = (slot: Slot, where: string, f: string) => `${slot}:${where}:${f}`;
+  const hsNum = (slot: Slot, where: string, f: string) =>
+    Number(hsIn[hsKey(slot, where, f)] || 0);
+
+  const saveHotsand = async (slot: Slot, tane: boolean) => {
+    if (!hs) return;
+    setHsBusy(true);
+    setErr("");
+    try {
+      const fridge: Record<string, number> = {};
+      const freezer: Record<string, number> = {};
+      for (const f of hs.flavors) {
+        fridge[f] = hsNum(slot, "fridge", f);
+        freezer[f] = hsNum(slot, "freezer", f);
+      }
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hotsandCount: { slot, fridge, freezer, tane } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setHsBusy(false);
+    }
+  };
+
+  const saveHotsandMade = async (slot: Slot) => {
+    if (!hs) return;
+    setHsBusy(true);
+    setErr("");
+    try {
+      const fridge: Record<string, number> = {};
+      const freezer: Record<string, number> = {};
+      for (const f of hs.flavors) {
+        fridge[f] = hsNum(slot, "madeFridge", f);
+        freezer[f] = hsNum(slot, "madeFreezer", f);
+      }
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hotsandMade: { slot, fridge, freezer } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setHsIn((p) => {
+        const n = { ...p };
+        for (const f of hs.flavors) {
+          delete n[hsKey(slot, "madeFridge", f)];
+          delete n[hsKey(slot, "madeFreezer", f)];
+        }
+        return n;
+      });
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setHsBusy(false);
     }
   };
 
@@ -306,6 +410,163 @@ export default function OpeningPage() {
                 )}
               </div>
             </>
+          )}
+          {t.choices && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {t.choices.map((c) => {
+                  const on = t.answer === c;
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => choose(t.id, c)}
+                      style={{
+                        padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                        fontSize: 13, fontWeight: 700,
+                        border: on ? "2px solid var(--ok)" : "1px solid var(--line)",
+                        background: on ? "var(--ok)" : "#fff",
+                        color: on ? "#fff" : "var(--ink)",
+                      }}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {t.hotsand && hs && (() => {
+            const slot = t.hotsand;
+            const st = hs[slot];
+            return (
+              <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+                {(["fridge", "freezer"] as const).map((where) => (
+                  <div key={where} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
+                      {where === "fridge" ? "冷蔵庫" : "冷凍庫"}
+                      （各{hs.par[where]}個あるようにする）
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      {hs.flavors.map((f) => (
+                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 12.5 }}>{f}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={hsIn[hsKey(slot, where, f)] ?? (st.counted ? String(st[where]?.[f] ?? 0) : "")}
+                            onChange={(e) => setHsIn((p) => ({ ...p, [hsKey(slot, where, f)]: e.target.value }))}
+                            style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                          />
+                          <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                  <button
+                    onClick={() => saveHotsand(slot, true)}
+                    disabled={hsBusy}
+                    style={{
+                      padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                      fontSize: 13, fontWeight: 700,
+                      border: st.tane === true ? "2px solid var(--ok)" : "1px solid var(--line)",
+                      background: st.tane === true ? "var(--ok)" : "#fff",
+                      color: st.tane === true ? "#fff" : "var(--ink)",
+                    }}
+                  >
+                    記録する（タネあり）
+                  </button>
+                  <button
+                    onClick={() => saveHotsand(slot, false)}
+                    disabled={hsBusy}
+                    style={{
+                      padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                      fontSize: 13, fontWeight: 700,
+                      border: st.tane === false ? "2px solid #c0392b" : "1px solid var(--line)",
+                      background: st.tane === false ? "#fde8e8" : "#fff",
+                      color: st.tane === false ? "#c0392b" : "var(--ink)",
+                    }}
+                  >
+                    記録する（タネなし）
+                  </button>
+                </div>
+                {st.counted && (
+                  <div style={{
+                    marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
+                    background: st.needPrep ? "#fde8e8" : "#eaf6ec",
+                    border: `1px solid ${st.needPrep ? "#e0b4b4" : "#b7dfc0"}`,
+                    color: st.needPrep ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                  }}>
+                    {st.needPrep
+                      ? `足りません → ${st.shortages
+                          .map((x) => `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`)
+                          .join("、")}`
+                      : "決めた数がそろっています"}
+                    {st.tane === false && <><br />タネがありません。タネから仕込んでください</>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          {t.hotsandPrep && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              {(["morning", "evening"] as const)
+                .filter((slot) => hs[slot].needPrep)
+                .map((slot) => (
+                  <div key={slot} style={{
+                    padding: "10px 11px", borderRadius: 7, marginBottom: 8,
+                    background: "#fdf6ec", border: "1px solid #e8d5b0",
+                  }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+                      {slot === "morning" ? "朝" : "夕方"}のチェックで足りなかった分
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
+                      {hs[slot].shortages
+                        .map((x) => `${x.flavor}: ${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}`)
+                        .join(" / ")}
+                    </div>
+                    {(["madeFridge", "madeFreezer"] as const).map((where) => (
+                      <div key={where} style={{ marginTop: 7 }}>
+                        <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
+                          仕込んだ数（{where === "madeFridge" ? "冷蔵庫へ" : "冷凍庫へ"}）
+                        </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          {hs.flavors.map((f) => (
+                            <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <span style={{ fontSize: 12.5 }}>{f}</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={hsIn[hsKey(slot, where, f)] ?? ""}
+                                onChange={(e) => setHsIn((p) => ({ ...p, [hsKey(slot, where, f)]: e.target.value }))}
+                                style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                              />
+                              <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => saveHotsandMade(slot)}
+                      disabled={hsBusy}
+                      style={{
+                        marginTop: 8, padding: "8px 14px", borderRadius: 8, border: "none",
+                        background: "var(--accent)", color: "#fff", fontSize: 13,
+                        fontWeight: 700, cursor: "pointer",
+                      }}
+                    >
+                      {hsBusy ? "記録中…" : "仕込んだ数を記録する"}
+                    </button>
+                  </div>
+                ))}
+              {!hs.morning.needPrep && !hs.evening.needPrep && (
+                <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                  いま仕込むものはありません
+                </div>
+              )}
+            </div>
           )}
           {t.orderList && (
             <div onClick={(e) => e.stopPropagation()}>
