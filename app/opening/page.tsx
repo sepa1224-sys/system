@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import Nav from "@/components/Nav";
 
 // 出勤したらやることのチェックリスト。日付が変わればまっさらに戻る。
@@ -15,10 +16,19 @@ type Task = {
   weekday?: number;
   waffleCount?: boolean;
   waffleMorning?: boolean;
+  orderList?: boolean;
+  pendingOrder?: boolean;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
   due?: boolean;
+};
+
+type PendingOrder = {
+  id: string;
+  orderedAt: string;
+  lines: { itemId: string; name: string; unit: string; qty: number }[];
+  note?: string;
 };
 
 export default function OpeningPage() {
@@ -35,7 +45,13 @@ export default function OpeningPage() {
     morning: { text: string; bake: string[]; mustBake?: boolean };
     night: { text: string; prep: boolean };
     today: Record<string, number> | null;
+    bakedToday?: boolean;
+    answered?: boolean;
+    bakedAt?: string | null;
   } | null>(null);
+  // 発注したがまだ届いていないもの
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [wBusy, setWBusy] = useState(false);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [bakedAt, setBakedAt] = useState("");
   const [wSaving, setWSaving] = useState(false);
@@ -82,6 +98,7 @@ export default function OpeningPage() {
       setTotal(d.total || 0);
       setDoneCount(d.doneCount || 0);
       setWaffle(d.waffle || null);
+      setPendingOrders(d.pendingOrders || []);
       if (d.waffle?.today) {
         const c: Record<string, string> = {};
         for (const [k, v] of Object.entries(d.waffle.today)) c[k] = String(v);
@@ -114,6 +131,41 @@ export default function OpeningPage() {
   };
 
   const pct = total ? Math.round((doneCount / total) * 100) : 0;
+
+  // 朝、焼いたのか冷蔵庫から出したのかを記録する。
+  // これが分かると、今夜の生地の仕込みが要るかが自動で決まる
+  const recordBaked = async (baked: boolean) => {
+    setWBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ waffleBaked: baked }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "保存に失敗");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setWBusy(false);
+    }
+  };
+
+  const markArrived = async (id: string) => {
+    try {
+      const res = await fetch("/api/purchase", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "更新に失敗");
+    }
+  };
 
   const saveWaffle = async () => {
     if (!waffle) return;
@@ -188,6 +240,16 @@ export default function OpeningPage() {
                 {t.everyDays}日に1回{t.due ? "・今日やる" : "・今日はなし"}
               </span>
             )}
+            {t.pendingOrder && (
+              <span style={{
+                marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: "2px 6px",
+                borderRadius: 4, verticalAlign: "middle",
+                background: t.due ? "#fdf0e6" : "#eef1f4",
+                color: t.due ? "#9c5f22" : "var(--muted)",
+              }}>
+                {t.due ? `届き待ち${pendingOrders.length}件` : "届き待ちなし"}
+              </span>
+            )}
           </div>
           {t.detail && (
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.6 }}>
@@ -195,15 +257,109 @@ export default function OpeningPage() {
             </div>
           )}
           {t.waffleMorning && waffle && (
-            <div style={{
-              marginTop: 7, padding: "9px 11px", borderRadius: 7, fontSize: 13, lineHeight: 1.7,
-              background: waffle.morning.bake.length ? "#fde8e8" : "#eaf6ec",
-              border: `1px solid ${waffle.morning.bake.length ? "#e0b4b4" : "#b7dfc0"}`,
-              color: waffle.morning.bake.length ? "#c0392b" : "var(--ok)",
-              fontWeight: 700,
-            }}>
-              {waffle.morning.bake.length ? "🔥 " : "✅ "}
-              {waffle.morning.text}
+            <>
+              <div style={{
+                marginTop: 7, padding: "9px 11px", borderRadius: 7, fontSize: 13, lineHeight: 1.7,
+                background: waffle.morning.bake.length ? "#fde8e8" : "#eaf6ec",
+                border: `1px solid ${waffle.morning.bake.length ? "#e0b4b4" : "#b7dfc0"}`,
+                color: waffle.morning.bake.length ? "#c0392b" : "var(--ok)",
+                fontWeight: 700,
+              }}>
+                {waffle.morning.bake.length ? "🔥 " : "✅ "}
+                {waffle.morning.text}
+              </div>
+              {/* 実際にどちらをしたかを押す。今夜の仕込みの要否がこれで決まる */}
+              <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 5 }}>
+                  今朝どちらをしましたか
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {([
+                    { baked: true, label: "🔥 焼いた" },
+                    { baked: false, label: "🧊 冷蔵庫から出した" },
+                  ] as const).map((b) => {
+                    const on = waffle.answered && waffle.bakedToday === b.baked;
+                    return (
+                      <button
+                        key={b.label}
+                        onClick={() => recordBaked(b.baked)}
+                        disabled={wBusy}
+                        style={{
+                          padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                          fontSize: 13, fontWeight: 700,
+                          border: on ? "2px solid var(--ok)" : "1px solid var(--line)",
+                          background: on ? "var(--ok)" : "#fff",
+                          color: on ? "#fff" : "var(--ink)",
+                        }}
+                      >
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {waffle.answered && (
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 5, lineHeight: 1.7 }}>
+                    {waffle.bakedToday
+                      ? "今日焼いたので、残りが2個以下でなければ今夜の生地の仕込みは要りません"
+                      : "冷蔵庫のものを出したので、今夜は生地を仕込む必要が出ます"}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {t.orderList && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Link
+                href="/purchase"
+                style={{
+                  display: "inline-block", marginTop: 7, fontSize: 13, fontWeight: 700,
+                  padding: "8px 14px", borderRadius: 8, textDecoration: "none",
+                  background: "var(--accent)", color: "#fff",
+                }}
+              >
+                📋 発注リストを開く
+              </Link>
+            </div>
+          )}
+          {t.pendingOrder && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
+              {pendingOrders.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                  届き待ちの発注はありません
+                </div>
+              ) : (
+                pendingOrders.map((o) => (
+                  <div
+                    key={o.id}
+                    style={{
+                      padding: "9px 11px", borderRadius: 7, marginBottom: 6,
+                      background: "#fdf6ec", border: "1px solid #e8d5b0",
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+                      {o.orderedAt.slice(5).replace("-", "/")} 発注
+                      <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: 6 }}>
+                        {Math.round(
+                          (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${o.orderedAt}T00:00:00Z`)) / 86400000,
+                        )}日前
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.7 }}>
+                      {o.lines.map((l) => `${l.name} ${l.qty}${l.unit}`).join("・")}
+                    </div>
+                    <button
+                      onClick={() => markArrived(o.id)}
+                      style={{
+                        marginTop: 7, padding: "7px 14px", borderRadius: 8, border: "none",
+                        background: "var(--ok)", color: "#fff", fontSize: 12.5,
+                        fontWeight: 700, cursor: "pointer",
+                      }}
+                    >
+                      届いた
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
           {t.waffleCount && waffle && (

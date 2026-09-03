@@ -32,6 +32,10 @@ export type Task = {
   waffleCount?: boolean;
   /** 前夜の残数を見て、朝焼くかどうかを出す作業 */
   waffleMorning?: boolean;
+  /** 発注リストへ行く作業 */
+  orderList?: boolean;
+  /** 届いていない発注があるときだけ出す作業 */
+  pendingOrder?: boolean;
 };
 
 export const TASKS: Task[] = [
@@ -49,7 +53,8 @@ export const TASKS: Task[] = [
     phase: "朝",
     name: "ワッフルをセットする",
     detail:
-      "前日に焼いたものが冷蔵庫にあればそれをセット。無ければ前日に仕込んだ生地を焼く。廃棄期限は2日",
+      "前日に焼いたものが冷蔵庫にあればそれをセット。無ければ前日に仕込んだ生地を焼く。廃棄期限は2日。" +
+      "どちらをしたか押しておくと、今夜の生地の仕込みが要るかを自動で判断する",
     /** 前夜に数えた残数から、焼くかどうかを出し分ける */
     waffleMorning: true,
   },
@@ -92,8 +97,18 @@ export const TASKS: Task[] = [
     id: "order",
     phase: "営業中",
     name: "足りないものを発注する",
-    detail: "在庫チェックで補充できなかったものを発注する",
+    detail:
+      "ストック確認で倉庫に無かったものが「📋 発注リスト」に並ぶ。数を決めて買い、「発注済みにする」を押す",
     everyDays: 3,
+    orderList: true,
+  },
+  {
+    id: "order-arrival",
+    phase: "営業中",
+    name: "発注したものが届いたか確認する",
+    detail:
+      "届いていたら「届いた」を押す。押すまでその品目は発注リストに出てこないので、二重に発注しない",
+    pendingOrder: true,
   },
 
   {
@@ -188,19 +203,49 @@ export async function getWaffleCounts(): Promise<WaffleMap> {
   return (await store.get<WaffleMap>(WAFFLE_KEY)) ?? {};
 }
 
+/**
+ * その日のワッフルの記録を書く。
+ * 朝は bakedAt だけ、夜は counts だけを書くので、渡さなかったほうは今の値を残す。
+ */
 export async function saveWaffleCount(
   date: string,
-  counts: Record<string, number>,
+  counts?: Record<string, number>,
   bakedAt?: string,
 ): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");
   const all = await getWaffleCounts();
-  all[date] = { counts, ...(bakedAt ? { bakedAt } : {}) };
+  const cur = all[date] ?? { counts: {} };
+  const keepBaked = bakedAt || cur.bakedAt;
+  all[date] = { counts: counts ?? cur.counts, ...(keepBaked ? { bakedAt: keepBaked } : {}) };
   const keep = Object.keys(all).sort().slice(-60);
   const next: WaffleMap = {};
   for (const d of keep) next[d] = all[d];
   await store.set(WAFFLE_KEY, next);
+}
+
+/**
+ * 朝、ワッフルを焼いたのか冷蔵庫から出したのかを記録する。
+ *
+ * これが分かると、夜に生地を仕込むかどうかが自動で決まる。
+ * 焼いた日なら冷蔵庫のものは今日焼きたてなので明日も出せる。
+ * 冷蔵庫から出しただけなら、そのワッフルは前に焼いたものなので、
+ * 明日には期限切れになり、今夜のうちに生地を仕込む必要がある。
+ */
+export async function setWaffleBaked(date: string, baked: boolean): Promise<string | undefined> {
+  const all = await getWaffleCounts();
+  // 焼いたなら今日が焼いた日。出しただけなら前日までの焼いた日を引き継ぐ
+  const carried = all[yesterdayOf(date)]?.bakedAt;
+  const bakedAt = baked ? date : carried;
+  const cur = all[date] ?? { counts: {} };
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  all[date] = { counts: cur.counts, ...(bakedAt ? { bakedAt } : {}) };
+  const keep = Object.keys(all).sort().slice(-60);
+  const next: WaffleMap = {};
+  for (const d of keep) next[d] = all[d];
+  await store.set(WAFFLE_KEY, next);
+  return bakedAt;
 }
 
 export function yesterdayOf(date: string): string {

@@ -9,10 +9,12 @@ import {
   morningPlan,
   nightPlan,
   saveWaffleCount,
+  setWaffleBaked,
   todayJST,
   toggle,
   yesterdayOf,
 } from "@/lib/opening";
+import { openOrders } from "@/lib/purchase";
 
 export const runtime = "nodejs";
 
@@ -27,11 +29,17 @@ export async function GET(req: NextRequest) {
     const waffle = await getWaffleCounts();
     const yst = waffle[yesterdayOf(date)];
     const tdy = waffle[date];
+
+    // 発注チェックは、届いていない発注があるときだけ出す
+    const pending = await openOrders();
     const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
     const night = nightPlan(tdy?.counts ?? yst?.counts, tdy?.bakedAt ?? yst?.bakedAt, date);
 
     const tasks = await Promise.all(
       TASKS.map(async (t) => {
+        if (t.pendingOrder) {
+          return { ...t, done: done.includes(t.id), due: pending.length > 0 };
+        }
         if (t.weekday !== undefined) {
           // 曜日が決まっている作業。その曜日以外は「今日はなし」
           const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -61,9 +69,14 @@ export async function GET(req: NextRequest) {
         yesterday: yst?.counts ?? null,
         yesterdayBakedAt: yst?.bakedAt ?? null,
         today: tdy?.counts ?? null,
+        // 今朝どちらをしたか。焼いた日が今日なら「焼いた」
+        bakedToday: tdy?.bakedAt === date,
+        bakedAt: tdy?.bakedAt ?? null,
+        answered: !!tdy?.bakedAt,
         morning,
         night,
       },
+      pendingOrders: pending,
       total: need.length,
       doneCount: need.filter((t) => t.done).length,
     });
@@ -77,6 +90,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/opening
 //   { taskId, done, date? }              … チェックの付け外し
+//   { waffleBaked: true|false, date? }   … 朝、焼いたか冷蔵庫から出したか
 //   { waffleCounts, bakedAt?, date? }    … 夜のワッフル残数の記録
 export async function POST(req: NextRequest) {
   try {
@@ -86,8 +100,18 @@ export async function POST(req: NextRequest) {
       date?: string;
       waffleCounts?: Record<string, number>;
       bakedAt?: string;
+      waffleBaked?: boolean;
     };
 
+    if (b.waffleBaked !== undefined) {
+      const date = b.date || todayJST();
+      const bakedAt = await setWaffleBaked(date, b.waffleBaked);
+      const all = await getWaffleCounts();
+      const plan = nightPlan(all[date]?.counts ?? all[yesterdayOf(date)]?.counts, bakedAt, date);
+      // 焼いたなら「ワッフルをセットする」も終わったものとして扱う
+      await toggle(date, "waffle", true);
+      return NextResponse.json({ ok: true, date, bakedAt: bakedAt ?? null, night: plan });
+    }
     if (b.waffleCounts) {
       const date = b.date || todayJST();
       await saveWaffleCount(date, b.waffleCounts, b.bakedAt);
