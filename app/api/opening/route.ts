@@ -17,7 +17,8 @@ import {
   yesterdayOf,
 } from "@/lib/opening";
 import { openOrders } from "@/lib/purchase";
-import { dayState, saveCount, saveMade, type Slot } from "@/lib/hotsand";
+import { dayState, saveNight, saveMade as saveHotsandMade } from "@/lib/hotsand";
+import type { Slot } from "@/lib/dailycheck";
 import {
   dayState as dailyState,
   saveValues as saveDaily,
@@ -63,9 +64,8 @@ export async function GET(req: NextRequest) {
           return { ...t, done: done.includes(t.id), due: pending.length > 0 };
         }
         if (t.hotsandPrep) {
-          // 朝か夕方のどちらかで足りていなければ仕込む
-          const need = hotsand.morning.needPrep || hotsand.evening.needPrep;
-          return { ...t, done: done.includes(t.id), due: need };
+          // 前の晩に冷凍庫が少なければ、その日に仕込む
+          return { ...t, done: done.includes(t.id), due: hotsand.needPrep };
         }
         if (t.dailyAction) {
           return {
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
 //   { taskId, done, date? }              … チェックの付け外し
 //   { choice: { taskId, answer }, date? } … 2択の作業でどちらを選んだか
 //   { dailyCount: {...}, date? }         … 牛乳・コールドブリュー・水を数えた結果
-//   { hotsandCount: {...}, date? }       … ホットサンドの個数を数えた結果
+//   { hotsandCount: {...}, date? }       … 閉めるときのホットサンドの記録
 //   { hotsandMade: {...}, date? }        … ホットサンドを仕込んだ数
 //   { waffleBaked: true|false, date? }   … 朝、焼いたか冷蔵庫から出したか
 //   { waffleCounts, bakedAt?, date? }    … 夜のワッフル残数の記録
@@ -146,16 +146,11 @@ export async function POST(req: NextRequest) {
       waffleBaked?: boolean;
       choice?: { taskId?: string; answer?: string };
       hotsandCount?: {
-        slot?: Slot;
         fridge?: Record<string, number>;
         freezer?: Record<string, number>;
         tane?: boolean;
       };
-      hotsandMade?: {
-        slot?: Slot;
-        fridge?: Record<string, number>;
-        freezer?: Record<string, number>;
-      };
+      hotsandMade?: { freezer?: Record<string, number> };
       dailyCount?: { slot?: Slot; values?: DailyValues };
     };
 
@@ -181,26 +176,21 @@ export async function POST(req: NextRequest) {
 
     if (b.hotsandCount) {
       const date = b.date || todayJST();
-      const slot: Slot = b.hotsandCount.slot === "evening" ? "evening" : "morning";
-      await saveCount(
+      await saveNight(
         date,
-        slot,
         b.hotsandCount.fridge ?? {},
         b.hotsandCount.freezer ?? {},
         !!b.hotsandCount.tane,
       );
-      await toggle(date, slot === "morning" ? "hotsand-morning" : "hotsand-evening", true);
+      await toggle(date, "hotsand-night", true);
       return NextResponse.json({ ok: true, date, hotsand: await dayState(date) });
     }
 
     if (b.hotsandMade) {
       const date = b.date || todayJST();
-      const slot: Slot = b.hotsandMade.slot === "evening" ? "evening" : "morning";
-      await saveMade(date, slot, b.hotsandMade.fridge ?? {}, b.hotsandMade.freezer ?? {});
-      const st = await dayState(date);
-      // 足りた時点で仕込みの作業は終わり
-      await toggle(date, "hotsand-prep", !st.morning.needPrep && !st.evening.needPrep);
-      return NextResponse.json({ ok: true, date, hotsand: st });
+      await saveHotsandMade(date, b.hotsandMade.freezer ?? {});
+      await toggle(date, "hotsand-prep", true);
+      return NextResponse.json({ ok: true, date, hotsand: await dayState(date) });
     }
 
     if (b.waffleBaked !== undefined) {

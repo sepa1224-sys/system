@@ -20,7 +20,7 @@ type Task = {
   pendingOrder?: boolean;
   choices?: [string, string];
   answer?: string | null;
-  hotsand?: "morning" | "evening";
+  hotsand?: "night";
   hotsandPrep?: boolean;
   daily?: "morning" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
@@ -31,22 +31,22 @@ type Task = {
 };
 
 type Slot = "morning" | "evening";
-type SlotState = {
-  counted: boolean;
-  par: { fridge: number; freezer: number };
-  fridge: Record<string, number> | null;
-  freezer: Record<string, number> | null;
-  tane: boolean | null;
-  made: { fridge: Record<string, number>; freezer: Record<string, number> } | null;
-  shortages: { flavor: string; fridge: number; freezer: number; freezerEmpty: boolean; canMove: boolean }[];
-  needPrep: boolean;
-  needMove: boolean;
-  empty: string[];
-};
 type Hotsand = {
   flavors: string[];
-  morning: SlotState;
-  evening: SlotState;
+  fridgePar: number;
+  freezerLow: number;
+  batch: number;
+  night: {
+    counted: boolean;
+    fridge: Record<string, number> | null;
+    freezer: Record<string, number> | null;
+    tane: boolean | null;
+    low: { flavor: string; left: number }[];
+  };
+  basisDate: string | null;
+  low: { flavor: string; left: number }[];
+  madeToday: number;
+  needPrep: boolean;
 };
 
 type DailyItem = {
@@ -212,12 +212,11 @@ export default function OpeningPage() {
     }
   };
 
-  // key は "morning:fridge:クラシックメルト" のように作る
-  const hsKey = (slot: Slot, where: string, f: string) => `${slot}:${where}:${f}`;
-  const hsNum = (slot: Slot, where: string, f: string) =>
-    Number(hsIn[hsKey(slot, where, f)] || 0);
+  // key は "fridge:クラシックメルト" のように作る
+  const hsKey = (where: string, f: string) => `${where}:${f}`;
+  const hsNum = (where: string, f: string) => Number(hsIn[hsKey(where, f)] || 0);
 
-  const saveHotsand = async (slot: Slot, tane: boolean) => {
+  const saveHotsand = async (tane: boolean) => {
     if (!hs) return;
     setHsBusy(true);
     setErr("");
@@ -225,13 +224,13 @@ export default function OpeningPage() {
       const fridge: Record<string, number> = {};
       const freezer: Record<string, number> = {};
       for (const f of hs.flavors) {
-        fridge[f] = hsNum(slot, "fridge", f);
-        freezer[f] = hsNum(slot, "freezer", f);
+        fridge[f] = hsNum("fridge", f);
+        freezer[f] = hsNum("freezer", f);
       }
       const res = await fetch("/api/opening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hotsandCount: { slot, fridge, freezer, tane } }),
+        body: JSON.stringify({ hotsandCount: { fridge, freezer, tane } }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       await load();
@@ -242,29 +241,22 @@ export default function OpeningPage() {
     }
   };
 
-  const saveHotsandMade = async (slot: Slot) => {
+  const saveHotsandMade = async () => {
     if (!hs) return;
     setHsBusy(true);
     setErr("");
     try {
-      const fridge: Record<string, number> = {};
       const freezer: Record<string, number> = {};
-      for (const f of hs.flavors) {
-        fridge[f] = hsNum(slot, "madeFridge", f);
-        freezer[f] = hsNum(slot, "madeFreezer", f);
-      }
+      for (const f of hs.flavors) freezer[f] = hsNum("made", f);
       const res = await fetch("/api/opening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hotsandMade: { slot, fridge, freezer } }),
+        body: JSON.stringify({ hotsandMade: { freezer } }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setHsIn((p) => {
         const n = { ...p };
-        for (const f of hs.flavors) {
-          delete n[hsKey(slot, "madeFridge", f)];
-          delete n[hsKey(slot, "madeFreezer", f)];
-        }
+        for (const f of hs.flavors) delete n[hsKey("made", f)];
         return n;
       });
       await load();
@@ -559,194 +551,125 @@ export default function OpeningPage() {
               </div>
             );
           })()}
-          {t.hotsand && hs && (() => {
-            const slot = t.hotsand;
-            const st = hs[slot];
-            return (
-              <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
-                {(["fridge", "freezer"] as const).map((where) => (
-                  <div key={where} style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
-                      {where === "fridge" ? "冷蔵庫" : "冷凍庫"}
-                      （各{st.par[where]}個
-                      {slot === "morning"
-                        ? where === "fridge" ? "・出したら冷凍庫から移す" : "・空にしない"
-                        : "・足りなければ仕込む"}）
-                    </div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      {hs.flavors.map((f) => (
-                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ fontSize: 12.5 }}>{f}</span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={hsIn[hsKey(slot, where, f)] ?? (st.counted ? String(st[where]?.[f] ?? 0) : "")}
-                            onChange={(e) => setHsIn((p) => ({ ...p, [hsKey(slot, where, f)]: e.target.value }))}
-                            style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
-                          />
-                          <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
-                        </div>
-                      ))}
-                    </div>
+          {t.hotsand && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
+                冷蔵庫（各{hs.fridgePar}個にそろえる）
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {hs.flavors.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 12.5 }}>{f}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={hsIn[hsKey("fridge", f)] ?? (hs.night.counted ? String(hs.night.fridge?.[f] ?? 0) : String(hs.fridgePar))}
+                      onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("fridge", f)]: e.target.value }))}
+                      style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                  <button
-                    onClick={() => saveHotsand(slot, true)}
-                    disabled={hsBusy}
-                    style={{
-                      padding: "9px 14px", borderRadius: 8, cursor: "pointer",
-                      fontSize: 13, fontWeight: 700,
-                      border: st.tane === true ? "2px solid var(--ok)" : "1px solid var(--line)",
-                      background: st.tane === true ? "var(--ok)" : "#fff",
-                      color: st.tane === true ? "#fff" : "var(--ink)",
-                    }}
-                  >
-                    記録する（タネあり）
-                  </button>
-                  <button
-                    onClick={() => saveHotsand(slot, false)}
-                    disabled={hsBusy}
-                    style={{
-                      padding: "9px 14px", borderRadius: 8, cursor: "pointer",
-                      fontSize: 13, fontWeight: 700,
-                      border: st.tane === false ? "2px solid #c0392b" : "1px solid var(--line)",
-                      background: st.tane === false ? "#fde8e8" : "#fff",
-                      color: st.tane === false ? "#c0392b" : "var(--ink)",
-                    }}
-                  >
-                    記録する（タネなし）
-                  </button>
-                </div>
-                {st.counted && (
-                  <div style={{
-                    marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
-                    background: st.needPrep || st.needMove ? "#fde8e8" : "#eaf6ec",
-                    border: `1px solid ${st.needPrep || st.needMove ? "#e0b4b4" : "#b7dfc0"}`,
-                    color: st.needPrep || st.needMove ? "#c0392b" : "var(--ok)", fontWeight: 700,
-                  }}>
-                    {st.empty.length > 0 && (
-                      <div style={{ marginBottom: 4 }}>
-                        🚨 冷凍庫に{st.empty.join("・")}がありません。最優先で仕込んでください
-                      </div>
-                    )}
-                    {st.needMove && (
-                      <div>
-                        冷蔵庫が足りません →{" "}
-                        {st.shortages.filter((x) => x.fridge > 0)
-                          .map((x) => `${x.flavor}${x.fridge}個`).join("・")}
-                        {" "}を冷凍庫から移す
-                      </div>
-                    )}
-                    {st.needPrep && (
-                      <div>
-                        {slot === "morning" ? "冷凍庫が足りません" : "足りません"} →{" "}
-                        {st.shortages
-                          .filter((x) => (slot === "morning" ? x.freezer > 0 : x.freezer > 0 || x.fridge > 0))
-                          .map((x) =>
-                            slot === "morning"
-                              ? `${x.flavor}${x.freezer}個`
-                              : `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`,
-                          )
-                          .join("・")}
-                        {" "}を仕込む
-                      </div>
-                    )}
-                    {!st.needPrep && !st.needMove && "決めた数がそろっています"}
-                    {st.tane === false && <div>タネがありません。タネから仕込んでください</div>}
-                  </div>
-                )}
               </div>
-            );
-          })()}
-          {t.hotsandPrep && hs && (
-            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
-              {(["morning", "evening"] as const)
-                .filter((slot) => hs[slot].needPrep)
-                .map((slot) => (
-                  <div key={slot} style={{
-                    padding: "10px 11px", borderRadius: 7, marginBottom: 8,
-                    background: "#fdf6ec", border: "1px solid #e8d5b0",
-                  }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-                      {slot === "morning" ? "朝" : "20時"}のチェックで足りなかった分
-                    </div>
-                    <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
-                      {slot === "morning" ? "冷凍庫に足りない分" : "足りない分"}:{" "}
-                      {hs[slot].shortages
-                        .filter((x) => (slot === "morning" ? x.freezer > 0 : x.freezer > 0 || x.fridge > 0))
-                        .map((x) =>
-                          slot === "morning"
-                            ? `${x.flavor}${x.freezer}個`
-                            : `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`,
-                        )
-                        .join("・")}
-                      {hs[slot].empty.length > 0 && (
-                        <><br />🚨 {hs[slot].empty.join("・")}は冷凍庫が空です</>
-                      )}
-                    </div>
-                    {(["madeFridge", "madeFreezer"] as const).map((where) => (
-                      <div key={where} style={{ marginTop: 7 }}>
-                        <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
-                          仕込んだ数（{where === "madeFridge" ? "冷蔵庫へ" : "冷凍庫へ"}）
-                        </div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          {hs.flavors.map((f) => (
-                            <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                              <span style={{ fontSize: 12.5 }}>{f}</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={hsIn[hsKey(slot, where, f)] ?? ""}
-                                onChange={(e) => setHsIn((p) => ({ ...p, [hsKey(slot, where, f)]: e.target.value }))}
-                                style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
-                              />
-                              <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+              <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "8px 0 4px" }}>
+                冷凍庫の残り（各{hs.freezerLow}個を切ったら翌日{hs.batch}個仕込む）
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {hs.flavors.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 12.5 }}>{f}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={hsIn[hsKey("freezer", f)] ?? (hs.night.counted ? String(hs.night.freezer?.[f] ?? 0) : "")}
+                      onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("freezer", f)]: e.target.value }))}
+                      style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                {[true, false].map((tane) => {
+                  const on = hs.night.tane === tane;
+                  return (
                     <button
-                      onClick={() => saveHotsandMade(slot)}
+                      key={String(tane)}
+                      onClick={() => saveHotsand(tane)}
                       disabled={hsBusy}
                       style={{
-                        marginTop: 8, padding: "8px 14px", borderRadius: 8, border: "none",
-                        background: "var(--accent)", color: "#fff", fontSize: 13,
-                        fontWeight: 700, cursor: "pointer",
+                        padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                        fontSize: 13, fontWeight: 700,
+                        border: on ? `2px solid ${tane ? "var(--ok)" : "#c0392b"}` : "1px solid var(--line)",
+                        background: on ? (tane ? "var(--ok)" : "#fde8e8") : "#fff",
+                        color: on ? (tane ? "#fff" : "#c0392b") : "var(--ink)",
                       }}
                     >
-                      {hsBusy ? "記録中…" : "仕込んだ数を記録する"}
+                      記録する（タネ{tane ? "あり" : "なし"}）
                     </button>
-                  </div>
-                ))}
-              {!hs.morning.needPrep && !hs.evening.needPrep && (
-                <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                  いま仕込むものはありません
+                  );
+                })}
+              </div>
+              {hs.night.counted && (
+                <div style={{
+                  marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
+                  background: hs.night.low.length ? "#fde8e8" : "#eaf6ec",
+                  border: `1px solid ${hs.night.low.length ? "#e0b4b4" : "#b7dfc0"}`,
+                  color: hs.night.low.length ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                }}>
+                  {hs.night.low.length
+                    ? `冷凍庫が少なくなっています（${hs.night.low.map((x) => `${x.flavor}${x.left}個`).join("・")}）。明日${hs.batch}個仕込む作業が出ます`
+                    : "冷凍庫はまだ足りています"}
+                  {hs.night.tane === false && <div>タネがありません。タネから仕込んでください</div>}
                 </div>
               )}
             </div>
           )}
-          {t.dailyAction && daily && (() => {
-            const list = [
-              ...(daily.carried ?? []),
-              ...daily.morning.needs,
-              ...daily.evening.needs,
-            ].filter((n) => n.action === t.dailyAction);
-            // 同じものが朝と夜の両方で出ることがあるのでまとめる
-            const seen = new Set<string>();
-            const uniq = list.filter((n) => (seen.has(n.id) ? false : (seen.add(n.id), true)));
-            if (!uniq.length) return null;
-            return (
+          {t.hotsandPrep && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
               <div style={{
-                marginTop: 7, padding: "9px 11px", borderRadius: 7,
-                background: "#fde8e8", border: "1px solid #e0b4b4",
-                fontSize: 12.5, lineHeight: 1.8, color: "#c0392b", fontWeight: 700,
+                padding: "10px 11px", borderRadius: 7,
+                background: "#fdf6ec", border: "1px solid #e8d5b0",
               }}>
-                {uniq.map((n) => <div key={n.id}>{n.name} → {n.text}</div>)}
+                <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+                  {hs.basisDate?.slice(5).replace("-", "/")}の夜の時点で冷凍庫が少なくなっていました
+                </div>
+                <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
+                  {hs.low.map((x) => `${x.flavor}${x.left}個`).join("・")}
+                  {" "}→ 合わせて{hs.batch}個仕込む
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "8px 0 4px" }}>
+                  仕込んで冷凍庫に入れた数
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {hs.flavors.map((f) => (
+                    <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 12.5 }}>{f}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={hsIn[hsKey("made", f)] ?? ""}
+                        onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("made", f)]: e.target.value }))}
+                        style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                      />
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={saveHotsandMade}
+                  disabled={hsBusy}
+                  style={{
+                    marginTop: 8, padding: "8px 14px", borderRadius: 8, border: "none",
+                    background: "var(--accent)", color: "#fff", fontSize: 13,
+                    fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  {hsBusy ? "記録中…" : "仕込んだ数を記録する"}
+                </button>
               </div>
-            );
-          })()}
+            </div>
+          )}
           {t.orderList && (
             <div onClick={(e) => e.stopPropagation()}>
               <Link

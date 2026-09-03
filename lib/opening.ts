@@ -38,8 +38,8 @@ export type Task = {
   pendingOrder?: boolean;
   /** 「やった／今日はやらなくていい」を選ぶ作業。押したほうが記録される */
   choices?: [string, string];
-  /** ホットサンドの個数を数える作業。朝か夕方か */
-  hotsand?: "morning" | "evening";
+  /** 閉めるときにホットサンドを整える作業 */
+  hotsand?: "night";
   /** ホットサンドが足りないときだけ出す仕込みの作業 */
   hotsandPrep?: boolean;
   /** 牛乳・コールドブリュー・水を数える作業。朝か夜か */
@@ -111,15 +111,6 @@ export const TASKS: Task[] = [
     dailyAction: "prep",
   },
   {
-    id: "hotsand-morning",
-    phase: "朝",
-    name: "ホットサンドの在庫を数える",
-    detail:
-      "冷蔵庫は各2個、冷凍庫は各5個。出したら冷凍庫から冷蔵庫へ移して補充する。" +
-      "冷凍庫が空になると移すものが無くなるので、そこだけは切らさない",
-    hotsand: "morning",
-  },
-  {
     id: "dishes-put-away",
     phase: "営業中",
     name: "16時半に洗ってある食器を全部片付ける",
@@ -139,20 +130,20 @@ export const TASKS: Task[] = [
     daily: "evening",
   },
   {
-    id: "hotsand-evening",
-    phase: "営業中",
-    name: "20時にホットサンドの在庫を数える",
+    id: "hotsand-night",
+    phase: "締め",
+    name: "ホットサンドを冷蔵庫に3つずつそろえる",
     detail:
-      "この時間は冷蔵庫・冷凍庫とも各3個。夜の混む時間の前なので、すぐ焼ける冷蔵庫を厚くする。" +
-      "凍ったものを移しても解凍が間に合わないので、足りなければ仕込む",
-    hotsand: "evening",
+      "冷凍庫から移して冷蔵庫を各3個にし、そのとき冷凍庫に何個残っているかを入れる。" +
+      "冷凍庫が各2個を切っていたら、翌日に10個仕込む作業が出る",
+    hotsand: "night",
   },
   {
     id: "hotsand-prep",
     phase: "営業中",
-    name: "ホットサンドを仕込む",
+    name: "ホットサンドを10個仕込む",
     detail:
-      "冷凍庫に足りない分を仕込む。冷蔵庫が足りないだけなら冷凍庫から移せば済むので、仕込まなくてよい",
+      "前の晩の時点で冷凍庫が各2個を切っていたら出る。だいたい3日に1回まわってくる",
     hotsandPrep: true,
   },
   {

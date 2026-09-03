@@ -1,34 +1,24 @@
 // ホットサンドの仕込み在庫。
 //
-// 回し方は「出したら冷凍庫から冷蔵庫へ補充する」。
-// 冷蔵庫はすぐ焼ける分の置き場なので少なくてよく、
-// 冷凍庫が本体の在庫になる。
+// 回し方は「冷蔵庫は常に各3個、冷凍庫が本体の在庫」。
+// 出したら冷凍庫から冷蔵庫へ移して補充する。
 //
-//   冷蔵庫が足りない → 冷凍庫から移すだけ（仕込みではない）
-//   冷凍庫が足りない → 仕込む
-//   冷凍庫が空       → 移すものが無くなるので最優先で仕込む
+// 毎晩、閉めるときに冷蔵庫を各3個にそろえ、
+// そのとき冷凍庫に何個残っているかを記録する。
+// 冷凍庫が各2個を切っていたら、翌日10個仕込む。
 //
-// 朝と夕方に数え、「何個あったか」と「何個仕込んだか」を両方残すので、
-// 1日に何個出ているかが後から分かる。
+// 数えるのは夜の1回だけにしてある。朝も数えていたが、
+// 夜にそろえてから開けるまでに減らないので意味がなかった。
 
 export const HOTSAND_FLAVORS = ["クラシックメルト", "ガーデンメルト"] as const;
 export type Flavor = (typeof HOTSAND_FLAVORS)[number];
 
-/** 朝の分か、夜20時の分か */
-export type Slot = "morning" | "evening";
-
-/**
- * 置いておく数。時間帯で変える。
- *
- * 朝は冷凍庫を厚くしておく。日中は出るたびに冷凍庫から移せば足りる。
- * 20時は夜の混む時間の前なので、すぐ焼ける冷蔵庫のほうを厚くする。
- * この時間に凍ったものを移しても解凍が間に合わないため、
- * 足りなければ移すのではなく仕込む。
- */
-export const HOTSAND_PAR: Record<Slot, { fridge: number; freezer: number }> = {
-  morning: { fridge: 2, freezer: 5 },
-  evening: { fridge: 3, freezer: 3 },
-};
+/** 閉めるときに冷蔵庫にそろえる数（フレーバーごと） */
+export const FRIDGE_PAR = 3;
+/** 冷凍庫がフレーバーごとにこれを切ったら、翌日仕込む */
+export const FREEZER_LOW = 2;
+/** 1回に仕込む数。3日に1回まわってくる想定 */
+export const BATCH = 10;
 
 const KEY = "hotsand:counts";
 
@@ -42,18 +32,19 @@ async function kv() {
 }
 
 export type Entry = {
-  /** フレーバーごとの冷蔵庫の個数 */
+  /** 冷蔵庫にそろえた数。ふつうは各3個 */
   fridge: Record<string, number>;
-  /** フレーバーごとの冷凍庫の個数 */
+  /** 冷凍庫の残り。これが判断の中心 */
   freezer: Record<string, number>;
   /** ホットサンドのタネが仕込んであるか */
   tane: boolean;
-  /** このあと仕込んだ数。冷蔵用と冷凍用で分ける */
-  made?: { fridge: Record<string, number>; freezer: Record<string, number> };
   at: string;
 };
 
-type Day = Partial<Record<Slot, Entry>>;
+/** 仕込んだ記録。何個作って冷凍庫に入れたか */
+export type Made = { freezer: Record<string, number>; at: string };
+
+type Day = { night?: Entry; made?: Made };
 type Store = Record<string, Day>;
 
 export async function getAll(): Promise<Store> {
@@ -65,7 +56,6 @@ export async function getAll(): Promise<Store> {
 async function put(all: Store): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");
-  // 1年分。1日2件しかないので軽い
   const keep = Object.keys(all).sort().slice(-365);
   const next: Store = {};
   for (const d of keep) next[d] = all[d];
@@ -74,10 +64,9 @@ async function put(all: Store): Promise<void> {
 
 const zero = () => Object.fromEntries(HOTSAND_FLAVORS.map((f) => [f, 0]));
 
-/** 数えた結果を記録する */
-export async function saveCount(
+/** 閉めるときの記録 */
+export async function saveNight(
   date: string,
-  slot: Slot,
   fridge: Record<string, number>,
   freezer: Record<string, number>,
   tane: boolean,
@@ -88,110 +77,76 @@ export async function saveCount(
     fridge: { ...zero(), ...fridge },
     freezer: { ...zero(), ...freezer },
     tane,
-    ...(day[slot]?.made ? { made: day[slot]!.made } : {}),
     at: new Date().toISOString(),
   };
-  day[slot] = entry;
+  day.night = entry;
   all[date] = day;
   await put(all);
   return entry;
 }
 
-/**
- * 仕込んだ数を記録する。数えた数にそのまま足す。
- * 仕込んだ直後にもう一度数え直さなくて済むようにするため。
- */
+/** 仕込んだ数。冷凍庫に入れた分を、その日の記録に足す */
 export async function saveMade(
   date: string,
-  slot: Slot,
-  fridge: Record<string, number>,
   freezer: Record<string, number>,
-): Promise<Entry> {
+): Promise<Made> {
   const all = await getAll();
   const day = all[date] ?? {};
-  const cur = day[slot];
-  if (!cur) throw new Error("先に個数を数えて記録してください");
-  const add = (base: Record<string, number>, plus: Record<string, number>) =>
-    Object.fromEntries(
-      HOTSAND_FLAVORS.map((f) => [f, (base[f] ?? 0) + (Number(plus[f]) || 0)]),
-    );
-  const madeF = Object.fromEntries(HOTSAND_FLAVORS.map((f) => [f, Number(fridge[f]) || 0]));
-  const madeZ = Object.fromEntries(HOTSAND_FLAVORS.map((f) => [f, Number(freezer[f]) || 0]));
-  const prev = cur.made ?? { fridge: zero(), freezer: zero() };
-  const entry: Entry = {
-    ...cur,
-    fridge: add(cur.fridge, madeF),
-    freezer: add(cur.freezer, madeZ),
-    made: { fridge: add(prev.fridge, madeF), freezer: add(prev.freezer, madeZ) },
+  const prev = day.made?.freezer ?? zero();
+  const made: Made = {
+    freezer: Object.fromEntries(
+      HOTSAND_FLAVORS.map((f) => [f, (prev[f] ?? 0) + (Number(freezer[f]) || 0)]),
+    ),
     at: new Date().toISOString(),
   };
-  day[slot] = entry;
+  day.made = made;
   all[date] = day;
   await put(all);
-  return entry;
+  return made;
 }
 
-export type Shortage = {
-  flavor: string;
-  /** 冷蔵庫に足りない数。冷凍庫から移して埋める */
-  fridge: number;
-  /** 冷凍庫に足りない数。仕込んで埋める */
-  freezer: number;
-  /** 冷凍庫が空。移すものが無いので最優先 */
-  freezerEmpty: boolean;
-  /** 冷蔵庫が足りないが、冷凍庫から移せば埋まる */
-  canMove: boolean;
-};
+export function yesterdayOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
-/** 決めた数に対して、何個足りないか */
-export function shortages(entry: Entry | undefined, slot: Slot): Shortage[] {
+/** 冷凍庫が少ないフレーバー */
+export function lowFlavors(entry: Entry | undefined): { flavor: string; left: number }[] {
   if (!entry) return [];
-  const par = HOTSAND_PAR[slot];
-  return HOTSAND_FLAVORS.map((f) => {
-    const inF = entry.fridge[f] ?? 0;
-    const inZ = entry.freezer[f] ?? 0;
-    const fridge = Math.max(0, par.fridge - inF);
-    return {
-      flavor: f,
-      fridge,
-      freezer: Math.max(0, par.freezer - inZ),
-      freezerEmpty: inZ === 0,
-      // 20時は解凍が間に合わないので移さない
-      canMove: slot === "morning" && fridge > 0 && inZ > 0,
-    };
-  }).filter((s) => s.fridge > 0 || s.freezer > 0);
+  return HOTSAND_FLAVORS.map((f) => ({ flavor: f, left: entry.freezer[f] ?? 0 }))
+    .filter((x) => x.left < FREEZER_LOW);
 }
 
-/** その日の状態。朝と夕方それぞれの、数えた結果と不足 */
 export async function dayState(date: string) {
   const all = await getAll();
-  const day = all[date] ?? {};
+  const today = all[date] ?? {};
+  const yst = all[yesterdayOf(date)] ?? {};
 
-  const build = (slot: Slot) => {
-    const e = day[slot];
-    const short = shortages(e, slot);
-    return {
-      counted: !!e,
-      par: HOTSAND_PAR[slot],
-      fridge: e?.fridge ?? null,
-      freezer: e?.freezer ?? null,
-      tane: e?.tane ?? null,
-      made: e?.made ?? null,
-      shortages: short,
-      /** 仕込みが要る。朝は冷凍庫の不足だけ、20時は冷蔵庫の不足も仕込む */
-      needPrep:
-        slot === "morning"
-          ? short.some((s) => s.freezer > 0)
-          : short.some((s) => s.freezer > 0 || s.fridge > 0),
-      /** 冷蔵庫が足りないので冷凍庫から移す（朝だけ） */
-      needMove: short.some((s) => s.canMove),
-      /** 冷凍庫が空。これが一番まずい */
-      empty: short.filter((s) => s.freezerEmpty).map((s) => s.flavor),
-    };
-  };
+  // 仕込むかどうかは前夜の記録で決まる。
+  // ただし今夜もう数えているなら、そちらが最新なのでそれを見る。
+  const basis = today.night ?? yst.night;
+  const basisDate = today.night ? date : yesterdayOf(date);
+  const low = lowFlavors(basis);
+  // その日にもう仕込んでいれば、仕込みの作業は出さない
+  const madeToday = Object.values(today.made?.freezer ?? {}).reduce((a, b) => a + b, 0);
+
   return {
     flavors: [...HOTSAND_FLAVORS],
-    morning: build("morning"),
-    evening: build("evening"),
+    fridgePar: FRIDGE_PAR,
+    freezerLow: FREEZER_LOW,
+    batch: BATCH,
+    night: {
+      counted: !!today.night,
+      fridge: today.night?.fridge ?? null,
+      freezer: today.night?.freezer ?? null,
+      tane: today.night?.tane ?? null,
+      low: lowFlavors(today.night),
+    },
+    /** 仕込みの判断のもとになった記録 */
+    basisDate: basis ? basisDate : null,
+    low,
+    madeToday,
+    needPrep: low.length > 0 && madeToday === 0,
   };
 }
