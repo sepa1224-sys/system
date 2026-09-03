@@ -90,6 +90,7 @@ export const SEED_ITEMS: Item[] = [
   // コーヒー・茶
   { id: "espresso-bean", name: "エスプレッソ豆", group: "コーヒー・茶", par: 2, unit: "袋" },
   { id: "tea-leaf", name: "紅茶の茶葉", group: "コーヒー・茶", par: 1, unit: "袋" },
+  { id: "straight-tea", name: "ストレートティー（無糖）", group: "コーヒー・茶", par: 3, unit: "本", buyId: 30, orderQty: 12 },
   { id: "matcha", name: "抹茶パウダー", group: "コーヒー・茶", par: 1, unit: "袋" },
   { id: "cocoa", name: "ココアパウダー", group: "コーヒー・茶", par: 1, unit: "袋" },
   { id: "protein", name: "プロテインパウダー", group: "コーヒー・茶", par: 1, unit: "袋" },

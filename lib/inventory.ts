@@ -405,6 +405,19 @@ export const DEFAULT_INVENTORY: InventoryItem[] = [
     note: "アミカのネットショップで購入。商品ページのURLと価格は次に買うときに入れる",
     addedDate: "2026-09-03",
   },
+  {
+    id: 30,
+    name: "ストレートティー無糖 1000ml",
+    brand: "GSフード",
+    category: "コーヒー・茶",
+    unit: "ml",
+    capacity: 1000,
+    price: 340,
+    supplier: "アミカ ネットショップ",
+    url: "https://www.amicashop.com/products/detail/21658",
+    note: "1本¥340（税込）。12本入ケース。アイスティーに使う",
+    addedDate: "2026-09-03",
+  },
 ];
 
 // ─── CRUD ───
