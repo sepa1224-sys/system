@@ -21,6 +21,7 @@ import { dayState, saveCount, saveMade, type Slot } from "@/lib/hotsand";
 import {
   dayState as dailyState,
   saveValues as saveDaily,
+  clearValues as clearDaily,
   type Values as DailyValues,
 } from "@/lib/dailycheck";
 
@@ -232,6 +233,28 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "保存に失敗" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE /api/opening { dailyDate, dailySlot } → 数え間違えた記録を消す
+export async function DELETE(req: NextRequest) {
+  try {
+    const b = (await req.json()) as { dailyDate?: string; dailySlot?: Slot };
+    if (!b.dailyDate || !b.dailySlot) {
+      return NextResponse.json({ error: "dailyDateとdailySlotが必要です" }, { status: 400 });
+    }
+    await clearDaily(b.dailyDate, b.dailySlot);
+    await toggle(
+      b.dailyDate,
+      b.dailySlot === "morning" ? "daily-morning" : "daily-evening",
+      false,
+    );
+    return NextResponse.json({ ok: true, daily: await dailyState(b.dailyDate) });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "削除に失敗" },
       { status: 500 },
     );
   }

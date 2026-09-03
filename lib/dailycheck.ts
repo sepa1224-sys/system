@@ -100,6 +100,17 @@ export async function saveValues(date: string, slot: Slot, values: Values): Prom
   await store.set(KEY, next);
 }
 
+/** 入れ間違えた分を消す */
+export async function clearValues(date: string, slot: Slot): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const all = await getAll();
+  if (!all[date]) return;
+  delete all[date][slot];
+  if (!Object.keys(all[date]).length) delete all[date];
+  await store.set(KEY, all);
+}
+
 export type Need = { id: string; name: string; action: CheckItem["action"]; text: string };
 
 /** 足りないもの。数えていなければ空 */
