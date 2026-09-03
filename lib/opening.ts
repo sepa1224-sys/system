@@ -48,6 +48,15 @@ export type Task = {
   dailyAction?: "buy" | "prep" | "refill";
 };
 
+// ホットサンドの在庫チェックは、運用が固まるまで業務チェックから外している。
+// 中身（lib/hotsand.ts と API の受け口）はそのまま残してあるので、
+// 下の2つを TASKS に戻せば復活する。
+//
+//   { id: "hotsand-night", phase: "締め",
+//     name: "ホットサンドを冷蔵庫に3つずつそろえる", hotsand: "night" }
+//   { id: "hotsand-prep", phase: "営業中",
+//     name: "ホットサンドを10個仕込む", hotsandPrep: true }
+
 export const TASKS: Task[] = [
   {
     id: "espresso",
@@ -128,23 +137,6 @@ export const TASKS: Task[] = [
     name: "牛乳・パン・コールドブリュー・水を数える（夜）",
     detail: "21時ごろに数える。足りないものは翌朝の手当てとして自動で出る",
     daily: "evening",
-  },
-  {
-    id: "hotsand-night",
-    phase: "締め",
-    name: "ホットサンドを冷蔵庫に3つずつそろえる",
-    detail:
-      "冷凍庫から移して冷蔵庫を各3個にし、そのとき冷凍庫に何個残っているかを入れる。" +
-      "冷凍庫が各2個を切っていたら、翌日に10個仕込む作業が出る",
-    hotsand: "night",
-  },
-  {
-    id: "hotsand-prep",
-    phase: "営業中",
-    name: "ホットサンドを10個仕込む",
-    detail:
-      "前の晩の時点で冷凍庫が各2個を切っていたら出る。だいたい3日に1回まわってくる",
-    hotsandPrep: true,
   },
   {
     id: "stock-check",
