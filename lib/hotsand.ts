@@ -1,15 +1,21 @@
 // ホットサンドの仕込み在庫。
 //
-// 朝と夕方に、冷蔵庫と冷凍庫にそれぞれ何個あるかを数える。
-// 決めた数に足りなければ、その差だけ仕込む。
-// 「何個あったか」と「何個仕込んだか」を両方残すので、
+// 回し方は「出したら冷凍庫から冷蔵庫へ補充する」。
+// 冷蔵庫はすぐ焼ける分の置き場なので少なくてよく、
+// 冷凍庫が本体の在庫になる。
+//
+//   冷蔵庫が足りない → 冷凍庫から移すだけ（仕込みではない）
+//   冷凍庫が足りない → 仕込む
+//   冷凍庫が空       → 移すものが無くなるので最優先で仕込む
+//
+// 朝と夕方に数え、「何個あったか」と「何個仕込んだか」を両方残すので、
 // 1日に何個出ているかが後から分かる。
 
 export const HOTSAND_FLAVORS = ["クラシックメルト", "ガーデンメルト"] as const;
 export type Flavor = (typeof HOTSAND_FLAVORS)[number];
 
 /** 常に置いておく数。フレーバーごとの個数 */
-export const HOTSAND_PAR = { fridge: 3, freezer: 5 } as const;
+export const HOTSAND_PAR = { fridge: 2, freezer: 5 } as const;
 
 /** 朝の分か、夕方の分か */
 export type Slot = "morning" | "evening";
@@ -115,16 +121,33 @@ export async function saveMade(
   return entry;
 }
 
-export type Shortage = { flavor: string; fridge: number; freezer: number };
+export type Shortage = {
+  flavor: string;
+  /** 冷蔵庫に足りない数。冷凍庫から移して埋める */
+  fridge: number;
+  /** 冷凍庫に足りない数。仕込んで埋める */
+  freezer: number;
+  /** 冷凍庫が空。移すものが無いので最優先 */
+  freezerEmpty: boolean;
+  /** 冷蔵庫が足りないが、冷凍庫から移せば埋まる */
+  canMove: boolean;
+};
 
 /** 決めた数に対して、何個足りないか */
 export function shortages(entry: Entry | undefined): Shortage[] {
   if (!entry) return [];
-  return HOTSAND_FLAVORS.map((f) => ({
-    flavor: f,
-    fridge: Math.max(0, HOTSAND_PAR.fridge - (entry.fridge[f] ?? 0)),
-    freezer: Math.max(0, HOTSAND_PAR.freezer - (entry.freezer[f] ?? 0)),
-  })).filter((s) => s.fridge > 0 || s.freezer > 0);
+  return HOTSAND_FLAVORS.map((f) => {
+    const inF = entry.fridge[f] ?? 0;
+    const inZ = entry.freezer[f] ?? 0;
+    const fridge = Math.max(0, HOTSAND_PAR.fridge - inF);
+    return {
+      flavor: f,
+      fridge,
+      freezer: Math.max(0, HOTSAND_PAR.freezer - inZ),
+      freezerEmpty: inZ === 0,
+      canMove: fridge > 0 && inZ > 0,
+    };
+  }).filter((s) => s.fridge > 0 || s.freezer > 0);
 }
 
 /** その日の状態。朝と夕方それぞれの、数えた結果と不足 */
@@ -141,8 +164,12 @@ export async function dayState(date: string) {
       tane: e?.tane ?? null,
       made: e?.made ?? null,
       shortages: short,
-      /** 足りないので仕込みが要る */
-      needPrep: short.length > 0,
+      /** 冷凍庫が足りないので仕込む */
+      needPrep: short.some((s) => s.freezer > 0),
+      /** 冷蔵庫が足りないので冷凍庫から移す */
+      needMove: short.some((s) => s.fridge > 0),
+      /** 冷凍庫が空。これが一番まずい */
+      empty: short.filter((s) => s.freezerEmpty).map((s) => s.flavor),
     };
   };
   return {

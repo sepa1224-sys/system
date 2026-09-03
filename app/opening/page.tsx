@@ -37,8 +37,10 @@ type SlotState = {
   freezer: Record<string, number> | null;
   tane: boolean | null;
   made: { fridge: Record<string, number>; freezer: Record<string, number> } | null;
-  shortages: { flavor: string; fridge: number; freezer: number }[];
+  shortages: { flavor: string; fridge: number; freezer: number; freezerEmpty: boolean; canMove: boolean }[];
   needPrep: boolean;
+  needMove: boolean;
+  empty: string[];
 };
 type Hotsand = {
   flavors: string[];
@@ -566,7 +568,7 @@ export default function OpeningPage() {
                   <div key={where} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
                       {where === "fridge" ? "冷蔵庫" : "冷凍庫"}
-                      （各{hs.par[where]}個あるようにする）
+                      （各{hs.par[where]}個あるようにする{where === "fridge" ? "・出したら冷凍庫から移す" : "・空にしない"}）
                     </div>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       {hs.flavors.map((f) => (
@@ -616,16 +618,33 @@ export default function OpeningPage() {
                 {st.counted && (
                   <div style={{
                     marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
-                    background: st.needPrep ? "#fde8e8" : "#eaf6ec",
-                    border: `1px solid ${st.needPrep ? "#e0b4b4" : "#b7dfc0"}`,
-                    color: st.needPrep ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                    background: st.needPrep || st.needMove ? "#fde8e8" : "#eaf6ec",
+                    border: `1px solid ${st.needPrep || st.needMove ? "#e0b4b4" : "#b7dfc0"}`,
+                    color: st.needPrep || st.needMove ? "#c0392b" : "var(--ok)", fontWeight: 700,
                   }}>
-                    {st.needPrep
-                      ? `足りません → ${st.shortages
-                          .map((x) => `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`)
-                          .join("、")}`
-                      : "決めた数がそろっています"}
-                    {st.tane === false && <><br />タネがありません。タネから仕込んでください</>}
+                    {st.empty.length > 0 && (
+                      <div style={{ marginBottom: 4 }}>
+                        🚨 冷凍庫に{st.empty.join("・")}がありません。最優先で仕込んでください
+                      </div>
+                    )}
+                    {st.needMove && (
+                      <div>
+                        冷蔵庫が足りません →{" "}
+                        {st.shortages.filter((x) => x.fridge > 0)
+                          .map((x) => `${x.flavor}${x.fridge}個`).join("・")}
+                        {" "}を冷凍庫から移す
+                      </div>
+                    )}
+                    {st.needPrep && (
+                      <div>
+                        冷凍庫が足りません →{" "}
+                        {st.shortages.filter((x) => x.freezer > 0)
+                          .map((x) => `${x.flavor}${x.freezer}個`).join("・")}
+                        {" "}を仕込む
+                      </div>
+                    )}
+                    {!st.needPrep && !st.needMove && "決めた数がそろっています"}
+                    {st.tane === false && <div>タネがありません。タネから仕込んでください</div>}
                   </div>
                 )}
               </div>
@@ -644,9 +663,12 @@ export default function OpeningPage() {
                       {slot === "morning" ? "朝" : "夕方"}のチェックで足りなかった分
                     </div>
                     <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
-                      {hs[slot].shortages
-                        .map((x) => `${x.flavor}: ${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}`)
-                        .join(" / ")}
+                      冷凍庫に足りない分:{" "}
+                      {hs[slot].shortages.filter((x) => x.freezer > 0)
+                        .map((x) => `${x.flavor}${x.freezer}個`).join("・")}
+                      {hs[slot].empty.length > 0 && (
+                        <><br />🚨 {hs[slot].empty.join("・")}は冷凍庫が空です</>
+                      )}
                     </div>
                     {(["madeFridge", "madeFreezer"] as const).map((where) => (
                       <div key={where} style={{ marginTop: 7 }}>

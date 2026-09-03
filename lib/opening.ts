@@ -114,7 +114,9 @@ export const TASKS: Task[] = [
     id: "hotsand-morning",
     phase: "朝",
     name: "ホットサンドの在庫を数える",
-    detail: "冷蔵庫と冷凍庫それぞれの個数と、タネが仕込んであるかを入れる",
+    detail:
+      "冷蔵庫は各2個、冷凍庫は各5個。出したら冷凍庫から冷蔵庫へ移して補充する。" +
+      "冷凍庫が空になると移すものが無くなるので、そこだけは切らさない",
     hotsand: "morning",
   },
   {
@@ -141,7 +143,8 @@ export const TASKS: Task[] = [
     id: "hotsand-prep",
     phase: "営業中",
     name: "ホットサンドを仕込む",
-    detail: "決めた数に足りない分だけ仕込む。仕込んだ数を入れると在庫に足される",
+    detail:
+      "冷凍庫に足りない分を仕込む。冷蔵庫が足りないだけなら冷凍庫から移せば済むので、仕込まなくてよい",
     hotsandPrep: true,
   },
   {
