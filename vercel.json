@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/shift-remind",
-      "schedule": "0 1 * * 3"
+      "schedule": "0 1 * * 4"
     },
     {
       "path": "/api/cron/invoice-sync",

@@ -1,4 +1,4 @@
-// シフトの希望提出。毎週水曜までに、翌週どこで働けるかを各自が出す。
+// シフトの希望提出。毎週木曜までに、翌週どこで働けるかを各自が出す。
 // 「朝番だけ」ではなく働ける時間をそのまま出してもらい、
 // 組むときに3交代（朝9:00-14:30/昼14:30-19:30/夜19:30-24:30）へ当てはめる。
 
@@ -43,7 +43,7 @@ export function mondayOf(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** 提出の既定対象。水曜までに「翌週」を出す運用なので、常に来週を返す */
+/** 提出の既定対象。木曜までに「翌週」を出す運用なので、常に来週を返す */
 export function nextWeekMonday(): string {
   const m = new Date(`${mondayOf(todayJST())}T00:00:00Z`);
   m.setUTCDate(m.getUTCDate() + 7);

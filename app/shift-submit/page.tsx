@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Nav from "@/components/Nav";
 
-// シフトの希望提出。毎週水曜までに、翌週どの時間なら働けるかを各自が出す。
+// シフトの希望提出。毎週木曜までに、翌週どの時間なら働けるかを各自が出す。
 // 「働ける時間」をそのまま出してもらう。シフトを組む側が
 // 朝番9:00-14:30／昼番14:30-19:30／夜番19:30-24:30 に当てはめる。
 
@@ -131,7 +131,7 @@ export default function ShiftSubmitPage() {
     <div className="wrap">
       <header>
         <h1>📝 シフト提出</h1>
-        <p>毎週水曜までに、翌週の働ける時間を出してください</p>
+        <p>毎週木曜までに、翌週の働ける時間を出してください</p>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           gap: 8, margin: "10px 0 4px", padding: "8px 10px",
