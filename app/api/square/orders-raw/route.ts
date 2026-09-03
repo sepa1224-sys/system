@@ -20,12 +20,21 @@ async function getLocationId(): Promise<string> {
   return data.locations?.[0]?.id || "";
 }
 
-// GET: Square注文の生データを1件〜数件返す（テーブル番号等の確認用）
+// GET: Square注文の生データを返す（テーブル番号や、消えた注文の中身を追う用）
+// query: date=YYYY-MM-DD / limit=件数 / states=COMPLETED,CANCELED,OPEN,DRAFT
+//
+// 「金額入力」で会計された注文はSquare側に品目が残らない。
+// そのとき元の注文がキャンセルされて残っていることがあるので、
+// 状態を指定して探せるようにしてある。
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
     const date = searchParams.get("date") || "2026-08-11";
     const limit = parseInt(searchParams.get("limit") || "3");
+    const states = (searchParams.get("states") || "COMPLETED")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
 
     const locationId = await getLocationId();
     const beginAt = new Date(`${date}T00:00:00+09:00`).toISOString();
@@ -43,7 +52,7 @@ export async function GET(req: NextRequest) {
             date_time_filter: {
               created_at: { start_at: beginAt, end_at: endAt },
             },
-            state_filter: { states: ["COMPLETED"] },
+            state_filter: { states },
           },
           sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
         },
