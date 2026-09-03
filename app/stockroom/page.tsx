@@ -35,7 +35,10 @@ type Result = "ok" | "short";
 type Pending = { orderedAt: string; qty: number; unit: string; days: number };
 /** 過去のストック確認 */
 type HistEntry = { date: string; short: number; total: number; note?: string; updatedAt?: string };
-type HistRow = { id: string; name: string; group: string; par: number; unit: string; result: Result };
+type HistRow = {
+  id: string; name: string; group: string; par: number; unit: string;
+  madeInHouse: boolean; result: Result | null;
+};
 
 const GROUPS = [
   "ドリンク（ノンアル）",
@@ -70,6 +73,8 @@ export default function StockroomPage() {
   const [histNote, setHistNote] = useState("");
   const [histAt, setHistAt] = useState("");
   const [histLoading, setHistLoading] = useState(false);
+  const [histEdit, setHistEdit] = useState(false);
+  const [histSaving, setHistSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -109,6 +114,27 @@ export default function StockroomPage() {
       setHistLoading(false);
     }
   }, []);
+
+  // 過去の確認を直す。品目を足したあとで「これも無かった」と気づくことがある
+  const patchHist = async (id: string, r: Result | null) => {
+    if (!histDate) return;
+    setHistSaving(true);
+    setHistRows((p) => p.map((x) => (x.id === id ? { ...x, result: r } : x)));
+    try {
+      const res = await fetch("/api/stockroom", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: histDate, results: { [id]: r } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "更新失敗");
+      await openHist(histDate);
+    } finally {
+      setHistSaving(false);
+    }
+  };
 
   const set = (id: string, r: Result) =>
     setResults((p) => ({ ...p, [id]: p[id] === r ? undefined as unknown as Result : r }));
@@ -296,17 +322,37 @@ export default function StockroomPage() {
                 <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.8 }}>
                   <strong style={{ color: "var(--ink)" }}>{histDate.replace(/-/g, "/")}</strong>
                   {histAt && `（${new Date(histAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}に記録）`}
-                  ／ 確認 {histRows.length}品・倉庫になかった{" "}
+                  ／ 確認 {histRows.filter((r) => r.result).length}品・倉庫になかった{" "}
                   <strong style={{ color: "#c0392b" }}>
                     {histRows.filter((r) => r.result === "short").length}品
                   </strong>
                   {histNote && <><br />メモ: {histNote}</>}
                 </div>
 
-                {[...new Set(histRows.map((r) => r.group))].map((g) => (
+                <button
+                  onClick={() => setHistEdit((v) => !v)}
+                  style={{
+                    marginTop: 8, padding: "7px 13px", borderRadius: 8, cursor: "pointer",
+                    border: "1px solid var(--line)", background: histEdit ? "var(--ink)" : "#fff",
+                    color: histEdit ? "#fff" : "var(--ink)", fontSize: 12.5, fontWeight: 700,
+                  }}
+                >
+                  {histEdit ? "編集をやめる" : "✏️ この日の記録を直す"}
+                </button>
+                {histEdit && (
+                  <p className="hint" style={{ margin: "6px 0 0" }}>
+                    あとから足した品目は「未確認」で出ます。押すとその場で保存されます。
+                  </p>
+                )}
+
+                {[...new Set(histRows.map((r) => r.group))]
+                  .filter((g) => histEdit || histRows.some((r) => r.group === g && r.result))
+                  .map((g) => (
                   <div key={g} style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>{g}</div>
-                    {histRows.filter((r) => r.group === g).map((r) => (
+                    {histRows
+                      .filter((r) => r.group === g && (histEdit || r.result))
+                      .map((r) => (
                       <div
                         key={r.id}
                         style={{
@@ -315,14 +361,45 @@ export default function StockroomPage() {
                           borderTop: "1px solid var(--line-soft, #eee)",
                         }}
                       >
-                        <span>{r.name}</span>
-                        <span style={{
-                          flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
-                          background: r.result === "short" ? "#fde8e8" : "#eaf6ec",
-                          color: r.result === "short" ? "#c0392b" : "var(--ok)",
-                        }}>
-                          {r.result === "short" ? "倉庫になかった" : "補充OK"}
-                        </span>
+                        <span style={{ opacity: r.result ? 1 : 0.55 }}>{r.name}</span>
+                        {histEdit ? (
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                            {([["ok", r.madeInHouse ? "半分以上" : "補充OK"],
+                               ["short", r.madeInHouse ? "半分切った" : "倉庫になかった"],
+                               [null, "未確認"]] as const).map(([v, label]) => {
+                              const on = r.result === v;
+                              const red = v === "short";
+                              return (
+                                <button
+                                  key={label}
+                                  disabled={histSaving}
+                                  onClick={() => patchHist(r.id, v as Result | null)}
+                                  style={{
+                                    padding: "5px 8px", borderRadius: 6, cursor: "pointer",
+                                    fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap",
+                                    border: on
+                                      ? `2px solid ${red ? "#c0392b" : v === "ok" ? "var(--ok)" : "var(--muted)"}`
+                                      : "1px solid var(--line)",
+                                    background: on ? (red ? "#fde8e8" : v === "ok" ? "#eaf6ec" : "#eef1f4") : "#fff",
+                                    color: on ? (red ? "#c0392b" : v === "ok" ? "var(--ok)" : "var(--muted)") : "var(--muted)",
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{
+                            flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                            background: r.result === "short" ? "#fde8e8" : "#eaf6ec",
+                            color: r.result === "short" ? "#c0392b" : "var(--ok)",
+                          }}>
+                            {r.result === "short"
+                              ? r.madeInHouse ? "半分を切った" : "倉庫になかった"
+                              : r.madeInHouse ? "半分以上ある" : "補充OK"}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -27,21 +27,27 @@ export async function GET(req: NextRequest) {
     if (want) {
       const c = checks.find((x) => x.date === want);
       if (!c) return NextResponse.json({ error: `${want} の記録はありません` }, { status: 404 });
-      const byId = new Map(items.map((i) => [i.id, i]));
-      return NextResponse.json({
-        date: c.date,
-        note: c.note ?? "",
-        updatedAt: c.updatedAt,
-        rows: Object.entries(c.results)
-          .map(([id, result]) => {
-            const item = byId.get(id);
-            return item
-              ? { id, name: item.name, group: item.group, par: item.par, unit: item.unit, result }
-              : // 今は一覧から消した品目。名前が引けないのでidだけ出す
-                { id, name: id, group: "（今はない品目）", par: 0, unit: "", result };
-          })
-          .sort((a, b) => (a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group))),
-      });
+      type Row = {
+        id: string; name: string; group: string; par: number;
+        unit: string; madeInHouse: boolean; result: "ok" | "short" | null;
+      };
+      const rows: Row[] = items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        group: i.group as string,
+        par: i.par,
+        unit: i.unit,
+        madeInHouse: !!i.madeInHouse,
+        result: c.results[i.id] ?? null,
+      }));
+      // 今は一覧から消した品目。記録は残っているので名前が引けなくても出す
+      const known = new Set(items.map((i) => i.id));
+      for (const [id, result] of Object.entries(c.results)) {
+        if (known.has(id)) continue;
+        rows.push({ id, name: id, group: "（今はない品目）", par: 0, unit: "", madeInHouse: false, result });
+      }
+      rows.sort((a, b) => (a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group)));
+      return NextResponse.json({ date: c.date, note: c.note ?? "", updatedAt: c.updatedAt, rows });
     }
 
     const last = checks[0];
@@ -199,6 +205,46 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "保存に失敗" },
+      { status: 500 },
+    );
+  }
+}
+
+// PATCH { date, results, note? } → 過去の確認をあとから直す。
+// 品目を足したあとで「これも倉庫に無かった」と気づくことがあるため、
+// 送られてきた分だけを上書きし、触れていない品目はそのまま残す。
+export async function PATCH(req: NextRequest) {
+  try {
+    const b = (await req.json()) as {
+      date?: string;
+      results?: Record<string, "ok" | "short" | null>;
+      note?: string;
+    };
+    if (!b.date) return NextResponse.json({ error: "dateが必要です" }, { status: 400 });
+    const c = (await getChecks()).find((x) => x.date === b.date);
+    if (!c) return NextResponse.json({ error: `${b.date} の記録はありません` }, { status: 404 });
+
+    const results = { ...c.results };
+    for (const [id, v] of Object.entries(b.results ?? {})) {
+      if (v === null) delete results[id];
+      else if (v === "ok" || v === "short") results[id] = v;
+    }
+    const next: Check = {
+      date: c.date,
+      results,
+      note: b.note ?? c.note,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveCheck(next);
+    return NextResponse.json({
+      ok: true,
+      date: next.date,
+      short: Object.values(results).filter((v) => v === "short").length,
+      total: Object.keys(results).length,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "更新に失敗" },
       { status: 500 },
     );
   }
