@@ -14,11 +14,21 @@
 export const HOTSAND_FLAVORS = ["クラシックメルト", "ガーデンメルト"] as const;
 export type Flavor = (typeof HOTSAND_FLAVORS)[number];
 
-/** 常に置いておく数。フレーバーごとの個数 */
-export const HOTSAND_PAR = { fridge: 2, freezer: 5 } as const;
-
-/** 朝の分か、夕方の分か */
+/** 朝の分か、夜20時の分か */
 export type Slot = "morning" | "evening";
+
+/**
+ * 置いておく数。時間帯で変える。
+ *
+ * 朝は冷凍庫を厚くしておく。日中は出るたびに冷凍庫から移せば足りる。
+ * 20時は夜の混む時間の前なので、すぐ焼ける冷蔵庫のほうを厚くする。
+ * この時間に凍ったものを移しても解凍が間に合わないため、
+ * 足りなければ移すのではなく仕込む。
+ */
+export const HOTSAND_PAR: Record<Slot, { fridge: number; freezer: number }> = {
+  morning: { fridge: 2, freezer: 5 },
+  evening: { fridge: 3, freezer: 3 },
+};
 
 const KEY = "hotsand:counts";
 
@@ -134,18 +144,20 @@ export type Shortage = {
 };
 
 /** 決めた数に対して、何個足りないか */
-export function shortages(entry: Entry | undefined): Shortage[] {
+export function shortages(entry: Entry | undefined, slot: Slot): Shortage[] {
   if (!entry) return [];
+  const par = HOTSAND_PAR[slot];
   return HOTSAND_FLAVORS.map((f) => {
     const inF = entry.fridge[f] ?? 0;
     const inZ = entry.freezer[f] ?? 0;
-    const fridge = Math.max(0, HOTSAND_PAR.fridge - inF);
+    const fridge = Math.max(0, par.fridge - inF);
     return {
       flavor: f,
       fridge,
-      freezer: Math.max(0, HOTSAND_PAR.freezer - inZ),
+      freezer: Math.max(0, par.freezer - inZ),
       freezerEmpty: inZ === 0,
-      canMove: fridge > 0 && inZ > 0,
+      // 20時は解凍が間に合わないので移さない
+      canMove: slot === "morning" && fridge > 0 && inZ > 0,
     };
   }).filter((s) => s.fridge > 0 || s.freezer > 0);
 }
@@ -154,27 +166,31 @@ export function shortages(entry: Entry | undefined): Shortage[] {
 export async function dayState(date: string) {
   const all = await getAll();
   const day = all[date] ?? {};
+
   const build = (slot: Slot) => {
     const e = day[slot];
-    const short = shortages(e);
+    const short = shortages(e, slot);
     return {
       counted: !!e,
+      par: HOTSAND_PAR[slot],
       fridge: e?.fridge ?? null,
       freezer: e?.freezer ?? null,
       tane: e?.tane ?? null,
       made: e?.made ?? null,
       shortages: short,
-      /** 冷凍庫が足りないので仕込む */
-      needPrep: short.some((s) => s.freezer > 0),
-      /** 冷蔵庫が足りないので冷凍庫から移す */
-      needMove: short.some((s) => s.fridge > 0),
+      /** 仕込みが要る。朝は冷凍庫の不足だけ、20時は冷蔵庫の不足も仕込む */
+      needPrep:
+        slot === "morning"
+          ? short.some((s) => s.freezer > 0)
+          : short.some((s) => s.freezer > 0 || s.fridge > 0),
+      /** 冷蔵庫が足りないので冷凍庫から移す（朝だけ） */
+      needMove: short.some((s) => s.canMove),
       /** 冷凍庫が空。これが一番まずい */
       empty: short.filter((s) => s.freezerEmpty).map((s) => s.flavor),
     };
   };
   return {
     flavors: [...HOTSAND_FLAVORS],
-    par: HOTSAND_PAR,
     morning: build("morning"),
     evening: build("evening"),
   };

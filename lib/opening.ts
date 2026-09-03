@@ -126,6 +126,12 @@ export const TASKS: Task[] = [
     detail: "夜の営業前に洗い場を空にしておく",
   },
   {
+    id: "candle-set",
+    phase: "営業中",
+    name: "18時45分にキャンドルを置く",
+    detail: "夜の営業前の準備。充電は金曜の締めでやる",
+  },
+  {
     id: "daily-evening",
     phase: "締め",
     name: "牛乳・パン・コールドブリュー・水を数える（夜）",
@@ -135,8 +141,10 @@ export const TASKS: Task[] = [
   {
     id: "hotsand-evening",
     phase: "営業中",
-    name: "夕方にホットサンドの在庫を数える",
-    detail: "朝と同じように、冷蔵庫と冷凍庫の個数とタネを入れる",
+    name: "20時にホットサンドの在庫を数える",
+    detail:
+      "この時間は冷蔵庫・冷凍庫とも各3個。夜の混む時間の前なので、すぐ焼ける冷蔵庫を厚くする。" +
+      "凍ったものを移しても解凍が間に合わないので、足りなければ仕込む",
     hotsand: "evening",
   },
   {
@@ -195,6 +203,18 @@ export const TASKS: Task[] = [
       "3フレーバーそれぞれの残りを入力する。2個以下のフレーバーがあれば翌日用に生地を仕込む",
     /** 残数を入力してもらう。翌朝の判断にそのまま使う */
     waffleCount: true,
+  },
+  {
+    id: "espresso-close",
+    phase: "締め",
+    name: "23時にエスプレッソマシンを閉める",
+    detail: "ラストオーダーの前に落とす。以降はドリップで対応する",
+  },
+  {
+    id: "last-order",
+    phase: "締め",
+    name: "23時半にラストオーダーを聞く",
+    detail: "お客さん全席に回って聞く",
   },
   { id: "dishes-wash", phase: "締め", name: "食器を洗う" },
   {

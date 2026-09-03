@@ -33,6 +33,7 @@ type Task = {
 type Slot = "morning" | "evening";
 type SlotState = {
   counted: boolean;
+  par: { fridge: number; freezer: number };
   fridge: Record<string, number> | null;
   freezer: Record<string, number> | null;
   tane: boolean | null;
@@ -44,7 +45,6 @@ type SlotState = {
 };
 type Hotsand = {
   flavors: string[];
-  par: { fridge: number; freezer: number };
   morning: SlotState;
   evening: SlotState;
 };
@@ -568,7 +568,10 @@ export default function OpeningPage() {
                   <div key={where} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
                       {where === "fridge" ? "冷蔵庫" : "冷凍庫"}
-                      （各{hs.par[where]}個あるようにする{where === "fridge" ? "・出したら冷凍庫から移す" : "・空にしない"}）
+                      （各{st.par[where]}個
+                      {slot === "morning"
+                        ? where === "fridge" ? "・出したら冷凍庫から移す" : "・空にしない"
+                        : "・足りなければ仕込む"}）
                     </div>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       {hs.flavors.map((f) => (
@@ -637,9 +640,15 @@ export default function OpeningPage() {
                     )}
                     {st.needPrep && (
                       <div>
-                        冷凍庫が足りません →{" "}
-                        {st.shortages.filter((x) => x.freezer > 0)
-                          .map((x) => `${x.flavor}${x.freezer}個`).join("・")}
+                        {slot === "morning" ? "冷凍庫が足りません" : "足りません"} →{" "}
+                        {st.shortages
+                          .filter((x) => (slot === "morning" ? x.freezer > 0 : x.freezer > 0 || x.fridge > 0))
+                          .map((x) =>
+                            slot === "morning"
+                              ? `${x.flavor}${x.freezer}個`
+                              : `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`,
+                          )
+                          .join("・")}
                         {" "}を仕込む
                       </div>
                     )}
@@ -660,12 +669,18 @@ export default function OpeningPage() {
                     background: "#fdf6ec", border: "1px solid #e8d5b0",
                   }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-                      {slot === "morning" ? "朝" : "夕方"}のチェックで足りなかった分
+                      {slot === "morning" ? "朝" : "20時"}のチェックで足りなかった分
                     </div>
                     <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
-                      冷凍庫に足りない分:{" "}
-                      {hs[slot].shortages.filter((x) => x.freezer > 0)
-                        .map((x) => `${x.flavor}${x.freezer}個`).join("・")}
+                      {slot === "morning" ? "冷凍庫に足りない分" : "足りない分"}:{" "}
+                      {hs[slot].shortages
+                        .filter((x) => (slot === "morning" ? x.freezer > 0 : x.freezer > 0 || x.fridge > 0))
+                        .map((x) =>
+                          slot === "morning"
+                            ? `${x.flavor}${x.freezer}個`
+                            : `${x.flavor}（${[x.fridge ? `冷蔵${x.fridge}個` : "", x.freezer ? `冷凍${x.freezer}個` : ""].filter(Boolean).join("・")}）`,
+                        )
+                        .join("・")}
                       {hs[slot].empty.length > 0 && (
                         <><br />🚨 {hs[slot].empty.join("・")}は冷凍庫が空です</>
                       )}
