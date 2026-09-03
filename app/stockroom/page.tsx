@@ -19,6 +19,9 @@ type Item = {
 type Result = "ok" | "short";
 /** 発注済みでまだ届いていないもの */
 type Pending = { orderedAt: string; qty: number; unit: string; days: number };
+/** 過去のストック確認 */
+type HistEntry = { date: string; short: number; total: number; note?: string; updatedAt?: string };
+type HistRow = { id: string; name: string; group: string; par: number; unit: string; result: Result };
 
 const GROUPS = [
   "ドリンク（ノンアル）",
@@ -43,6 +46,14 @@ export default function StockroomPage() {
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editPar, setEditPar] = useState("");
+  // 過去のストック確認。日付のタブで切り替えて中身を見る
+  const [history, setHistory] = useState<HistEntry[]>([]);
+  const [showHist, setShowHist] = useState(false);
+  const [histDate, setHistDate] = useState("");
+  const [histRows, setHistRows] = useState<HistRow[]>([]);
+  const [histNote, setHistNote] = useState("");
+  const [histAt, setHistAt] = useState("");
+  const [histLoading, setHistLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,12 +65,32 @@ export default function StockroomPage() {
       setLastDate(d.lastDate);
       setDaysSince(d.daysSince);
       setDue(!!d.due);
+      setHistory(d.history || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "取得失敗");
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // その日の確認結果を取りに行く
+  const openHist = useCallback(async (date: string) => {
+    setHistDate(date);
+    setHistLoading(true);
+    try {
+      const res = await fetch(`/api/stockroom?date=${date}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "取得失敗");
+      setHistRows(d.rows || []);
+      setHistNote(d.note || "");
+      setHistAt(d.updatedAt || "");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "取得失敗");
+      setHistRows([]);
+    } finally {
+      setHistLoading(false);
+    }
+  }, []);
 
   const set = (id: string, r: Result) =>
     setResults((p) => ({ ...p, [id]: p[id] === r ? undefined as unknown as Result : r }));
@@ -130,6 +161,97 @@ export default function StockroomPage() {
             ? `前回 ${lastDate.slice(5).replace("-", "/")}（${daysSince}日前）`
             : "まだ一度も記録していません"}
         </div>
+      </div>
+
+      <div className="card" style={{ padding: 12 }}>
+        <button
+          onClick={() => {
+            const next = !showHist;
+            setShowHist(next);
+            if (next && !histDate && history[0]) openHist(history[0].date);
+          }}
+          style={{
+            width: "100%", padding: "11px", borderRadius: 9, cursor: "pointer",
+            border: "1px solid var(--line)", background: "#fff",
+            fontSize: 14, fontWeight: 700, color: "var(--ink)",
+          }}
+        >
+          🗂 過去のストック確認を見る{history.length ? `（${history.length}回）` : ""}
+        </button>
+
+        {showHist && (
+          <div style={{ marginTop: 10 }}>
+            {history.length === 0 && (
+              <p className="hint" style={{ margin: 0 }}>まだ記録がありません。</p>
+            )}
+
+            {/* 日付のタブ。新しい順に並べる */}
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6 }}>
+              {history.map((h) => {
+                const on = h.date === histDate;
+                return (
+                  <button
+                    key={h.date}
+                    onClick={() => openHist(h.date)}
+                    style={{
+                      flexShrink: 0, padding: "7px 12px", borderRadius: 8, cursor: "pointer",
+                      fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap",
+                      border: on ? "2px solid var(--accent)" : "1px solid var(--line)",
+                      background: on ? "var(--accent)" : "#fff",
+                      color: on ? "#fff" : "var(--ink)",
+                    }}
+                  >
+                    {h.date.slice(5).replace("-", "/")}
+                    <span style={{ marginLeft: 5, fontWeight: 400, opacity: 0.85 }}>
+                      無{h.short}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {histLoading && <p className="hint" style={{ margin: "8px 0" }}>読み込み中…</p>}
+
+            {!histLoading && histDate && histRows.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.8 }}>
+                  <strong style={{ color: "var(--ink)" }}>{histDate.replace(/-/g, "/")}</strong>
+                  {histAt && `（${new Date(histAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}に記録）`}
+                  ／ 確認 {histRows.length}品・倉庫になかった{" "}
+                  <strong style={{ color: "#c0392b" }}>
+                    {histRows.filter((r) => r.result === "short").length}品
+                  </strong>
+                  {histNote && <><br />メモ: {histNote}</>}
+                </div>
+
+                {[...new Set(histRows.map((r) => r.group))].map((g) => (
+                  <div key={g} style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>{g}</div>
+                    {histRows.filter((r) => r.group === g).map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          gap: 8, fontSize: 13, padding: "6px 0",
+                          borderTop: "1px solid var(--line-soft, #eee)",
+                        }}
+                      >
+                        <span>{r.name}</span>
+                        <span style={{
+                          flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                          background: r.result === "short" ? "#fde8e8" : "#eaf6ec",
+                          color: r.result === "short" ? "#c0392b" : "var(--ok)",
+                        }}>
+                          {r.result === "short" ? "倉庫になかった" : "補充OK"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ padding: "12px 14px", fontSize: 12.5, lineHeight: 1.8, color: "var(--muted)" }}>

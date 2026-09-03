@@ -15,10 +15,34 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // GET → 品目・適正在庫・前回の確認日・今日やるべきか
-export async function GET() {
+//   ?date=YYYY-MM-DD … その日の確認結果を品目ごとに返す（過去の確認を見る用）
+export async function GET(req: NextRequest) {
   try {
     const today = todayJST();
     const [items, checks] = await Promise.all([getItems(), getChecks()]);
+
+    // 過去の1日分。何を補充できて何が無かったかを、そのときの品目名で出す
+    const want = req.nextUrl.searchParams.get("date");
+    if (want) {
+      const c = checks.find((x) => x.date === want);
+      if (!c) return NextResponse.json({ error: `${want} の記録はありません` }, { status: 404 });
+      const byId = new Map(items.map((i) => [i.id, i]));
+      return NextResponse.json({
+        date: c.date,
+        note: c.note ?? "",
+        updatedAt: c.updatedAt,
+        rows: Object.entries(c.results)
+          .map(([id, result]) => {
+            const item = byId.get(id);
+            return item
+              ? { id, name: item.name, group: item.group, par: item.par, unit: item.unit, result }
+              : // 今は一覧から消した品目。名前が引けないのでidだけ出す
+                { id, name: id, group: "（今はない品目）", par: 0, unit: "", result };
+          })
+          .sort((a, b) => (a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group))),
+      });
+    }
+
     const last = checks[0];
     const since = last ? daysBetween(last.date, today) : null;
     // 前回の確認で倉庫に無かったもの＝発注すべきもの
@@ -49,7 +73,7 @@ export async function GET() {
       daysSince: since,
       due: since === null || since >= 3,
       shortages: shortIds.map((id) => byId.get(id)).filter(Boolean),
-      history: checks.slice(0, 10).map((c) => ({
+      history: checks.slice(0, 60).map((c) => ({
         date: c.date,
         short: Object.values(c.results).filter((v) => v === "short").length,
         total: Object.keys(c.results).length,
