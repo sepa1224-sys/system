@@ -69,7 +69,7 @@ export const TASKS: Task[] = [
     phase: "朝",
     name: "ダスターを畳んで片付ける",
     detail:
-      "前の晩に干したものが乾いていたら畳む。汚れたダスターが溜まっていたら、その場で煮沸して干す",
+      "前の晩に干したものが乾いていたら畳む。煮沸は3日に1回だが、汚れが溜まっていればその場で煮沸して干す",
   },
   {
     id: "stock-check",
@@ -126,12 +126,34 @@ export const TASKS: Task[] = [
     phase: "締め",
     name: "ダスターを煮沸して干す",
     detail: "翌朝、乾いていたら畳んで片付ける",
+    everyDays: 3,
   },
   {
     id: "cash-close",
     phase: "締め",
     name: "レジを締める",
     detail: "手順は「レジ締め」のページにあります",
+  },
+  {
+    id: "stove-clean",
+    phase: "締め",
+    name: "コンロまわりとトースターを掃除する",
+    detail: "コンロを拭く → コンロ付近を掃除する → トースターを清掃する",
+    weekday: 3,
+  },
+  {
+    id: "sink-coat",
+    phase: "締め",
+    name: "シンク・台下冷蔵庫・製氷機の上を磨く",
+    detail: "洗浄 → 研磨 → コーティング剤を散布、の順にやる",
+    weekday: 4,
+  },
+  {
+    id: "candle-charge",
+    phase: "締め",
+    name: "キャンドルライトを充電する",
+    detail: "週末に切れないよう、金曜の締めで充電しておく",
+    weekday: 5,
   },
   {
     id: "grinder-wash",
@@ -193,8 +215,13 @@ const WAFFLE_KEY = "opening:waffle";
 /** フレーバー名。ワッフルは3種類 */
 export const WAFFLE_FLAVORS = ["プレーン", "チョコチップ", "抹茶"] as const;
 
-/** 日付 → フレーバーごとの残数。bakedAt はいま冷蔵庫にあるものを焼いた日 */
-type WaffleDay = { counts: Record<string, number>; bakedAt?: string };
+/**
+ * 日付 → フレーバーごとの残数。
+ * bakedAt はいま冷蔵庫にあるものを焼いた日。
+ * baked は「今朝、焼いたのか（true）冷蔵庫から出したのか（false）」。
+ * 焼いた日が分からない日でも押したことが残るよう、別に持つ。
+ */
+type WaffleDay = { counts: Record<string, number>; bakedAt?: string; baked?: boolean };
 type WaffleMap = Record<string, WaffleDay>;
 
 export async function getWaffleCounts(): Promise<WaffleMap> {
@@ -217,7 +244,11 @@ export async function saveWaffleCount(
   const all = await getWaffleCounts();
   const cur = all[date] ?? { counts: {} };
   const keepBaked = bakedAt || cur.bakedAt;
-  all[date] = { counts: counts ?? cur.counts, ...(keepBaked ? { bakedAt: keepBaked } : {}) };
+  all[date] = {
+    counts: counts ?? cur.counts,
+    ...(keepBaked ? { bakedAt: keepBaked } : {}),
+    ...(cur.baked !== undefined ? { baked: cur.baked } : {}),
+  };
   const keep = Object.keys(all).sort().slice(-60);
   const next: WaffleMap = {};
   for (const d of keep) next[d] = all[d];
@@ -234,13 +265,14 @@ export async function saveWaffleCount(
  */
 export async function setWaffleBaked(date: string, baked: boolean): Promise<string | undefined> {
   const all = await getWaffleCounts();
-  // 焼いたなら今日が焼いた日。出しただけなら前日までの焼いた日を引き継ぐ
+  // 焼いたなら今日が焼いた日。出しただけなら前日までの焼いた日を引き継ぐ。
+  // 引き継ぐ日が無いこともあるので、押したこと自体は baked に残す
   const carried = all[yesterdayOf(date)]?.bakedAt;
   const bakedAt = baked ? date : carried;
   const cur = all[date] ?? { counts: {} };
   const store = await kv();
   if (!store) throw new Error("KV未設定");
-  all[date] = { counts: cur.counts, ...(bakedAt ? { bakedAt } : {}) };
+  all[date] = { counts: cur.counts, baked, ...(bakedAt ? { bakedAt } : {}) };
   const keep = Object.keys(all).sort().slice(-60);
   const next: WaffleMap = {};
   for (const d of keep) next[d] = all[d];
@@ -323,10 +355,19 @@ export function nightPlan(
   counts: Record<string, number> | undefined,
   bakedAt?: string,
   today?: string,
+  bakedToday?: boolean,
 ) {
   const low = counts
     ? WAFFLE_FLAVORS.filter((f) => (counts[f] ?? 0) <= 2)
     : [];
+  // 今朝は焼かずに冷蔵庫から出した＝今あるものは前に焼いたもの。
+  // 明日には出せなくなるので、残数にかかわらず仕込む
+  if (bakedToday === false) {
+    return {
+      prep: true,
+      text: "今朝は冷蔵庫のものを出したので、今あるワッフルは明日には期限切れです。今夜は生地を仕込んでください",
+    };
+  }
   // 今あるものが1日前に焼いたもの＝明日は2日目で出せない
   const expiring = !!(bakedAt && today && daysBetween(bakedAt, today) >= 1);
   if (expiring) {

@@ -33,7 +33,12 @@ export async function GET(req: NextRequest) {
     // 発注チェックは、届いていない発注があるときだけ出す
     const pending = await openOrders();
     const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
-    const night = nightPlan(tdy?.counts ?? yst?.counts, tdy?.bakedAt ?? yst?.bakedAt, date);
+    const night = nightPlan(
+      tdy?.counts ?? yst?.counts,
+      tdy?.bakedAt ?? yst?.bakedAt,
+      date,
+      tdy?.baked,
+    );
 
     const tasks = await Promise.all(
       TASKS.map(async (t) => {
@@ -69,10 +74,10 @@ export async function GET(req: NextRequest) {
         yesterday: yst?.counts ?? null,
         yesterdayBakedAt: yst?.bakedAt ?? null,
         today: tdy?.counts ?? null,
-        // 今朝どちらをしたか。焼いた日が今日なら「焼いた」
-        bakedToday: tdy?.bakedAt === date,
+        // 今朝どちらを押したか
+        bakedToday: tdy?.baked === true,
         bakedAt: tdy?.bakedAt ?? null,
-        answered: !!tdy?.bakedAt,
+        answered: tdy?.baked !== undefined,
         morning,
         night,
       },
@@ -107,7 +112,12 @@ export async function POST(req: NextRequest) {
       const date = b.date || todayJST();
       const bakedAt = await setWaffleBaked(date, b.waffleBaked);
       const all = await getWaffleCounts();
-      const plan = nightPlan(all[date]?.counts ?? all[yesterdayOf(date)]?.counts, bakedAt, date);
+      const plan = nightPlan(
+        all[date]?.counts ?? all[yesterdayOf(date)]?.counts,
+        bakedAt,
+        date,
+        b.waffleBaked,
+      );
       // 焼いたなら「ワッフルをセットする」も終わったものとして扱う
       await toggle(date, "waffle", true);
       return NextResponse.json({ ok: true, date, bakedAt: bakedAt ?? null, night: plan });

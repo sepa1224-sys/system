@@ -54,6 +54,7 @@ export async function GET() {
         short: Object.values(c.results).filter((v) => v === "short").length,
         total: Object.keys(c.results).length,
         note: c.note,
+        updatedAt: c.updatedAt,
       })),
     });
   } catch (e) {
