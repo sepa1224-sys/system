@@ -102,7 +102,7 @@ export const SEED_ITEMS: Item[] = [
   { id: "prosciutto", name: "生ハム", group: "フード", par: 2, unit: "パック" },
   { id: "cream-cheese", name: "クリームチーズ", group: "フード", par: 2, unit: "個" },
   { id: "blue-cheese", name: "ブルーチーズ", group: "フード", par: 1, unit: "個" },
-  { id: "shred-cheese", name: "シュレッダーチーズ", group: "フード", par: 500, unit: "g" },
+  { id: "shred-cheese", name: "シュレッダーチーズ", group: "フード", par: 500, unit: "g", orderQty: 1000 },
   { id: "tuna", name: "ツナ缶", group: "フード", par: 4, unit: "缶" },
   { id: "sausage", name: "ソーセージ（冷凍）", group: "フード", par: 10, unit: "本" },
   { id: "sauerkraut", name: "ザワークラウト", group: "フード", par: 1, unit: "袋" },
@@ -118,7 +118,7 @@ export const SEED_ITEMS: Item[] = [
   { id: "shrimp", name: "むき海老", group: "フード", par: 1, unit: "パック" },
 
   // ワッフル
-  { id: "waffle-mix", name: "ワッフルミックス", group: "ワッフル", par: 2, unit: "袋", buyId: 29, orderQty: 2 },
+  { id: "waffle-mix", name: "ワッフルミックス", group: "ワッフル", par: 2, unit: "袋", buyId: 29, orderQty: 6 },
   { id: "egg", name: "卵", group: "ワッフル", par: 6, unit: "個" },
   { id: "butter", name: "バター", group: "ワッフル", par: 1, unit: "個" },
   { id: "zarame", name: "ざらめ", group: "ワッフル", par: 1, unit: "袋" },

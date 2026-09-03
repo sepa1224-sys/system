@@ -304,6 +304,11 @@ export default function PurchasePage() {
                             style={{ width: 60, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
                           />
                           <span style={{ fontSize: 12, color: "var(--muted)" }}>{c.unit}</span>
+                          {Number(qty[c.itemId]) !== c.qty && (
+                            <span style={{ fontSize: 11, color: "#9c5f22", fontWeight: 700 }}>
+                              前回は{c.qty}{c.unit}／この数で発注すると次回もこの数になります
+                            </span>
+                          )}
                           {c.url && (
                             <a
                               href={c.url}
@@ -348,6 +353,8 @@ export default function PurchasePage() {
 
             {cands.length > 0 && (
               <p className="hint" style={{ marginTop: 10 }}>
+                発注した数は、その品目の次回の既定として覚えます。
+                いつも同じ数を打ち直さなくて済むようにするためです。<br />
                 発注は店ごとに記録します。届く日が店ごとに違うので、
                 「届いた」も店ごとに押せるようにするためです。<br />
                 発注済みにすると、届くまでこのリストから消えます。

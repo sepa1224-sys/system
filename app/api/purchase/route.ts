@@ -9,6 +9,7 @@ import {
   todayJST,
   type OrderLine,
 } from "@/lib/purchase";
+import { getItems, saveItem } from "@/lib/stockroom";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "発注するものを選んでください" }, { status: 400 });
     }
     const order = await addOrder(lines, b.note);
+
+    // 実際に発注した数を、その品目の次回の既定にする。
+    // 初期値は当てずっぽうなので、使いながら正しい数に寄っていくようにする。
+    const items = await getItems();
+    for (const l of lines) {
+      const item = items.find((i) => i.id === l.itemId);
+      if (!item || item.orderQty === l.qty) continue;
+      await saveItem({ ...item, orderQty: l.qty });
+    }
+
     return NextResponse.json({ ok: true, order });
   } catch (e) {
     return NextResponse.json(
