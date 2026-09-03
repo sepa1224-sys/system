@@ -45,7 +45,7 @@ export default function PurchasePage() {
   const [showStats, setShowStats] = useState(false);
   const [pick, setPick] = useState<Record<string, boolean>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -85,13 +85,16 @@ export default function PurchasePage() {
 
   const picked = cands.filter((c) => pick[c.itemId]);
 
-  const submit = async () => {
-    if (!picked.length) return;
+  const submit = async (only?: string) => {
+    const target = only
+      ? cands.filter((c) => pick[c.itemId] && (c.supplier || "発注先が未設定") === only)
+      : picked;
+    if (!target.length) return;
     setSaving(true);
     setErr("");
     setMsg("");
     try {
-      const lines: Line[] = picked.map((c) => ({
+      const lines: Line[] = target.map((c) => ({
         itemId: c.itemId,
         name: c.name,
         unit: c.unit,
@@ -102,12 +105,14 @@ export default function PurchasePage() {
       const res = await fetch("/api/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines, note: note.trim() || undefined }),
+        body: JSON.stringify({ lines, note: (only ? note[only] : "")?.trim() || undefined }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "保存失敗");
-      setMsg(`${lines.length}品を発注済みにしました。届いたら「業務チェック」で押してください`);
-      setNote("");
+      setMsg(
+        `${only ? `${only}へ ` : ""}${lines.length}品を発注済みにしました。届いたら「業務チェック」で押してください`,
+      );
+      setNote((p) => (only ? { ...p, [only]: "" } : {}));
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "保存失敗");
@@ -145,7 +150,12 @@ export default function PurchasePage() {
     }
   };
 
-  const groups = [...new Set(cands.map((c) => c.group))];
+  // 発注は店ごとに出すので、仕入先でまとめる。届く日も店ごとに違う。
+  const NO_SHOP = "発注先が未設定";
+  const shopOf = (c: Candidate) => c.supplier || NO_SHOP;
+  const shops = [...new Set(cands.map(shopOf))].sort((a, b) =>
+    a === NO_SHOP ? 1 : b === NO_SHOP ? -1 : a.localeCompare(b),
+  );
 
   return (
     <div className="wrap">
@@ -232,88 +242,117 @@ export default function PurchasePage() {
               </p>
             )}
 
-            {groups.map((g) => (
-              <div key={g} style={{ marginTop: 6 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginTop: 8 }}>{g}</div>
-                {cands.filter((c) => c.group === g).map((c) => (
-                  <div
-                    key={c.itemId}
-                    style={{
-                      display: "flex", gap: 10, alignItems: "flex-start",
-                      padding: "10px 2px", borderTop: "1px solid var(--line-soft, #eee)",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!pick[c.itemId]}
-                      onChange={(e) => setPick((p) => ({ ...p, [c.itemId]: e.target.checked }))}
-                      style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
-                      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
-                        ストックに置く数 {c.par}{c.unit}
-                        {c.supplier && `・${c.supplier}`}
-                        {c.price ? `・¥${c.price.toLocaleString()}` : ""}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                        <input
-                          type="number"
-                          min={1}
-                          value={qty[c.itemId] ?? "1"}
-                          onChange={(e) => setQty((p) => ({ ...p, [c.itemId]: e.target.value }))}
-                          style={{ width: 60, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
-                        />
-                        <span style={{ fontSize: 12, color: "var(--muted)" }}>{c.unit}</span>
-                        {c.url ? (
-                          <a
-                            href={c.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 7,
-                              background: "var(--accent)", color: "#fff", textDecoration: "none",
-                            }}
-                          >
-                            発注ページを開く ↗
-                          </a>
-                        ) : (
-                          <span style={{ fontSize: 11.5, color: "#c0392b", fontWeight: 700 }}>
-                            発注先が未設定（「🛒 仕入れ」に登録してください）
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {cands.length > 0 && (
-              <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="メモ（任意）例: 週末に届く予定"
-                  style={{ width: "100%", fontSize: 13, padding: "8px 10px", marginBottom: 8 }}
-                />
-                <button
-                  onClick={submit}
-                  disabled={saving || !picked.length}
+            {shops.map((shop) => {
+              const list = cands.filter((c) => shopOf(c) === shop);
+              const chosen = list.filter((c) => pick[c.itemId]);
+              const noShop = shop === NO_SHOP;
+              // 概算。単価が入っているものだけ足す
+              const sum = chosen.reduce(
+                (n, c) => n + (c.price ?? 0) * (Number(qty[c.itemId]) || 1),
+                0,
+              );
+              return (
+                <div
+                  key={shop}
                   style={{
-                    width: "100%", padding: "12px", borderRadius: 9, border: "none",
-                    background: picked.length ? "var(--accent)" : "var(--line)",
-                    color: "#fff", fontSize: 14.5, fontWeight: 800,
-                    cursor: picked.length ? "pointer" : "default",
+                    marginTop: 12, padding: "10px 12px", borderRadius: 10,
+                    border: `1px solid ${noShop ? "#e0b4b4" : "var(--line)"}`,
+                    background: noShop ? "#fdf2f2" : "var(--card, #fff)",
                   }}
                 >
-                  {saving ? "記録中…" : `選んだ${picked.length}品を発注済みにする`}
-                </button>
-                <p className="hint" style={{ marginTop: 6 }}>
-                  発注済みにすると、届くまでこのリストから消えます。<br />
-                  次のストック確認でまた「倉庫に無い」と記録しても、二重には出ません。
-                </p>
-              </div>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between",
+                    alignItems: "center", gap: 8,
+                  }}>
+                    <strong style={{ fontSize: 14, color: noShop ? "#c0392b" : "var(--ink)" }}>
+                      {noShop ? "⚠️ " : "🏬 "}{shop}
+                    </strong>
+                    <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{list.length}品</span>
+                  </div>
+                  {noShop && (
+                    <p className="hint" style={{ margin: "4px 0 0" }}>
+                      ネットで頼むものは「🛒 仕入れ」に登録すると、ここにリンクが出ます。
+                    </p>
+                  )}
+
+                  {list.map((c) => (
+                    <div
+                      key={c.itemId}
+                      style={{
+                        display: "flex", gap: 10, alignItems: "flex-start",
+                        padding: "10px 2px", borderTop: "1px solid var(--line-soft, #eee)",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!pick[c.itemId]}
+                        onChange={(e) => setPick((p) => ({ ...p, [c.itemId]: e.target.checked }))}
+                        style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
+                          {c.group}・ストックに置く数 {c.par}{c.unit}
+                          {c.price ? `・¥${c.price.toLocaleString()}` : ""}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                          <input
+                            type="number"
+                            min={1}
+                            value={qty[c.itemId] ?? "1"}
+                            onChange={(e) => setQty((p) => ({ ...p, [c.itemId]: e.target.value }))}
+                            style={{ width: 60, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                          />
+                          <span style={{ fontSize: 12, color: "var(--muted)" }}>{c.unit}</span>
+                          {c.url && (
+                            <a
+                              href={c.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 7,
+                                background: "var(--accent)", color: "#fff", textDecoration: "none",
+                              }}
+                            >
+                              発注ページを開く ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <input
+                    value={note[shop] ?? ""}
+                    onChange={(e) => setNote((p) => ({ ...p, [shop]: e.target.value }))}
+                    placeholder="メモ（任意）例: 週末に届く予定"
+                    style={{ width: "100%", fontSize: 13, padding: "8px 10px", margin: "10px 0 8px" }}
+                  />
+                  <button
+                    onClick={() => submit(shop)}
+                    disabled={saving || !chosen.length}
+                    style={{
+                      width: "100%", padding: "11px", borderRadius: 9, border: "none",
+                      background: chosen.length ? "var(--accent)" : "var(--line)",
+                      color: "#fff", fontSize: 14, fontWeight: 800,
+                      cursor: chosen.length ? "pointer" : "default",
+                    }}
+                  >
+                    {saving
+                      ? "記録中…"
+                      : `${shop}へ${chosen.length}品を発注済みにする${sum ? `（約¥${sum.toLocaleString()}）`: ""}`}
+                  </button>
+                </div>
+              );
+            })}
+
+            {cands.length > 0 && (
+              <p className="hint" style={{ marginTop: 10 }}>
+                発注は店ごとに記録します。届く日が店ごとに違うので、
+                「届いた」も店ごとに押せるようにするためです。<br />
+                発注済みにすると、届くまでこのリストから消えます。
+                次のストック確認でまた「倉庫に無い」と記録しても、二重には出ません。
+              </p>
             )}
           </div>
 
