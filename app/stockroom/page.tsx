@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import Nav from "@/components/Nav";
 
 // ストックルームの在庫確認。3日に1回、倉庫から補充する作業のためのリスト。
@@ -19,6 +20,16 @@ type Item = {
 };
 /** 仕込み品を最後に仕込んだ日と、あと何日もつか */
 type MadeAt = { date: string; daysAgo: number; keepDays: number; daysLeft: number };
+/** いまの在庫確認。倉庫に無かったものを発注したかどうかを追う */
+type CurrentRow = {
+  id: string; name: string; group: string; unit: string; par: number;
+  madeInHouse: boolean;
+  ordered: { orderedAt: string; qty: number; unit: string; arrivedAt: string | null } | null;
+};
+type Current = {
+  date: string; daysSince: number; active: boolean; activeDays: number;
+  note: string; rows: CurrentRow[];
+};
 type Result = "ok" | "short";
 /** 発注済みでまだ届いていないもの */
 type Pending = { orderedAt: string; qty: number; unit: string; days: number };
@@ -41,6 +52,7 @@ export default function StockroomPage() {
   const [results, setResults] = useState<Record<string, Result>>({});
   const [pending, setPending] = useState<Record<string, Pending>>({});
   const [madeAt, setMadeAt] = useState<Record<string, MadeAt>>({});
+  const [current, setCurrent] = useState<Current | null>(null);
   const [lastDate, setLastDate] = useState<string | null>(null);
   const [daysSince, setDaysSince] = useState<number | null>(null);
   const [due, setDue] = useState(false);
@@ -67,6 +79,7 @@ export default function StockroomPage() {
       setItems(d.items || []);
       setPending(d.pending || {});
       setMadeAt(d.madeAt || {});
+      setCurrent(d.current || null);
       setLastDate(d.lastDate);
       setDaysSince(d.daysSince);
       setDue(!!d.due);
@@ -167,6 +180,67 @@ export default function StockroomPage() {
             : "まだ一度も記録していません"}
         </div>
       </div>
+
+      {current?.active && current.rows.length > 0 && (
+        <div className="card" style={{ padding: "12px 14px", borderColor: "#e8d5b0", background: "#fdf6ec" }}>
+          <div className="cat-title">
+            📌 いまの在庫確認（{current.date.slice(5).replace("-", "/")}）
+            <span style={{ fontWeight: 400, fontSize: 11.5, color: "var(--muted)", marginLeft: 6 }}>
+              {current.daysSince === 0 ? "今日" : `${current.daysSince}日前`}・
+              あと{current.activeDays - current.daysSince}日で履歴に移ります
+            </span>
+          </div>
+          <p className="hint" style={{ margin: "4px 0 8px" }}>
+            倉庫に無かったものです。発注したかどうかがここで分かります。
+          </p>
+          {current.rows.map((r) => {
+            const done = r.madeInHouse || !!r.ordered;
+            return (
+              <div
+                key={r.id}
+                style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                  gap: 8, padding: "8px 0", borderTop: "1px solid #eadfc8",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.6 }}>
+                    {r.madeInHouse
+                      ? "仕込み品なので発注ではなく仕込みます"
+                      : r.ordered
+                        ? `${r.ordered.orderedAt.slice(5).replace("-", "/")}に${r.ordered.qty}${r.ordered.unit}を発注${r.ordered.arrivedAt ? `／${r.ordered.arrivedAt.slice(5).replace("-", "/")}に到着` : "／まだ届いていません"}`
+                        : "まだ発注していません"}
+                  </div>
+                </div>
+                <span style={{
+                  flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 5,
+                  background: r.madeInHouse ? "#eef1f4" : done ? "#eaf6ec" : "#fde8e8",
+                  color: r.madeInHouse ? "var(--muted)" : done ? "var(--ok)" : "#c0392b",
+                }}>
+                  {r.madeInHouse
+                    ? "仕込む"
+                    : r.ordered
+                      ? r.ordered.arrivedAt ? "届いた" : "発注済み"
+                      : "未発注"}
+                </span>
+              </div>
+            );
+          })}
+          {current.rows.some((r) => !r.madeInHouse && !r.ordered) && (
+            <Link
+              href="/purchase"
+              style={{
+                display: "block", textAlign: "center", marginTop: 10, padding: "10px",
+                borderRadius: 9, textDecoration: "none",
+                background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700,
+              }}
+            >
+              📋 発注リストで発注する（未発注 {current.rows.filter((r) => !r.madeInHouse && !r.ordered).length}品）
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="card" style={{ padding: 12 }}>
         <button

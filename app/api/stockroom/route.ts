@@ -9,7 +9,7 @@ import {
   type Check,
   type Item,
 } from "@/lib/stockroom";
-import { openOrders } from "@/lib/purchase";
+import { getOrders, openOrders } from "@/lib/purchase";
 import { getRecords } from "@/lib/shikomi";
 
 export const runtime = "nodejs";
@@ -82,11 +82,54 @@ export async function GET(req: NextRequest) {
       madeAt[i.id] = { date: last, daysAgo: ago, keepDays: i.keepDays, daysLeft: i.keepDays - ago };
     }
 
+    // 直近の在庫確認を「いまの状態」として3日間そのまま出す。
+    // 倉庫に無かったものを発注したかどうかを、この画面で追えるようにするため。
+    // 3日経ったら次の確認をする番なので、履歴へ送る（🗂 過去のストック確認）。
+    const ACTIVE_DAYS = 3;
+    const allOrders = await getOrders();
+    const current = last
+      ? {
+          date: last.date,
+          daysSince: since ?? 0,
+          active: (since ?? 0) < ACTIVE_DAYS,
+          activeDays: ACTIVE_DAYS,
+          note: last.note ?? "",
+          rows: shortIds
+            .map((id) => {
+              const item = byId.get(id);
+              if (!item) return null;
+              // その確認の日以降に発注したものを、この品目の発注とみなす
+              const o = allOrders
+                .filter((x) => x.orderedAt >= last.date && x.lines.some((l) => l.itemId === id))
+                .sort((a, b) => (a.orderedAt < b.orderedAt ? 1 : -1))[0];
+              const line = o?.lines.find((l) => l.itemId === id);
+              return {
+                id,
+                name: item.name,
+                group: item.group,
+                unit: item.unit,
+                par: item.par,
+                madeInHouse: !!item.madeInHouse,
+                ordered: o
+                  ? {
+                      orderedAt: o.orderedAt,
+                      qty: line?.qty ?? 0,
+                      unit: line?.unit ?? item.unit,
+                      arrivedAt: o.arrivedAt ?? null,
+                    }
+                  : null,
+              };
+            })
+            .filter(Boolean),
+        }
+      : null;
+
     return NextResponse.json({
       today,
       items,
       pending,
       madeAt,
+      current,
       lastDate: last?.date ?? null,
       daysSince: since,
       due: since === null || since >= 3,
