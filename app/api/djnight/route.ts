@@ -10,6 +10,7 @@ import {
   updateEntry,
   type Entry,
 } from "@/lib/djnight";
+import { getStaffLineIds, pushLine } from "@/lib/staffLine";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,33 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
     await addEntry(entry);
+
+    // 申込があったら坂本にLINEで知らせる。集客の進み具合がその場で分かる
+    try {
+      const all = await getEntries();
+      const s = summary(all);
+      const p = planOf(entry.planId);
+      const ids = await getStaffLineIds();
+      if (ids["坂本"]) {
+        await pushLine(
+          ids["坂本"],
+          [
+            "【9/22 DJ NIGHT】申込がありました🎧",
+            "",
+            `${entry.name}さん${entry.lineName ? `（${entry.lineName}）` : ""}`,
+            `${p?.label} ¥${p?.price.toLocaleString()}`,
+            ...(entry.djRequest ? [`リクエスト: ${entry.djRequest}`] : []),
+            ...(entry.note ? [`メモ: ${entry.note}`] : []),
+            "",
+            `合計 ${s.people}人 ／ 売上見込み ¥${s.sales.toLocaleString()}`,
+            "https://flat-keihi.vercel.app/djnight/kanri",
+          ].join("\n"),
+        );
+      }
+    } catch {
+      /* 通知が失敗しても申込そのものは通す */
+    }
+
     return NextResponse.json({ ok: true, entry, payUrl: planOf(entry.planId)?.payUrl });
   } catch (e) {
     return NextResponse.json(

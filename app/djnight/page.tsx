@@ -8,6 +8,17 @@ import { useState, useEffect } from "react";
 
 type Plan = { id: string; label: string; price: number; detail: string; payUrl: string };
 
+// LIFF（LINE内ブラウザ）で開かれたときに、名前とユーザーIDを自動で取る。
+// あとからLINEで個別に連絡できるようにするため。
+// window.liff は他のページでも別の形で宣言しているので、ここでは都度取り出す。
+type Liff = {
+  init: (c: { liffId: string }) => Promise<void>;
+  isLoggedIn: () => boolean;
+  getProfile: () => Promise<{ displayName: string; userId: string }>;
+};
+const getLiff = (): Liff | undefined =>
+  (window as unknown as { liff?: Liff }).liff;
+
 export default function DjNightPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [people, setPeople] = useState(0);
@@ -20,6 +31,8 @@ export default function DjNightPage() {
   const [photoOk, setPhotoOk] = useState(true);
   const [note, setNote] = useState("");
 
+  const [lineUserId, setLineUserId] = useState("");
+  const [viaLine, setViaLine] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ payUrl: string; plan: Plan } | null>(null);
@@ -33,6 +46,28 @@ export default function DjNightPage() {
         setClosed(!!d.closed);
       })
       .catch(() => setErr("読み込みに失敗しました"));
+
+    // LINEから開かれた場合だけ動く。ブラウザで直接開いても普通に使える
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID_DJNIGHT;
+    if (!liffId) return;
+    const s = document.createElement("script");
+    s.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+    s.onload = async () => {
+      try {
+        const liff = getLiff();
+        if (!liff) return;
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) return;
+        const p = await liff.getProfile();
+        setLineName((prev) => prev || p.displayName);
+        setName((prev) => prev || p.displayName);
+        setLineUserId(p.userId || "");
+        setViaLine(true);
+      } catch {
+        /* LINE外で開かれた場合はそのまま通常のフォームとして使う */
+      }
+    };
+    document.head.appendChild(s);
   }, []);
 
   const submit = async () => {
@@ -44,7 +79,7 @@ export default function DjNightPage() {
       const res = await fetch("/api/djnight", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, lineName, planId, djRequest, photoOk, note }),
+        body: JSON.stringify({ name, lineName, lineUserId, planId, djRequest, photoOk, note }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "送信に失敗しました");
@@ -132,7 +167,10 @@ export default function DjNightPage() {
         <label>お名前 <span className="req">必須</span></label>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例: 坂本達郎" />
 
-        <label>LINEの表示名（分かれば）</label>
+        <label>
+          LINEの表示名（分かれば）
+          {viaLine && <span style={{ color: "#c9a227", marginLeft: 6 }}>LINEから自動で入りました</span>}
+        </label>
         <input value={lineName} onChange={(e) => setLineName(e.target.value)} placeholder="当日の照合に使います" />
 
         <label>プラン <span className="req">必須</span></label>
