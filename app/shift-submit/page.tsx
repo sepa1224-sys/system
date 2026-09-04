@@ -118,6 +118,27 @@ export default function ShiftSubmitPage() {
 
   // 月曜をまたぐと「来週」の指す週が人によって変わるので、
   // 何月何日から何月何日までなのかをはっきり出す。
+  const withdraw = async () => {
+    if (!me || !week) return;
+    if (!confirm(`${me}さんの${week}の週の提出を取り消します。`)) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/shift-request", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week, staff: me }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setMsg("取り消しました。");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "取消に失敗");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const weekLabel = (() => {
     if (!week) return "";
     const s0 = new Date(`${week}T00:00:00Z`);
@@ -156,7 +177,12 @@ export default function ShiftSubmitPage() {
         <div className="total-label">提出の対象</div>
         <div className="total-amount" style={{ fontSize: 24 }}>{weekLabel}</div>
         <div style={{ marginTop: 6, fontSize: 12.5, opacity: 0.85 }}>
-          提出済み: {staff.filter((s) => subs[s]).join("・") || "まだ誰も出していません"}
+          提出済み: {staff.filter((s) => subs[s]?.slots.length).join("・") || "まだ誰も出していません"}
+          {staff.some((s) => subs[s] && !subs[s].slots.length) && (
+            <div style={{ marginTop: 2 }}>
+              1枠も入れずに提出: {staff.filter((s) => subs[s] && !subs[s].slots.length).join("・")}
+            </div>
+          )}
         </div>
       </div>
 
@@ -182,11 +208,38 @@ export default function ShiftSubmitPage() {
                   cursor: "pointer",
                 }}>
                   {s}
-                  {subs[s] && <span style={{ fontSize: 10, display: "block", color: "var(--ok)" }}>提出済み</span>}
+                  {subs[s] && (
+                    <span style={{
+                      fontSize: 10, display: "block",
+                      color: subs[s].slots.length ? "var(--ok)" : "var(--muted)",
+                    }}>
+                      {subs[s].slots.length ? `提出済み（${subs[s].slots.length}枠）` : "0枠で提出"}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
+
+          {me && subs[me] && !subs[me].slots.length && (
+            <div className="card" style={{ padding: 14, background: "#fdf6ec", borderColor: "#e8d5b0" }}>
+              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+                <strong>{me}さんは1枠も入れずに提出した記録になっています。</strong><br />
+                出していないつもりなら、取り消してください。
+              </div>
+              <button
+                onClick={withdraw}
+                disabled={saving}
+                style={{
+                  marginTop: 8, padding: "9px 16px", borderRadius: 8, cursor: "pointer",
+                  border: "1px solid var(--line)", background: "#fff",
+                  fontSize: 13, fontWeight: 700,
+                }}
+              >
+                この提出を取り消す
+              </button>
+            </div>
+          )}
 
           {me && (
             <div className="card" style={{ padding: 14 }}>

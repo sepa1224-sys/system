@@ -68,6 +68,18 @@ export async function getWeek(week: string): Promise<Record<string, Submission>>
   return (await load())[week] ?? {};
 }
 
+/** 提出を取り消す。間違えて出したときや、こちらで週を移したときの後片付け用 */
+export async function withdraw(week: string, staff: string): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const all = await load();
+  if (all[week]) {
+    delete all[week][staff];
+    if (!Object.keys(all[week]).length) delete all[week];
+  }
+  await store.set(KEY, all);
+}
+
 export async function submit(sub: Submission): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");

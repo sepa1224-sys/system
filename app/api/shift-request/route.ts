@@ -3,6 +3,7 @@ import {
   getWeek,
   nextWeekMonday,
   submit,
+  withdraw,
   type Slot,
   type Submission,
 } from "@/lib/shiftRequest";
@@ -54,6 +55,23 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "保存に失敗" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE /api/shift-request { week, staff } → 提出を取り消す
+export async function DELETE(req: NextRequest) {
+  try {
+    const { week, staff } = (await req.json()) as { week?: string; staff?: string };
+    if (!week || !staff) {
+      return NextResponse.json({ error: "weekとstaffが必要です" }, { status: 400 });
+    }
+    await withdraw(week, staff);
+    return NextResponse.json({ ok: true, submissions: await getWeek(week) });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "取消に失敗" },
       { status: 500 },
     );
   }
