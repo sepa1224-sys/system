@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 
 // /event : LIFFの固定エンドポイント。
-// いま開催中のイベントページへ転送する。転送先はKVの event:current で変えられるので、
+// いま受け付けているイベントのページへ転送する。
 // LIFF側のURLは二度と触らなくていい。
+//
+// 転送先は登録簿（lib/events.ts）の開催日から自動で決まる。
+// KVの event:current に入れておけば、そちらが優先される（臨時に別のページを
+// 出したいときや、登録簿に無いページへ向けたいときのため）。
 
 const KEY = "event:current";
-const DEFAULT_PATH = "/natsumatsuri";
 
 async function kv() {
   const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
@@ -19,7 +23,8 @@ async function kv() {
 }
 
 export async function GET(req: NextRequest) {
-  let path = DEFAULT_PATH;
+  const ev = currentEvent();
+  let path = ev ? `/event/${ev.slug}` : "/natsumatsuri";
   try {
     const store = await kv();
     if (store) {
