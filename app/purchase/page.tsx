@@ -46,6 +46,9 @@ export default function PurchasePage() {
   const [pick, setPick] = useState<Record<string, boolean>>({});
   const [qty, setQty] = useState<Record<string, string>>({});
   const [note, setNote] = useState<Record<string, string>>({});
+  // 支払い方法と実際の支払額。経理の経路がこれで決まる
+  const [paidBy, setPaidBy] = useState<Record<string, "card" | "own" | "cash">>({});
+  const [paidAmount, setPaidAmount] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -105,7 +108,13 @@ export default function PurchasePage() {
       const res = await fetch("/api/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines, note: (only ? note[only] : "")?.trim() || undefined }),
+        body: JSON.stringify({
+          lines,
+          note: (only ? note[only] : "")?.trim() || undefined,
+          shop: only,
+          paidBy: only ? paidBy[only] ?? "card" : undefined,
+          paidAmount: only && paidAmount[only] ? Number(paidAmount[only]) : undefined,
+        }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "保存失敗");
@@ -327,6 +336,46 @@ export default function PurchasePage() {
                     </div>
                   ))}
 
+                  <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--muted)" }}>
+                    支払い方法
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                    {([["card", "会社カード"], ["own", "立替"], ["cash", "現金"]] as const).map(([v, label]) => {
+                      const on = (paidBy[shop] ?? "card") === v;
+                      return (
+                        <button
+                          key={v}
+                          onClick={() => setPaidBy((p) => ({ ...p, [shop]: v }))}
+                          style={{
+                            padding: "7px 13px", borderRadius: 7, cursor: "pointer",
+                            fontSize: 12.5, fontWeight: 700,
+                            border: on ? "2px solid var(--accent)" : "1px solid var(--line)",
+                            background: on ? "var(--accent)" : "#fff",
+                            color: on ? "#fff" : "var(--ink)",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                    <span style={{ fontSize: 11.5, color: "var(--muted)" }}>実際に払った額</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={paidAmount[shop] ?? ""}
+                      onChange={(e) => setPaidAmount((p) => ({ ...p, [shop]: e.target.value }))}
+                      placeholder={sum ? String(sum) : "税込"}
+                      style={{ width: 110, fontSize: 14, padding: "6px 8px", textAlign: "right" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>円（税込）</span>
+                  </div>
+                  <p className="hint" style={{ margin: "6px 0 0" }}>
+                    {(paidBy[shop] ?? "card") === "card"
+                      ? "会社カードは数日後に銀行明細に出ます。freeeへの登録は明細側で行うので、ここからは登録しません（二重計上になるため）。金額を入れておくと、明細に出たときに候補として出します。"
+                      : "明細に出ない払い方なので、レシートを撮って「🧾 領収書」から登録してください。"}
+                  </p>
                   <input
                     value={note[shop] ?? ""}
                     onChange={(e) => setNote((p) => ({ ...p, [shop]: e.target.value }))}

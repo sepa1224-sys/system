@@ -42,6 +42,14 @@ export type Txn = {
   walletName: string;
   hint: { category: string; note: string } | null;
   doc: Doc | null;
+  /** 金額と日付が合うカード払いの発注。何を買った明細かの手がかり */
+  purchase?: {
+    id: string;
+    shop: string;
+    orderedAt: string;
+    amount: number;
+    items: string;
+  } | null;
   decision: { lines: Line[]; partner: string } | null;
 };
 type Msg = { role: "user" | "assistant"; content: string };
@@ -239,7 +247,24 @@ export default function MeisaiItem({ txn }: { txn: Txn }) {
             {txn.hint && !txn.doc && !decided && (
               <span className="hint-chip">候補: {txn.hint.category}</span>
             )}
+            {txn.purchase && !decided && (
+              <span className="hint-chip">🛒 {txn.purchase.shop}の発注</span>
+            )}
           </div>
+          {txn.purchase && (
+            <div style={{
+              marginTop: 5, padding: "7px 9px", borderRadius: 6,
+              background: "#fdf6ec", border: "1px solid #e8d5b0",
+              fontSize: 11.5, lineHeight: 1.7, color: "#9c5f22",
+            }}>
+              <strong>
+                {txn.purchase.orderedAt.slice(5).replace("-", "/")}に
+                {txn.purchase.shop}へ発注した分と金額が一致します
+              </strong>
+              <br />
+              {txn.purchase.items}
+            </div>
+          )}
         </div>
         <div className="meisai-right">
           <div className={`meisai-amt ${sideOut ? "out" : "in"}`}>

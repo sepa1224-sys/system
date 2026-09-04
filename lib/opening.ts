@@ -277,8 +277,15 @@ export const TASKS: Task[] = [
 /** 日付ごとの、終わった作業のid */
 type DoneMap = Record<string, string[]>;
 
+/**
+ * 業務チェックの「今日」。営業日は朝6時で切り替える。
+ *
+ * 24時半まで営業しているので、締め作業の途中で日付が変わってしまう。
+ * カレンダーどおりだと0時を回った瞬間に翌日のまっさらなリストになり、
+ * それまでチェックした分が見えなくなる。朝6時までは前日として扱う。
+ */
 export function todayJST(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  return new Date(Date.now() + (9 - 6) * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 async function load(): Promise<DoneMap> {

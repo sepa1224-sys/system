@@ -3,6 +3,7 @@ import { FREEE_COMPANY_ID, freeeGet, isConnected } from "@/lib/freee";
 import { matchKbIn, getKbEntries, getDecisions } from "@/lib/kb";
 import { matchDocsIn, getDocsIndex } from "@/lib/docs";
 import { isGoogleConnected } from "@/lib/google";
+import { cardOrdersForMatching } from "@/lib/purchase";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,6 +36,10 @@ export async function GET() {
     // ノウハウ・書類索引・判断はKVから1回だけ読む。
     // 以前は明細1件ごとに matchKb/matchDocs がKVを読んでいて、
     // 未処理が100件あると往復200回で1分近くかかっていた。
+    // カード払いの発注。明細に出たときの手がかりにする。
+    // 発注そのものはfreeeに登録していない（明細側で消し込むため）
+    const cardOrders = await cardOrdersForMatching();
+
     const [decisions, kbEntries, docsIndex, gmail] = await Promise.all([
       getDecisions(),
       getKbEntries(),
@@ -100,6 +105,24 @@ export async function GET() {
               }
             : null,
           decision: decisions[String(t.id)] ?? null,
+          // 金額が一致し、発注から10日以内のもの
+          purchase:
+            cardOrders
+              .filter((o) => {
+                if (o.paidAmount !== t.amount) return false;
+                const days =
+                  (Date.parse(`${t.date}T00:00:00Z`) -
+                    Date.parse(`${o.orderedAt}T00:00:00Z`)) /
+                  86400000;
+                return days >= 0 && days <= 10;
+              })
+              .map((o) => ({
+                id: o.id,
+                shop: o.shop ?? "",
+                orderedAt: o.orderedAt,
+                amount: o.paidAmount ?? 0,
+                items: o.lines.map((l) => `${l.name} ${l.qty}${l.unit}`).join("・"),
+              }))[0] ?? null,
         });
       }
     }

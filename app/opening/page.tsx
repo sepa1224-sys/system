@@ -813,7 +813,7 @@ export default function OpeningPage() {
       {err && <p className="err">{err}</p>}
 
       <div className="card total-card">
-        <div className="total-label">{date.slice(5).replace("-", "/")} の進み具合</div>
+        <div className="total-label">{date.slice(5).replace("-", "/")}（営業日）の進み具合</div>
         <div className="total-amount">{doneCount} / {total}</div>
         <div style={{
           height: 8, borderRadius: 4, background: "rgba(255,255,255,0.3)",
@@ -848,7 +848,8 @@ export default function OpeningPage() {
       })}
 
       <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>
-        ※ チェックは日付が変わると自動でリセットされます。<br />
+        ※ チェックは<strong>朝6時</strong>にリセットされます。深夜0時をまたいでも、<br />
+        締め作業が終わるまで同じ日の記録のままです。<br />
         判断に迷ったら「❓ 使い方」のチャットで聞いてください。
       </p>
     </div>

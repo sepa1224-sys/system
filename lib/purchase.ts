@@ -32,6 +32,15 @@ export type OrderLine = {
   supplier?: string;
 };
 
+/**
+ * 支払い方法。経理の経路がこれで決まる。
+ *   card … 会社のデビットカード。数日後に銀行明細に出るので、
+ *          こちらからfreeeに登録してはいけない（二重計上になる）
+ *   own  … 立替。明細に出ないのでレシート登録の対象
+ *   cash … 現金払い。同上
+ */
+export type PaidBy = "card" | "own" | "cash";
+
 export type PurchaseOrder = {
   id: string;
   /** 発注した日 YYYY-MM-DD */
@@ -39,6 +48,13 @@ export type PurchaseOrder = {
   lines: OrderLine[];
   /** 店舗に届いた日。未着なら無い */
   arrivedAt?: string;
+  /** どこで買ったか。明細と突き合わせるのに使う */
+  shop?: string;
+  paidBy?: PaidBy;
+  /** 実際に払った額（税込）。概算ではなくレシートの数字 */
+  paidAmount?: number;
+  /** 銀行明細と突き合わせて経理が済んだ日 */
+  bookedAt?: string;
   note?: string;
 };
 
@@ -62,7 +78,11 @@ async function saveAll(list: PurchaseOrder[]): Promise<void> {
   await store.set(ORDERS_KEY, [...open, ...arrived.slice(0, 1000)]);
 }
 
-export async function addOrder(lines: OrderLine[], note?: string): Promise<PurchaseOrder> {
+export async function addOrder(
+  lines: OrderLine[],
+  note?: string,
+  extra?: { shop?: string; paidBy?: PaidBy; paidAmount?: number },
+): Promise<PurchaseOrder> {
   if (!lines.length) throw new Error("発注するものがありません");
   const all = await getOrders();
   const day = todayJST();
@@ -71,6 +91,9 @@ export async function addOrder(lines: OrderLine[], note?: string): Promise<Purch
     id: `${day}-${sameDay + 1}`,
     orderedAt: day,
     lines,
+    ...(extra?.shop ? { shop: extra.shop } : {}),
+    ...(extra?.paidBy ? { paidBy: extra.paidBy } : {}),
+    ...(extra?.paidAmount ? { paidAmount: extra.paidAmount } : {}),
     ...(note ? { note } : {}),
   };
   await saveAll([order, ...all]);
@@ -261,4 +284,45 @@ export async function itemStats(): Promise<{ from: string | null; to: string | n
     (a, b) => b.shortCount - a.shortCount || b.orderCount - a.orderCount || a.name.localeCompare(b.name),
   );
   return { from: dates[0] ?? null, to: dates[dates.length - 1] ?? null, stats };
+}
+
+/**
+ * 銀行明細と突き合わせるための、カード払いの発注。
+ *
+ * カード払いは数日後に明細へ出る。こちらからfreeeに登録すると
+ * 明細側の取引と二重になるので、登録はしない。
+ * 代わりに「この明細はこの発注では」と候補を出して、
+ * freeeのUIで消し込むときの手がかりにする。
+ */
+export async function cardOrdersForMatching(): Promise<PurchaseOrder[]> {
+  return (await getOrders()).filter((o) => o.paidBy === "card" && !o.bookedAt);
+}
+
+/** 明細と突き合わせて経理が済んだことを記録する */
+export async function markBooked(id: string, date?: string): Promise<void> {
+  const all = await getOrders();
+  const o = all.find((x) => x.id === id);
+  if (!o) throw new Error("その発注が見つかりません");
+  if (date) o.bookedAt = date;
+  else delete o.bookedAt;
+  await saveAll(all);
+}
+
+/**
+ * 明細1件に対して、金額と日付が近いカード払いの発注を探す。
+ * 金額はぴったり、日付は発注日から10日以内を候補にする。
+ */
+export async function matchTxn(
+  amount: number,
+  date: string,
+): Promise<PurchaseOrder[]> {
+  const cands = await cardOrdersForMatching();
+  const t = Date.parse(`${date}T00:00:00Z`);
+  return cands
+    .filter((o) => {
+      const days = (t - Date.parse(`${o.orderedAt}T00:00:00Z`)) / 86400000;
+      if (days < 0 || days > 10) return false;
+      return o.paidAmount === amount;
+    })
+    .sort((a, b) => (a.orderedAt < b.orderedAt ? 1 : -1));
 }
