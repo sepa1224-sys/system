@@ -47,8 +47,14 @@ export default function DjNightPage() {
       })
       .catch(() => setErr("読み込みに失敗しました"));
 
-    // LINEから開かれた場合だけ動く。ブラウザで直接開いても普通に使える
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID_DJNIGHT;
+    // LINEから開かれた場合だけ動く。ブラウザで直接開いても普通に使える。
+    //
+    // 夏祭りのLIFFアプリは終わったので、そのエンドポイントURLを
+    // このページに向け直せば使い回せる。Vercelの環境変数を足さなくて済むよう、
+    // 専用のIDが無ければ夏祭りのIDを使う。
+    const liffId =
+      process.env.NEXT_PUBLIC_LIFF_ID_DJNIGHT ||
+      process.env.NEXT_PUBLIC_LIFF_ID_NATSUMATSURI;
     if (!liffId) return;
     const s = document.createElement("script");
     s.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
