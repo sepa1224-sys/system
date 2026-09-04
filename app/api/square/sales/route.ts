@@ -149,13 +149,14 @@ export async function GET(req: NextRequest) {
     // 手で入れた中身の対応表。Squareが書き換えられない分をここで補う
     const itemFixes = await getFixes();
     function recoverItems(o: any): any[] | null {
-      const hasName = (o.line_items || []).some((li: any) => named(li));
-      if (hasName) return null;
-      // 対応表にあればそれを最優先で使う
+      // 手で入れた対応表が最優先。品目名が入っていても上書きする。
+      // 打ち間違い（別の商品で会計してしまった）を直すのにも使うため。
       const fixed = itemFixes[o.id];
       if (fixed?.length) {
         return fixed.map((f) => ({ ...f, note: "", recovered: true, manual: true }));
       }
+      const hasName = (o.line_items || []).some((li: any) => named(li));
+      if (hasName) return null;
       const t = new Date(o.created_at).getTime();
       const total = o.total_money?.amount || 0;
       const hit = openOrders.find(
