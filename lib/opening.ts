@@ -265,6 +265,33 @@ export const TASKS: Task[] = [
     detail: "週末に切れないよう、金曜の締めで充電しておく",
     weekday: 5,
   },
+  // ここから下は帰る直前にやること。上から順にやれば消し忘れない
+  {
+    id: "water-server",
+    phase: "締め",
+    name: "ウォーターサーバーを洗う",
+  },
+  {
+    id: "chairs-up",
+    phase: "締め",
+    name: "椅子を上げる",
+    detail: "翌朝の掃除機がけのため",
+  },
+  {
+    id: "toilet-light",
+    phase: "締め",
+    name: "トイレの電気を消す",
+  },
+  {
+    id: "lights-off",
+    phase: "締め",
+    name: "1階と2階の電気を消す",
+  },
+  {
+    id: "aircon-off",
+    phase: "締め",
+    name: "エアコンを消す",
+  },
   {
     id: "grinder-wash",
     phase: "週次",
