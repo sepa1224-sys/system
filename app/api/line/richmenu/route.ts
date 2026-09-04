@@ -58,7 +58,15 @@ export async function GET() {
 // 既定として設定し直す。古いほうは消す。
 export async function POST(req: NextRequest) {
   try {
-    const b = (await req.json()) as { id?: string; uri?: string; areaIndex?: number };
+    const b = (await req.json()) as {
+      id?: string;
+      uri?: string;
+      areaIndex?: number;
+      name?: string;
+      chatBarText?: string;
+      /** 差し替える画像。無ければ今の画像をそのまま引き継ぐ */
+      imageBase64?: string;
+    };
     if (!b.id || !b.uri) {
       return NextResponse.json({ error: "id と uri が必要です" }, { status: 400 });
     }
@@ -81,8 +89,8 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         size: menu.size,
         selected: menu.selected,
-        name: menu.name,
-        chatBarText: menu.chatBarText,
+        name: b.name || menu.name,
+        chatBarText: b.chatBarText || menu.chatBarText,
         areas,
       }),
     });
@@ -95,13 +103,21 @@ export async function POST(req: NextRequest) {
     }
     const newId = cd.richMenuId;
 
-    // 画像を引き継ぐ
-    const img = await fetch(`https://api-data.line.me/v2/bot/richmenu/${b.id}/content`, {
-      headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` },
-    });
-    if (img.ok) {
-      const buf = Buffer.from(await img.arrayBuffer());
-      const type = img.headers.get("content-type") || "image/png";
+    // 画像。指定があれば差し替え、無ければ今のものを引き継ぐ
+    let buf: Buffer | null = null;
+    let type = "image/png";
+    if (b.imageBase64) {
+      buf = Buffer.from(b.imageBase64, "base64");
+    } else {
+      const img = await fetch(`https://api-data.line.me/v2/bot/richmenu/${b.id}/content`, {
+        headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` },
+      });
+      if (img.ok) {
+        buf = Buffer.from(await img.arrayBuffer());
+        type = img.headers.get("content-type") || "image/png";
+      }
+    }
+    if (buf) {
       const up = await fetch(`https://api-data.line.me/v2/bot/richmenu/${newId}/content`, {
         method: "POST",
         headers: {
