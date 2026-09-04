@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Nav from "@/components/Nav";
 
-// 9/22 DJ NIGHT の申込管理。受付・入金確認・売上の見込みを見る。
+// イベントの申込管理。受付・入金確認・売上の見込みを見る。
+// どのイベントかは登録簿（lib/events.ts）から選ぶ。
 
 type Plan = { id: string; label: string; price: number; detail: string; payUrl: string };
 type Entry = {
@@ -11,6 +12,7 @@ type Entry = {
   planId: string; paid: boolean; checkedInAt?: string;
   djRequest?: string; photoOk: boolean; note?: string; createdAt: string;
 };
+type EventRef = { slug: string; title: string; dateLabel: string };
 type Summary = {
   people: number; byPlan: Record<string, number>;
   sales: number; gross: number; paid: number; unpaid: number; checkedIn: number;
@@ -18,7 +20,10 @@ type Summary = {
 
 const DJ_FEE = 20000;
 
-export default function DjNightKanri() {
+export default function EventKanri() {
+  const [events, setEvents] = useState<EventRef[]>([]);
+  const [slug, setSlug] = useState("");
+  const [title, setTitle] = useState("");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [sum, setSum] = useState<Summary | null>(null);
@@ -27,9 +32,12 @@ export default function DjNightKanri() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/djnight?admin=1");
+      const res = await fetch(`/api/event?admin=1${slug ? `&slug=${slug}` : ""}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "取得失敗");
+      setEvents(d.events || []);
+      if (!slug && d.event?.slug) setSlug(d.event.slug);
+      setTitle(d.event ? `${d.event.dateLabel} ${d.event.title}` : "");
       setPlans(d.plans || []);
       setEntries(d.entries || []);
       setSum(d.summary || null);
@@ -43,10 +51,10 @@ export default function DjNightKanri() {
   const patch = async (id: string, p: Partial<Entry>) => {
     setBusy(id);
     try {
-      const res = await fetch("/api/djnight", {
+      const res = await fetch("/api/event", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...p }),
+        body: JSON.stringify({ slug, id, ...p }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       await load();
@@ -61,10 +69,10 @@ export default function DjNightKanri() {
     if (!confirm(`${name}さんの申込を消します。`)) return;
     setBusy(id);
     try {
-      const res = await fetch("/api/djnight", {
+      const res = await fetch("/api/event", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ slug, id }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       await load();
@@ -83,10 +91,30 @@ export default function DjNightKanri() {
   return (
     <div className="wrap">
       <header>
-        <h1>🎧 9/22 DJ NIGHT</h1>
-        <p>申込の管理と当日の受付</p>
+        <h1>🎧 イベント申込</h1>
+        <p>{title || "申込の管理と当日の受付"}</p>
       </header>
       <Nav />
+
+      {events.length > 1 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+          {events.map((e) => (
+            <button
+              key={e.slug}
+              onClick={() => setSlug(e.slug)}
+              style={{
+                padding: "7px 13px", borderRadius: 8, cursor: "pointer",
+                fontSize: 12.5, fontWeight: 700,
+                border: slug === e.slug ? "2px solid var(--accent)" : "1px solid var(--line)",
+                background: slug === e.slug ? "var(--accent)" : "#fff",
+                color: slug === e.slug ? "#fff" : "var(--ink)",
+              }}
+            >
+              {e.dateLabel} {e.title}
+            </button>
+          ))}
+        </div>
+      )}
 
       {err && <p className="err">{err}</p>}
 
@@ -123,7 +151,9 @@ export default function DjNightKanri() {
           </div>
         ))}
         <p className="hint" style={{ marginTop: 8 }}>
-          申込フォーム: <a href="/djnight" target="_blank" rel="noreferrer">/djnight</a>
+          申込フォーム: <a href={`/e/${slug}`} target="_blank" rel="noreferrer">/e/{slug}</a>
+          {" ／ "}
+          LINEの入口: <a href="/e" target="_blank" rel="noreferrer">/e</a>（いま受付中のイベントを自動で出します）
         </p>
       </div>
 
