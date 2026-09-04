@@ -24,6 +24,7 @@ type Task = {
   hotsandPrep?: boolean;
   daily?: "morning" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
+  wafflePrep?: boolean;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;

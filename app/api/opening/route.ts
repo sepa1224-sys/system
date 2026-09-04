@@ -67,6 +67,10 @@ export async function GET(req: NextRequest) {
           // 前の晩に冷凍庫が少なければ、その日に仕込む
           return { ...t, done: done.includes(t.id), due: hotsand.needPrep };
         }
+        if (t.wafflePrep) {
+          // 夜の残数を数えたうえで、仕込みが要るときだけ出す
+          return { ...t, done: done.includes(t.id), due: night.prep };
+        }
         if (t.dailyAction) {
           return {
             ...t,

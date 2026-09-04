@@ -46,6 +46,8 @@ export type Task = {
   daily?: "morning" | "evening";
   /** 数えた結果、足りないときだけ出す手当ての作業 */
   dailyAction?: "buy" | "prep" | "refill";
+  /** 夜の残数を見て、生地を仕込む必要があるときだけ出す作業 */
+  wafflePrep?: boolean;
 };
 
 // ホットサンドの在庫チェックは、運用が固まるまで業務チェックから外している。
@@ -198,6 +200,15 @@ export const TASKS: Task[] = [
     phase: "締め",
     name: "23時半にラストオーダーを聞く",
     detail: "お客さん全席に回って聞く",
+  },
+  {
+    id: "waffle-prep",
+    phase: "締め",
+    name: "明日の分のワッフル生地を仕込む",
+    detail:
+      "22時に数えた結果、2個以下のフレーバーがあれば今夜のうちに仕込む。" +
+      "翌朝それを焼くので、仕込まないと明日出せない",
+    wafflePrep: true,
   },
   { id: "dishes-wash", phase: "締め", name: "食器を洗う" },
   {
