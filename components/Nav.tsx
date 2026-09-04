@@ -69,6 +69,7 @@ const GROUPS: Group[] = [
       { href: "/soudan", label: "💬 相談" },
       { href: "/knowledge", label: "📚 ナレッジ" },
       { href: "/meishi", label: "🪪 名刺" },
+      { href: "/djnight/kanri", label: "🎧 9/22 DJ" },
       { href: "/natsumatsuri/kanri", label: "🎆 夏祭り申込" },
       { href: "/help", label: "❓ 使い方" },
     ],
