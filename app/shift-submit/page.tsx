@@ -76,12 +76,10 @@ export default function ShiftSubmitPage() {
   };
 
   const addSlot = (wd: number) => {
-    // その日の既存の枠の後ろから始める。夜も入れる人が2枠目を足す想定
-    const exist = slots.filter((s) => s.weekday === wd);
-    const start = exist.length ? exist[exist.length - 1].end : "9:00";
-    const si = TIMES.indexOf(start);
-    const end = TIMES[Math.min(si + 12, TIMES.length - 1)] || "24:30"; // 既定で6時間ぶん
-    setSlots((p) => [...p, { weekday: wd, start: TIMES[si] || "9:00", end }]);
+    // 時間は空で足す。
+    // 既定で9:00-15:00が入っていたせいで、その時間で提出したつもりの人がいた。
+    // 自分で選ばないと提出できないようにする。
+    setSlots((p) => [...p, { weekday: wd, start: "", end: "" }]);
   };
 
   const setSlot = (idx: number, patch: Partial<Slot>) =>
@@ -92,6 +90,13 @@ export default function ShiftSubmitPage() {
   const save = async () => {
     if (!me) return;
     for (const s of slots) {
+      if (!s.start || !s.end) {
+        setErr(
+          `${WDAYS.find((w) => w.wd === s.weekday)?.label}曜の時間が選ばれていません。` +
+          "働ける時間を選ぶか、入れない日は「×」で消してください",
+        );
+        return;
+      }
       if (toMin(s.end) <= toMin(s.start)) {
         setErr(`${WDAYS.find((w) => w.wd === s.weekday)?.label}曜の ${s.start}〜${s.end} は終わりが始まりより前です`);
         return;
@@ -245,8 +250,10 @@ export default function ShiftSubmitPage() {
             <div className="card" style={{ padding: 14 }}>
               <div className="cat-title">2. 働ける時間を入れる</div>
               <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 8px" }}>
-                「＋時間を追加」で1日に何枠でも足せます（例: 昼も夜も入れる日は2枠）。
-                入れない日は何も足さなくてOKです。
+                <strong>「＋時間を追加」を押したあと、必ず時間を選んでください。</strong>
+                最初は空欄です。<strong>出勤できる時間をすべて入力してください</strong>
+                （朝から夜まで通して出られるなら 9:00〜24:30 のように、いちばん広い範囲で）。<br />
+                1日に何枠でも足せます（例: 昼と夜が飛び飛びなら2枠）。入れない日は何も足さなくてOKです。
               </p>
               {WDAYS.map(({ wd, label }) => {
                 const mine = slots
@@ -274,12 +281,20 @@ export default function ShiftSubmitPage() {
                     {mine.map((s) => (
                       <div key={s.idx} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
                         <select value={s.start} onChange={(e) => setSlot(s.idx, { start: e.target.value })}
-                          style={{ flex: 1, fontSize: 14, padding: "8px 6px" }}>
+                          style={{
+                            flex: 1, fontSize: 14, padding: "8px 6px",
+                            borderColor: s.start ? undefined : "#c0392b",
+                          }}>
+                          <option value="">何時から</option>
                           {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <span style={{ color: "var(--muted)" }}>〜</span>
                         <select value={s.end} onChange={(e) => setSlot(s.idx, { end: e.target.value })}
-                          style={{ flex: 1, fontSize: 14, padding: "8px 6px" }}>
+                          style={{
+                            flex: 1, fontSize: 14, padding: "8px 6px",
+                            borderColor: s.end ? undefined : "#c0392b",
+                          }}>
+                          <option value="">何時まで</option>
                           {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                         <button onClick={() => removeSlot(s.idx)} title="消す" style={{
