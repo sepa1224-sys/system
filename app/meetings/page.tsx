@@ -190,29 +190,33 @@ export default function MeetingsPage() {
             const c = STATUS_COLOR[t.status] ?? STATUS_COLOR["未着手"];
             return (
               <div key={t.id} className="card" style={{ padding: "14px 16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, lineHeight: 1.5 }}>
                     {i + 1}. {t.title}
                   </div>
                   <select
                     value={t.status}
                     onChange={(e) => patchTopic(t.id, { status: e.target.value })}
                     style={{
-                      flexShrink: 0, fontSize: 11.5, fontWeight: 700, padding: "4px 6px",
-                      borderRadius: 5, border: "none", background: c.bg, color: c.fg,
+                      width: "auto", flex: "0 0 auto", fontSize: 11.5, fontWeight: 700,
+                      padding: "4px 22px 4px 8px", borderRadius: 5, border: "none",
+                      background: c.bg, color: c.fg,
                     }}
                   >
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
-                  ボールを持つ人:{" "}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 12, color: "var(--muted)", marginTop: 5,
+                }}>
+                  <span style={{ flexShrink: 0 }}>ボールを持つ人</span>
                   <input
                     value={t.owner ?? ""}
                     onChange={(e) => patchTopic(t.id, { owner: e.target.value })}
                     placeholder="未定"
-                    style={{ width: 90, fontSize: 12, padding: "3px 6px" }}
+                    style={{ width: 100, flex: "0 0 auto", fontSize: 12, padding: "4px 8px" }}
                   />
                 </div>
 
