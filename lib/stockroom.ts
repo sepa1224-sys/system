@@ -58,14 +58,14 @@ export type Item = {
  */
 export const SEED_ITEMS: Item[] = [
   // ドリンク（ノンアル）
-  { id: "cola", name: "コカ・コーラ（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 21, orderQty: 1 },
-  { id: "ginger", name: "ジンジャーエール（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 9, orderQty: 1 },
-  { id: "mitsuya", name: "三ツ矢サイダー（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 13, orderQty: 1 },
+  { id: "cola", name: "コカ・コーラ（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 21, orderQty: 6 },
+  { id: "ginger", name: "ジンジャーエール（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 9, orderQty: 6 },
+  { id: "mitsuya", name: "三ツ矢サイダー（缶）", group: "ドリンク（ノンアル）", par: 12, unit: "缶", buyId: 13, orderQty: 20 },
   { id: "soda", name: "炭酸水（サンガリア）", group: "ドリンク（ノンアル）", par: 12, unit: "本", buyId: 20, orderQty: 1 },
-  { id: "tonic", name: "トニックウォーター", group: "ドリンク（ノンアル）", par: 6, unit: "本", buyId: 28, orderQty: 1 },
+  { id: "tonic", name: "トニックウォーター", group: "ドリンク（ノンアル）", par: 6, unit: "本", buyId: 28, orderQty: 30 },
   { id: "oj", name: "オレンジジュース", group: "ドリンク（ノンアル）", par: 2, unit: "本", buyId: 19, orderQty: 2 },
   { id: "pine", name: "パインジュース", group: "ドリンク（ノンアル）", par: 2, unit: "本" },
-  { id: "guava", name: "グァバジュース", group: "ドリンク（ノンアル）", par: 2, unit: "本", buyId: 4, orderQty: 1 },
+  { id: "guava", name: "グァバジュース", group: "ドリンク（ノンアル）", par: 2, unit: "本", buyId: 4, orderQty: 12 },
   { id: "lime-j", name: "ライムジュース（お酒にプラス）", group: "ドリンク（ノンアル）", par: 2, unit: "本", buyId: 12, orderQty: 1 },
   { id: "lemon-j", name: "レモンジュース（お酒にプラス）", group: "ドリンク（ノンアル）", par: 2, unit: "本", buyId: 24, orderQty: 1 },
   { id: "gf-j", name: "グレープフルーツジュース（お酒にプラス）", group: "ドリンク（ノンアル）", par: 2, unit: "本" },
@@ -74,9 +74,9 @@ export const SEED_ITEMS: Item[] = [
   { id: "gum", name: "ガムシロップ", group: "ドリンク（ノンアル）", par: 1, unit: "本", buyId: 23, orderQty: 1 },
 
   // ドリンク（酒）— ほとんど動かないので1本
-  { id: "beer-heineken", name: "ハイネケン", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 26, orderQty: 1 },
-  { id: "beer-corona", name: "コロナ", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 25, orderQty: 1 },
-  { id: "beer-bud", name: "バドワイザー", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 27, orderQty: 1 },
+  { id: "beer-heineken", name: "ハイネケン", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 26, orderQty: 24 },
+  { id: "beer-corona", name: "コロナ", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 25, orderQty: 24 },
+  { id: "beer-bud", name: "バドワイザー", group: "ドリンク（酒）", par: 6, unit: "本", buyId: 27, orderQty: 24 },
   { id: "beer-sapporo", name: "サッポロラガー（中瓶）", group: "ドリンク（酒）", par: 6, unit: "本" },
   { id: "tequila", name: "テキーラ（クエルボ）", group: "ドリンク（酒）", par: 2, unit: "本", note: "ショットで出るので減りが速い", buyId: 11, orderQty: 1 },
   { id: "bourbon", name: "バーボン（JIM BEAM）", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 16, orderQty: 1 },
@@ -84,7 +84,7 @@ export const SEED_ITEMS: Item[] = [
   { id: "gin", name: "ジン", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 5, orderQty: 1 },
   { id: "cointreau", name: "コアントロー", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 17, orderQty: 1 },
   { id: "aperol", name: "アペロール", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 14, orderQty: 1 },
-  { id: "umeshu", name: "梅酒", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 10, orderQty: 1 },
+  { id: "umeshu", name: "梅酒", group: "ドリンク（酒）", par: 1, unit: "本", buyId: 10, orderQty: 6 },
   { id: "wine-white", name: "白ワイン", group: "ドリンク（酒）", par: 1, unit: "本", note: "料理にも使う" },
 
   // コーヒー・茶
@@ -128,7 +128,7 @@ export const SEED_ITEMS: Item[] = [
   { id: "choco-syrup", name: "ハーシーチョコシロップ", group: "ワッフル", par: 1, unit: "本" },
   { id: "blueberry", name: "冷凍ブルーベリー", group: "ワッフル", par: 1, unit: "袋" },
   { id: "banana", name: "冷凍バナナ", group: "ワッフル", par: 1, unit: "袋" },
-  { id: "coconut", name: "ココナッツミルク", group: "ワッフル", par: 4, unit: "缶", buyId: 3, orderQty: 1 },
+  { id: "coconut", name: "ココナッツミルク", group: "ワッフル", par: 4, unit: "缶", buyId: 3, orderQty: 24 },
 
   // 仕込み品（足りなければ発注ではなく仕込み）
   { id: "mashed", name: "マッシュポテト", group: "仕込み品", par: 800, unit: "g", madeInHouse: true, shikomiId: "mashed-potato", keepDays: 10 },
