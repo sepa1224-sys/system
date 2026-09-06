@@ -23,6 +23,9 @@ type Candidate = {
 };
 type Line = { itemId: string; name: string; unit: string; qty: number; url?: string; supplier?: string };
 type Order = { id: string; orderedAt: string; lines: Line[]; arrivedAt?: string; note?: string };
+type ItemRef = { id: string; name: string; unit: string; group: string };
+/** リストに無いが一緒に買ったもの */
+type Extra = { key: string; itemId: string; name: string; unit: string; qty: string };
 type Stat = {
   itemId: string; name: string; group: string;
   shortCount: number; checkCount: number;
@@ -49,6 +52,9 @@ export default function PurchasePage() {
   // 支払い方法と実際の支払額。経理の経路がこれで決まる
   const [paidBy, setPaidBy] = useState<Record<string, "card" | "own" | "cash">>({});
   const [paidAmount, setPaidAmount] = useState<Record<string, string>>({});
+  const [allItems, setAllItems] = useState<ItemRef[]>([]);
+  // 店ごとの「ついでに買ったもの」
+  const [extras, setExtras] = useState<Record<string, Extra[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -67,6 +73,7 @@ export default function PurchasePage() {
       setOpen(d.open || []);
       setHistory(d.history || []);
       setToday(d.today || "");
+      setAllItems(d.allItems || []);
       setStats(d.stats?.stats || []);
       setStatFrom(d.stats?.from ?? null);
       const q: Record<string, string> = {};
@@ -105,6 +112,16 @@ export default function PurchasePage() {
         url: c.url,
         supplier: c.supplier,
       }));
+      // リストに無いが一緒に買ったもの
+      for (const e of (only ? extras[only] ?? [] : []).filter((x) => x.name.trim())) {
+        lines.push({
+          itemId: e.itemId || `extra:${e.name.trim()}`,
+          name: e.name.trim(),
+          unit: e.unit || "個",
+          qty: Math.max(1, Number(e.qty) || 1),
+          supplier: only,
+        });
+      }
       const res = await fetch("/api/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -122,6 +139,7 @@ export default function PurchasePage() {
         `${only ? `${only}へ ` : ""}${lines.length}品を発注済みにしました。届いたら「業務チェック」で押してください`,
       );
       setNote((p) => (only ? { ...p, [only]: "" } : {}));
+      setExtras((p) => (only ? { ...p, [only]: [] } : {}));
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "保存失敗");
@@ -180,6 +198,10 @@ export default function PurchasePage() {
           {msg}
         </div>
       )}
+
+      <datalist id="stockroom-items">
+        {allItems.map((i) => <option key={i.id} value={i.name} />)}
+      </datalist>
 
       {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>読み込み中…</div>}
 
@@ -336,6 +358,83 @@ export default function PurchasePage() {
                     </div>
                   ))}
 
+                  {/* 在庫確認では足りていたが、一緒に買ったもの。
+                      入れておかないと実際の支払額と中身が合わなくなる */}
+                  {(extras[shop] ?? []).map((e, i) => (
+                    <div key={e.key} style={{
+                      display: "flex", gap: 6, alignItems: "center",
+                      padding: "8px 2px", borderTop: "1px solid var(--line-soft, #eee)",
+                    }}>
+                      <input
+                        list="stockroom-items"
+                        value={e.name}
+                        placeholder="品名（一覧から選ぶか自由入力）"
+                        onChange={(ev) => {
+                          const v = ev.target.value;
+                          const hit = allItems.find((it) => it.name === v);
+                          setExtras((p) => ({
+                            ...p,
+                            [shop]: (p[shop] ?? []).map((x, j) =>
+                              j === i
+                                ? { ...x, name: v, itemId: hit?.id ?? "", unit: hit?.unit ?? x.unit }
+                                : x,
+                            ),
+                          }));
+                        }}
+                        style={{ flex: 1, minWidth: 0, fontSize: 13.5, padding: "7px 9px" }}
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        value={e.qty}
+                        onChange={(ev) =>
+                          setExtras((p) => ({
+                            ...p,
+                            [shop]: (p[shop] ?? []).map((x, j) => (j === i ? { ...x, qty: ev.target.value } : x)),
+                          }))
+                        }
+                        style={{ width: 56, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                      />
+                      <input
+                        value={e.unit}
+                        onChange={(ev) =>
+                          setExtras((p) => ({
+                            ...p,
+                            [shop]: (p[shop] ?? []).map((x, j) => (j === i ? { ...x, unit: ev.target.value } : x)),
+                          }))
+                        }
+                        style={{ width: 48, fontSize: 13, padding: "6px 6px", textAlign: "center" }}
+                      />
+                      <button
+                        onClick={() =>
+                          setExtras((p) => ({ ...p, [shop]: (p[shop] ?? []).filter((_, j) => j !== i) }))
+                        }
+                        style={{
+                          border: "none", background: "none", cursor: "pointer",
+                          color: "#c0392b", fontSize: 16, padding: "0 4px",
+                        }}
+                      >×</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setExtras((p) => ({
+                        ...p,
+                        [shop]: [
+                          ...(p[shop] ?? []),
+                          { key: `${Date.now()}${Math.random()}`, itemId: "", name: "", unit: "個", qty: "1" },
+                        ],
+                      }))
+                    }
+                    style={{
+                      marginTop: 8, width: "100%", padding: "9px", borderRadius: 8,
+                      border: "1px dashed var(--line)", background: "#fff",
+                      fontSize: 12.5, fontWeight: 700, color: "var(--muted)", cursor: "pointer",
+                    }}
+                  >
+                    ＋ この店で一緒に買ったものを足す
+                  </button>
+
                   <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--muted)" }}>
                     支払い方法
                   </div>
@@ -384,17 +483,19 @@ export default function PurchasePage() {
                   />
                   <button
                     onClick={() => submit(shop)}
-                    disabled={saving || !chosen.length}
+                    disabled={saving || (!chosen.length && !(extras[shop] ?? []).some((e) => e.name.trim()))}
                     style={{
                       width: "100%", padding: "11px", borderRadius: 9, border: "none",
-                      background: chosen.length ? "var(--accent)" : "var(--line)",
+                      background: chosen.length || (extras[shop] ?? []).some((e) => e.name.trim()) ? "var(--accent)" : "var(--line)",
                       color: "#fff", fontSize: 14, fontWeight: 800,
-                      cursor: chosen.length ? "pointer" : "default",
+                      cursor: chosen.length || (extras[shop] ?? []).some((e) => e.name.trim()) ? "pointer" : "default",
                     }}
                   >
                     {saving
                       ? "記録中…"
-                      : `${shop}へ${chosen.length}品を発注済みにする${sum ? `（約¥${sum.toLocaleString()}）`: ""}`}
+                      : `${shop}へ${chosen.length + (extras[shop] ?? []).filter((e) => e.name.trim()).length}品を発注済みにする${
+                          Number(paidAmount[shop]) ? `（¥${Number(paidAmount[shop]).toLocaleString()}）` : sum ? `（約¥${sum.toLocaleString()}）` : ""
+                        }`}
                   </button>
                 </div>
               );

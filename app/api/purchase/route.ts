@@ -30,14 +30,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ orders: await cardOrdersForMatching() });
     }
 
-    const [built, orders, stats] = await Promise.all([
+    const [built, orders, stats, items] = await Promise.all([
       buildCandidates(),
       getOrders(),
       itemStats(),
+      getItems(),
     ]);
     return NextResponse.json({
       ...built,
       stats,
+      // リストに無いものを足すときの選択肢。
+      // 在庫確認では足りていたが、ついでに買ったものを記録するのに使う
+      allItems: items.map((i) => ({ id: i.id, name: i.name, unit: i.unit, group: i.group })),
       today: todayJST(),
       open: orders.filter((o) => !o.arrivedAt),
       history: orders.filter((o) => o.arrivedAt).slice(0, 20),
