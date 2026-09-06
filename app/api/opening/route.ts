@@ -17,6 +17,8 @@ import {
   yesterdayOf,
 } from "@/lib/opening";
 import { openOrders } from "@/lib/purchase";
+import { getShifts } from "@/lib/shift";
+import { getKintai } from "@/lib/kintai";
 import { dayState, saveNight, saveMade as saveHotsandMade } from "@/lib/hotsand";
 import type { Slot } from "@/lib/dailycheck";
 import {
@@ -45,6 +47,7 @@ export async function GET(req: NextRequest) {
     const choices = await getChoices(date);
     const hotsand = await dayState(date);
     const daily = await dailyState(date);
+    const [shifts, kin] = await Promise.all([getShifts(), getKintai()]);
     // 夜に足りなかったものは、翌朝の手当てとして持ち越す。
     // ただし今朝もう数えているなら、そちらが最新なので持ち越さない。
     const yEvening = (await dailyState(yesterdayOf(date))).evening;
@@ -66,6 +69,15 @@ export async function GET(req: NextRequest) {
         if (t.hotsandPrep) {
           // 前の晩に冷凍庫が少なければ、その日に仕込む
           return { ...t, done: done.includes(t.id), due: hotsand.needPrep };
+        }
+        if (t.kintai) {
+          // シフトに載っている全員の勤怠がある日は、もう出さない
+          const st = shifts.filter((x) => x.date === date);
+          const kd = kin.filter((x) => x.date === date);
+          const filled =
+            st.length > 0 &&
+            st.every((x) => kd.some((y) => (y.member || y.name) === x.staff));
+          return { ...t, done: done.includes(t.id) || filled, due: st.length > 0 };
         }
         if (t.wafflePrep) {
           // 夜の残数を数えたうえで、仕込みが要るときだけ出す
@@ -120,6 +132,11 @@ export async function GET(req: NextRequest) {
       pendingOrders: pending,
       hotsand,
       daily: { ...daily, carried },
+      // 締めで勤怠をつけるときに使う。シフトと、すでに入っている勤怠
+      kintai: {
+        shifts: shifts.filter((x) => x.date === date).map((x) => ({ staff: x.staff, start: x.start, end: x.end })),
+        filled: kin.filter((x) => x.date === date).map((x) => x.member || x.name),
+      },
       total: need.length,
       doneCount: need.filter((t) => t.done).length,
     });

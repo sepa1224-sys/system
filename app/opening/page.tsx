@@ -25,6 +25,7 @@ type Task = {
   daily?: "morning" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
   wafflePrep?: boolean;
+  kintai?: boolean;
   done: boolean;
   lastDate?: string | null;
   daysSince?: number | null;
@@ -95,6 +96,13 @@ export default function OpeningPage() {
   const [daily, setDaily] = useState<Daily | null>(null);
   const [dcIn, setDcIn] = useState<Record<string, string>>({});
   const [dcBusy, setDcBusy] = useState(false);
+  // その日のシフトと、すでに入っている勤怠
+  const [kin, setKin] = useState<{
+    shifts: { staff: string; start: string; end: string }[];
+    filled: string[];
+  } | null>(null);
+  const [kinBusy, setKinBusy] = useState(false);
+  const [kinMsg, setKinMsg] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [bakedAt, setBakedAt] = useState("");
   const [wSaving, setWSaving] = useState(false);
@@ -144,6 +152,7 @@ export default function OpeningPage() {
       setPendingOrders(d.pendingOrders || []);
       setHs(d.hotsand || null);
       setDaily(d.daily || null);
+      setKin(d.kintai || null);
       if (d.waffle?.today) {
         const c: Record<string, string> = {};
         for (const [k, v] of Object.entries(d.waffle.today)) c[k] = String(v);
@@ -292,6 +301,27 @@ export default function OpeningPage() {
       setErr(e instanceof Error ? e.message : "保存に失敗");
     } finally {
       setDcBusy(false);
+    }
+  };
+
+  // シフトどおりに勤怠をつける。つけ忘れが多いので締めでまとめて
+  const kintaiFromShift = async () => {
+    setKinBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/kintai/from-shift", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "登録に失敗");
+      setKinMsg(
+        d.created > 0
+          ? `${d.created}人ぶんつけました`
+          : "全員ぶんすでに入っています",
+      );
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "登録に失敗");
+    } finally {
+      setKinBusy(false);
     }
   };
 

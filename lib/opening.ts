@@ -48,6 +48,8 @@ export type Task = {
   dailyAction?: "buy" | "prep" | "refill";
   /** 夜の残数を見て、生地を仕込む必要があるときだけ出す作業 */
   wafflePrep?: boolean;
+  /** その日の勤怠をシフトから作る作業 */
+  kintai?: boolean;
 };
 
 export const TASKS: Task[] = [
@@ -244,6 +246,15 @@ export const TASKS: Task[] = [
     phase: "締め",
     name: "ダスターを煮沸して干す",
     detail: "翌朝、乾いていたら畳んで片付ける",
+  },
+  {
+    id: "kintai-fix",
+    phase: "締め",
+    name: "今日の勤怠をつける",
+    detail:
+      "つけ忘れが多いので、締めのときにまとめてつける。" +
+      "シフトどおりなら1回押すだけ。違う日はその場で直す",
+    kintai: true,
   },
   {
     id: "cash-close",
