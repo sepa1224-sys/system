@@ -27,7 +27,7 @@ async function locationId(): Promise<string> {
 // ここでは入金を正として、注文側に見当たらないものを洗い出す。
 //
 // GET ?from=YYYY-MM-DD&to=YYYY-MM-DD
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const from = req.nextUrl.searchParams.get("from");
     const to = req.nextUrl.searchParams.get("to") || from;
@@ -48,23 +48,23 @@ export async function GET(req: NextRequest) {
       u.searchParams.set("location_id", loc);
       u.searchParams.set("limit", "100");
       if (cursor) u.searchParams.set("cursor", cursor);
-      const res = await fetch(u.toString(), { headers: hdrs() });
-      const d = await res.json();
-      if (!res.ok) {
+      const pRes: Response = await fetch(u.toString(), { headers: hdrs() });
+      const pd: any = await pRes.json();
+      if (!pRes.ok) {
         return NextResponse.json(
-          { error: d.errors?.[0]?.detail || `入金の取得に失敗(${res.status})` },
-          { status: res.status },
+          { error: pd.errors?.[0]?.detail || `入金の取得に失敗(${pRes.status})` },
+          { status: pRes.status },
         );
       }
-      payments.push(...(d.payments || []));
-      cursor = d.cursor;
+      payments.push(...(pd.payments || []));
+      cursor = pd.cursor;
     } while (cursor);
 
     // 注文をすべて拾う
     const orders: any[] = [];
     cursor = undefined;
     do {
-      const res = await fetch(`${SQUARE_API}/orders/search`, {
+      const oRes: Response = await fetch(`${SQUARE_API}/orders/search`, {
         method: "POST",
         headers: hdrs(),
         body: JSON.stringify({
@@ -79,10 +79,10 @@ export async function GET(req: NextRequest) {
           ...(cursor ? { cursor } : {}),
         }),
       });
-      const d = await res.json();
-      if (!res.ok) break;
-      orders.push(...(d.orders || []));
-      cursor = d.cursor;
+      const od: any = await oRes.json();
+      if (!oRes.ok) break;
+      orders.push(...(od.orders || []));
+      cursor = od.cursor;
     } while (cursor);
 
     const orderIds = new Set(orders.map((o) => o.id));
