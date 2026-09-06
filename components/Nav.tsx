@@ -49,6 +49,7 @@ const GROUPS: Group[] = [
       { href: "/orders", label: "📬 購入メール" },
       { href: "/shiire", label: "🛒 仕入れ" },
       { href: "/stockroom", label: "📦 ストック確認" },
+      { href: "/meetings", label: "🗣 MTG" },
       { href: "/todos", label: "✅ ToDo" },
     ],
   },
