@@ -73,6 +73,7 @@ export const EVENTS: FlatEvent[] = [
         payUrl: "https://square.link/u/taJyQqUU",
       },
     ],
+    requireLine: true,
     requestLabel: "DJへのリクエスト（任意）",
     requestPlaceholder: "聴きたい曲・ジャンルなど",
     emoji: "🎧",
