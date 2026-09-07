@@ -242,6 +242,14 @@ export const TASKS: Task[] = [
     weekday: 1,
   },
   {
+    id: "ice-drain",
+    phase: "締め",
+    name: "製氷機の氷を全て抜く",
+    detail:
+      "貯氷庫を空にして、翌朝は新しい氷から使う。古い氷が溜まったままにならないようにする",
+    weekday: 1,
+  },
+  {
     id: "duster-boil",
     phase: "締め",
     name: "ダスターを煮沸して干す",
