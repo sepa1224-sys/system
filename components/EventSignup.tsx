@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { LINE_ADD_URL } from "@/lib/lineFriend";
 
 // イベントの参加申込フォーム。お客さんが開くページの中身。
 // どのイベントかは slug で決まり、内容は lib/events.ts の登録簿から引く。
@@ -11,6 +12,7 @@ type Plan = { id: string; label: string; price: number; detail: string; payUrl?:
 type EventInfo = {
   slug: string; title: string; dateLabel: string; lead: string;
   requestLabel?: string; requestPlaceholder?: string; notes?: string[];
+  requireLine?: boolean;
 };
 
 // LIFF（LINE内ブラウザ）で開かれたときに、名前とユーザーIDを自動で取る。
@@ -19,6 +21,7 @@ type EventInfo = {
 type Liff = {
   init: (c: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
+  login: (c?: { redirectUri?: string }) => void;
   getProfile: () => Promise<{ displayName: string; userId: string }>;
 };
 const getLiff = (): Liff | undefined =>
@@ -39,9 +42,27 @@ export default function EventSignup({ slug }: { slug: string }) {
 
   const [lineUserId, setLineUserId] = useState("");
   const [viaLine, setViaLine] = useState(false);
+  // null = まだ判定していない
+  const [isFriend, setIsFriend] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ payUrl?: string; plan: Plan } | null>(null);
+
+  // 友だちかどうかはサーバー側（Messaging APIのプロフィール取得）で見る。
+  // 判定できないとき（トークン未設定など）は通す。
+  const checkFriend = useCallback(async (uid: string) => {
+    setChecking(true);
+    try {
+      const r = await fetch(`/api/line/friendship?userId=${encodeURIComponent(uid)}`);
+      const j = await r.json();
+      setIsFriend(j.known ? !!j.isFriend : true);
+    } catch {
+      setIsFriend(true);
+    } finally {
+      setChecking(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetch(`/api/event?slug=${slug}`)
@@ -54,11 +75,8 @@ export default function EventSignup({ slug }: { slug: string }) {
       })
       .catch(() => setErr("読み込みに失敗しました"));
 
-    // LINEから開かれた場合だけ動く。ブラウザで直接開いても普通に使える。
-    //
-    // 夏祭りのLIFFアプリは終わったので、そのエンドポイントURLを
-    // このページに向け直せば使い回せる。Vercelの環境変数を足さなくて済むよう、
-    // 専用のIDが無ければ夏祭りのIDを使う。
+    // LINEから開かれたときに、表示名とユーザーIDを受け取る。
+    // requireLine のイベントでは、友だち追加が済むまで申込フォームを出さない。
     const liffId =
       process.env.NEXT_PUBLIC_LIFF_ID_EVENT ||
       process.env.NEXT_PUBLIC_LIFF_ID_DJNIGHT ||
@@ -71,18 +89,23 @@ export default function EventSignup({ slug }: { slug: string }) {
         const liff = getLiff();
         if (!liff) return;
         await liff.init({ liffId });
-        if (!liff.isLoggedIn()) return;
+        if (!liff.isLoggedIn()) {
+          // LINE内で開かれていればログイン画面へ。外部ブラウザでは何も起きない
+          try { liff.login(); } catch { /* LINE外 */ }
+          return;
+        }
         const p = await liff.getProfile();
         setLineName((prev) => prev || p.displayName);
         setName((prev) => prev || p.displayName);
         setLineUserId(p.userId || "");
         setViaLine(true);
+        if (p.userId) await checkFriend(p.userId);
       } catch {
-        /* LINE外で開かれた場合はそのまま通常のフォームとして使う */
+        /* LINE外で開かれた場合はそのまま */
       }
     };
     document.head.appendChild(s);
-  }, [slug]);
+  }, [slug, checkFriend]);
 
   const submit = async () => {
     if (!name.trim()) return setErr("名前を入れてください");
@@ -154,6 +177,50 @@ export default function EventSignup({ slug }: { slug: string }) {
     );
   }
 
+  // LINE必須のイベント。LINEから開いていない／友だちでない場合はここで止める
+  if (ev?.requireLine && (!viaLine || isFriend === false)) {
+    return (
+      <div className="wrap dj">
+        <div className="hero">
+          <div className="hero-sub">{ev.dateLabel}</div>
+          <h1>{ev.title}</h1>
+          <div className="hero-note">{ev.lead}</div>
+        </div>
+        <div className="card">
+          <h2>LINEの友だち追加が必要です</h2>
+          {!viaLine ? (
+            <p>
+              このイベントは <strong>flat.のLINEから</strong>お申し込みいただけます。<br />
+              下のボタンで友だち追加して、トークに届くメニューから開いてください。
+            </p>
+          ) : (
+            <p>
+              flat.のLINEを<strong>友だち追加</strong>すると申し込めます。<br />
+              追加したあとに「追加できたか確認する」を押してください。
+            </p>
+          )}
+          <a className="pay-btn" href={LINE_ADD_URL} target="_blank" rel="noreferrer">
+            flat.のLINEを友だち追加 ↗
+          </a>
+          {viaLine && (
+            <button
+              className="submit"
+              style={{ marginTop: 10 }}
+              onClick={() => lineUserId && checkFriend(lineUserId)}
+              disabled={checking}
+            >
+              {checking ? "確認中…" : "追加できたか確認する"}
+            </button>
+          )}
+          <p className="small">
+            当日の受付とご連絡にLINEを使うため、お申し込みは友だち追加をお願いしています。
+          </p>
+        </div>
+        <Style />
+      </div>
+    );
+  }
+
   return (
     <div className="wrap dj">
       <div className="hero">
@@ -199,11 +266,19 @@ export default function EventSignup({ slug }: { slug: string }) {
         <label>お名前 <span className="req">必須</span></label>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例: 坂本達郎" />
 
-        <label>
-          LINEの表示名（分かれば）
-          {viaLine && <span style={{ color: "#c9a227", marginLeft: 6 }}>LINEから自動で入りました</span>}
-        </label>
-        <input value={lineName} onChange={(e) => setLineName(e.target.value)} placeholder="当日の照合に使います" />
+        {ev?.requireLine ? (
+          <p className="small" style={{ marginTop: -4 }}>
+            LINE: <strong>{lineName}</strong> として受け付けます
+          </p>
+        ) : (
+          <>
+            <label>
+              LINEの表示名（分かれば）
+              {viaLine && <span style={{ color: "#c9a227", marginLeft: 6 }}>LINEから自動で入りました</span>}
+            </label>
+            <input value={lineName} onChange={(e) => setLineName(e.target.value)} placeholder="当日の照合に使います" />
+          </>
+        )}
 
         <label>プラン <span className="req">必須</span></label>
         <div className="plans">

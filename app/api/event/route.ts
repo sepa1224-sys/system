@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EVENTS, currentEvent, eventOf } from "@/lib/events";
+import { isLineFriend } from "@/lib/lineFriend";
 import {
   addEntry,
   deadlinePassed,
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       event: {
         slug: ev.slug, title: ev.title, dateLabel: ev.dateLabel, lead: ev.lead,
         requestLabel: ev.requestLabel, requestPlaceholder: ev.requestPlaceholder, notes: ev.notes,
+        requireLine: !!ev.requireLine,
       },
       plans: ev.plans,
       closed: deadlinePassed(ev),
@@ -62,6 +64,24 @@ export async function POST(req: NextRequest) {
     if (!name) return NextResponse.json({ error: "名前を入れてください" }, { status: 400 });
     const plan = b.planId ? planOf(ev, b.planId) : undefined;
     if (!plan) return NextResponse.json({ error: "プランを選んでください" }, { status: 400 });
+
+    // LINE必須のイベントは、画面の出し分けだけでなくここでも止める。
+    // 判定できないとき（トークン未設定など）は通す。友だちでないと分かったときだけ弾く。
+    if (ev.requireLine) {
+      const uid = (b.lineUserId || "").trim();
+      if (!uid) {
+        return NextResponse.json(
+          { error: "LINEから開いてお申し込みください" },
+          { status: 400 },
+        );
+      }
+      if ((await isLineFriend(uid)) === false) {
+        return NextResponse.json(
+          { error: "flat.のLINEを友だち追加してからお申し込みください" },
+          { status: 400 },
+        );
+      }
+    }
 
     const entry: Entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

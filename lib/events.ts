@@ -37,6 +37,8 @@ export type FlatEvent = {
   notes?: string[];
   /** LINE通知に付ける絵文字 */
   emoji?: string;
+  /** LINEの友だち追加を必須にする。LINEから開かないと申し込めなくなる */
+  requireLine?: boolean;
 };
 
 export const EVENTS: FlatEvent[] = [
@@ -98,6 +100,7 @@ export const EVENTS: FlatEvent[] = [
         detail: "20:30開場／21:00開演。入場料500円＋1オーダー",
       },
     ],
+    requireLine: true,
     requestLabel: "須田さんへのメッセージ（任意）",
     requestPlaceholder: "楽しみにしていること、聴きたい曲など",
     notes: [
