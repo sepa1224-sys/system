@@ -200,11 +200,14 @@ function Timeline({ entries }: { entries: Entry[] }) {
 
 export default function Shift() {
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  const [month, setMonth] = useState(today.slice(0, 7));
+  const todayMonth = today.slice(0, 7);
+  const [month, setMonth] = useState(todayMonth);
   const [data, setData] = useState<Data | null>(null);
+  // 今日のシフトは月を送っても常に上に出したいので、今月分は別に持っておく
+  const [todayData, setTodayData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [openDate, setOpenDate] = useState<string | null>(null);
+  const [sel, setSel] = useState<string>(today);
 
   // 追加フォーム
   const [fStaff, setFStaff] = useState("坂本");
@@ -220,22 +223,42 @@ export default function Shift() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "取得失敗");
       setData(d);
+      if (month === todayMonth) setTodayData(d);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "取得失敗");
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, todayMonth]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // 別の月を見ているあいだも今日の分を出せるように、今月だけ一度取っておく
+  useEffect(() => {
+    if (month === todayMonth || todayData) return;
+    fetch(`/api/shift?month=${todayMonth}`)
+      .then((r) => r.json())
+      .then((d) => { if (!d.error) setTodayData(d); })
+      .catch(() => {});
+  }, [month, todayMonth, todayData]);
 
   const dayMap = useMemo(() => {
     const m: Record<string, Day> = {};
     for (const d of data?.days || []) m[d.date] = d;
     return m;
   }, [data]);
+
+  const todayDay = useMemo(
+    () => (todayData?.days || []).find((d) => d.date === today) || null,
+    [todayData, today],
+  );
+
+  // 月を移動したら、その月の頭（今月なら今日）を選び直す
+  useEffect(() => {
+    setSel((cur) => (cur.slice(0, 7) === month ? cur : month === todayMonth ? today : `${month}-01`));
+  }, [month, todayMonth, today]);
 
   const expand = async () => {
     setBusy(true);
@@ -296,37 +319,257 @@ export default function Shift() {
   const dates = monthDays(month);
   const staffList = data?.staff || ["坂本", "町田", "櫻井", "バイト"];
   const gapDays = (data?.days || []).filter((d) => d.gaps.length > 0);
-  // 割当がある日のうち、開店準備が2人に満たない日
   const prepShortDays = (data?.days || []).filter((d) => d.entries.length > 0 && !d.prepOk);
+
+  const wdOf = (date: string) => new Date(date + "T00:00:00Z").getUTCDay();
+  const selDay = dayMap[sel];
+  const selEntries = selDay?.entries || [];
+
+  // 担当の内訳。今日のカードと選択日の詳細で同じ見せ方にする
+  const segRows = (day: Day | null | undefined) => (day?.segments || []).map((sg) => (
+    <div key={sg.start} className="result-row">
+      <span className="mono" style={{ fontSize: 12.5 }}>{sg.start}〜{sg.end}</span>
+      <span style={{ textAlign: "right", fontSize: 12.5 }}>
+        {sg.idle ? (
+          <span style={{ color: "var(--muted)" }}>
+            {isIdle(toMin(sg.start) ?? 0) ? "アイドリング" : "⚠️ 無人"}
+          </span>
+        ) : (
+          <>
+            {sg.staff.map((n, i) => (
+              <span key={n} style={{ color: COLOR[n], fontWeight: 700 }}>
+                {i > 0 && <span style={{ color: "var(--muted)", fontWeight: 400 }}>・</span>}
+                {n}
+              </span>
+            ))}
+            {sg.staff.length >= 2 && (
+              <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 5 }}>2人</span>
+            )}
+          </>
+        )}
+      </span>
+    </div>
+  ));
 
   return (
     <div className="wrap">
       <header>
         <h1>🗓️ シフト</h1>
-        <p>曜日パターンを月に展開して、あとは個別に調整します</p>
+        <p>今日の担当をまず確認して、カレンダーで他の日を見ます</p>
       </header>
       <Nav />
 
       {err && <p className="err">{err}</p>}
 
+      {/* ── 今日のシフト ───────────────────────── */}
+      <div className="card" style={{ padding: 14, borderLeft: "4px solid var(--accent)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <strong style={{ fontSize: 16 }}>
+            今日のシフト
+            <span style={{ marginLeft: 8, fontSize: 13, color: "var(--muted)", fontWeight: 400 }}>
+              {Number(today.slice(5, 7))}月{Number(today.slice(8))}日（{WD[wdOf(today)]}）
+            </span>
+          </strong>
+          {todayDay && todayDay.entries.length > 0 && (
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              延べ {hoursText(todayDay.totalMinutes)}
+              {todayDay.gaps.length > 0 && <span style={{ color: "#c0392b" }}> ／ 穴{todayDay.gaps.length}</span>}
+            </span>
+          )}
+        </div>
+
+        {wdOf(today) === 2 ? (
+          <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--muted)" }}>定休日です。</p>
+        ) : !todayData ? (
+          <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--muted)" }}>読み込み中…</p>
+        ) : !todayDay || todayDay.entries.length === 0 ? (
+          <p style={{ margin: "10px 0 0", fontSize: 13, color: "#c0392b" }}>
+            今日はまだ誰も入っていません。
+          </p>
+        ) : (
+          <>
+            <Timeline entries={todayDay.entries} />
+            <div style={{ marginTop: 10 }}>{segRows(todayDay)}</div>
+            <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+              {todayDay.entries.map((e) => (
+                <span key={e.id}>
+                  <b style={{ color: COLOR[e.staff] }}>{e.staff}</b>{" "}
+                  <span className="mono">{e.start}〜{e.end}</span>
+                </span>
+              ))}
+            </div>
+            {todayDay.gaps.length > 0 && (
+              <p style={{ fontSize: 12, color: "#c0392b", marginTop: 8 }}>無人: {todayDay.gaps.join("、")}</p>
+            )}
+          </>
+        )}
+
+        {sel !== today && (
+          <button
+            onClick={() => { setMonth(todayMonth); setSel(today); }}
+            style={{ marginTop: 10, fontSize: 12 }}
+          >
+            今日を選ぶ
+          </button>
+        )}
+      </div>
+
+      {/* ── 月の切り替え ───────────────────────── */}
       <div className="card" style={{ padding: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <button onClick={() => setMonth(shiftMonth(month, -1))}>← 前月</button>
         <strong style={{ fontSize: 16 }}>{month.replace("-", "年")}月</strong>
         <button onClick={() => setMonth(shiftMonth(month, 1))}>翌月 →</button>
       </div>
 
+      {/* ── カレンダー ───────────────────────── */}
+      <div className="card" style={{ padding: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+          {WD.map((w, i) => (
+            <div key={w} style={{
+              textAlign: "center", fontSize: 11, fontWeight: 700, padding: "2px 0",
+              color: i === 0 ? "#c0392b" : i === 6 ? "#2d6a9f" : "var(--muted)",
+            }}>{w}</div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+          {Array.from({ length: wdOf(dates[0]) }, (_, i) => <div key={`b${i}`} />)}
+          {dates.map((date) => {
+            const wd = wdOf(date);
+            const day = dayMap[date];
+            const n = day?.entries.length || 0;
+            const closed = wd === 2;
+            const isSel = date === sel;
+            const isToday = date === today;
+            return (
+              <button
+                key={date}
+                onClick={() => setSel(date)}
+                aria-pressed={isSel}
+                style={{
+                  padding: "5px 2px 4px", minHeight: 52, width: "100%",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                  borderRadius: 8, cursor: "pointer",
+                  border: isToday ? "2px solid var(--accent)" : "1px solid var(--line, #e6e0d6)",
+                  background: isSel ? "var(--accent)" : closed ? "#f3efe9" : "transparent",
+                  color: isSel ? "#fff" : wd === 0 ? "#c0392b" : wd === 6 ? "#2d6a9f" : "inherit",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: isToday || isSel ? 800 : 600, lineHeight: 1 }}>
+                  {Number(date.slice(8))}
+                </span>
+                {closed ? (
+                  <span style={{ fontSize: 9, color: isSel ? "#fff" : "var(--muted)" }}>休</span>
+                ) : n === 0 ? (
+                  <span style={{ fontSize: 9, color: isSel ? "#fff" : "#c0392b" }}>—</span>
+                ) : (
+                  <>
+                    <span style={{ display: "flex", gap: 2 }}>
+                      {day!.entries.slice(0, 4).map((e) => (
+                        <span key={e.id} style={{
+                          width: 6, height: 6, borderRadius: 99,
+                          background: isSel ? "#fff" : (COLOR[e.staff] || "#999"),
+                        }} />
+                      ))}
+                    </span>
+                    <span style={{ fontSize: 9, color: isSel ? "#fff" : "var(--muted)", lineHeight: 1 }}>
+                      {day!.gaps.length > 0 && <span style={{ color: isSel ? "#fff" : "#c0392b" }}>⚠</span>}
+                      {hoursText(day!.totalMinutes)}
+                    </span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="hint" style={{ marginTop: 8, textAlign: "center" }}>
+          日付を押すと、その日のシフトが下に出ます
+        </p>
+      </div>
+
+      {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>読み込み中…</div>}
+
+      {/* ── 選んだ日の詳細 ───────────────────────── */}
+      {!loading && (
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <strong style={{ fontSize: 15 }}>
+              {Number(sel.slice(5, 7))}月{Number(sel.slice(8))}日（{WD[wdOf(sel)]}）
+              {wdOf(sel) === 2 && (
+                <span style={{
+                  marginLeft: 8, fontSize: 11, fontWeight: 700,
+                  background: "#efeae2", color: "#7a6a55", padding: "2px 8px", borderRadius: 99,
+                }}>定休日</span>
+              )}
+              {sel === today && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--accent)" }}>今日</span>}
+            </strong>
+            <span style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              {selEntries.length === 0 ? "未割当" : (
+                <>
+                  {hoursText(selDay!.totalMinutes)}
+                  {selDay!.gaps.length > 0 && <span style={{ color: "#c0392b" }}> ／ 穴{selDay!.gaps.length}</span>}
+                </>
+              )}
+            </span>
+          </div>
+
+          {selEntries.length > 0 && <Timeline entries={selEntries} />}
+
+          {selEntries.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="cat-title" style={{ fontSize: 12 }}>時間帯ごとの担当</div>
+              <div style={{ marginBottom: 12 }}>{segRows(selDay)}</div>
+            </div>
+          )}
+
+          <div className="cat-title" style={{ fontSize: 12 }}>個別の枠</div>
+          {selEntries.length === 0 && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "4px 0" }}>まだ割当がありません。</p>
+          )}
+          {selEntries.map((e) => (
+            <div key={e.id} className="result-row">
+              <span>
+                <b style={{ color: COLOR[e.staff] }}>{e.staff}</b> {e.start}〜{e.end}
+              </span>
+              <button onClick={() => remove(e.id)} disabled={busy} style={{ fontSize: 11 }}>削除</button>
+            </div>
+          ))}
+          {selDay?.gaps.length ? (
+            <p style={{ fontSize: 12, color: "#c0392b", marginTop: 6 }}>無人: {selDay.gaps.join("、")}</p>
+          ) : null}
+
+          <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={fStaff} onChange={(ev) => setFStaff(ev.target.value)} style={{ width: "auto", flex: "0 0 auto" }}>
+              {staffList.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input value={fStart} onChange={(ev) => setFStart(ev.target.value)} placeholder="9:00" style={{ width: 68, flex: "0 0 auto" }} />
+            <span>〜</span>
+            <input value={fEnd} onChange={(ev) => setFEnd(ev.target.value)} placeholder="14:00" style={{ width: 68, flex: "0 0 auto" }} />
+            <button className="primary" onClick={() => add(sel)} disabled={busy} style={{ flex: "0 0 auto" }}>追加</button>
+          </div>
+          <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
+            {(data?.patterns || []).map((p) => (
+              <button
+                key={p.label}
+                onClick={() => { setFStart(p.start); setFEnd(p.end); if (p.staff) setFStaff(p.staff); }}
+                style={{ fontSize: 11, padding: "3px 8px" }}
+              >
+                {p.label} {p.start}-{p.end}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {data && (
         <div className="card total-card">
           <div className="total-label">今月の延べ人時</div>
           <div className="total-amount">{hoursText(data.totalMinutes)}</div>
           <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 12.5, flexWrap: "wrap", justifyContent: "center" }}>
-            {staffList
-              .filter((s) => data.totals[s])
-              .map((s) => (
-                <span key={s}>
-                  <b>{s}</b> {hoursText(data.totals[s].minutes)}（{data.totals[s].days}日）
-                </span>
-              ))}
+            {staffList.filter((s) => data.totals[s]).map((s) => (
+              <span key={s}>
+                <b>{s}</b> {hoursText(data.totals[s].minutes)}（{data.totals[s].days}日）
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -349,7 +592,10 @@ export default function Shift() {
           <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
             {gapDays.slice(0, 6).map((d) => (
               <div key={d.date}>
-                {d.date.slice(5)}（{WD[new Date(d.date + "T00:00:00Z").getUTCDay()]}） {d.gaps.join("、")}
+                <button onClick={() => setSel(d.date)} style={{ fontSize: 12, padding: "2px 6px", marginRight: 6 }}>
+                  {d.date.slice(5)}（{WD[wdOf(d.date)]}）
+                </button>
+                {d.gaps.join("、")}
               </div>
             ))}
             {gapDays.length > 6 && <div>ほか {gapDays.length - 6} 日</div>}
@@ -366,145 +612,15 @@ export default function Shift() {
             9:00〜10:00 は掃除とエスプレッソマシンがあるので必ず2人です。
             <div style={{ marginTop: 4 }}>
               {prepShortDays.slice(0, 8).map((d) => (
-                <span key={d.date} style={{ marginRight: 10 }}>
-                  {d.date.slice(5)}（{WD[new Date(d.date + "T00:00:00Z").getUTCDay()]}）{d.prepCount}人
-                </span>
+                <button key={d.date} onClick={() => setSel(d.date)} style={{ fontSize: 11, padding: "2px 6px", marginRight: 6, marginTop: 4 }}>
+                  {d.date.slice(5)}（{WD[wdOf(d.date)]}）{d.prepCount}人
+                </button>
               ))}
               {prepShortDays.length > 8 && <span>ほか {prepShortDays.length - 8} 日</span>}
             </div>
           </div>
         </div>
       )}
-
-      {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>読み込み中…</div>}
-
-      {!loading &&
-        dates.map((date) => {
-          const wd = new Date(date + "T00:00:00Z").getUTCDay();
-          const day = dayMap[date];
-          const open = openDate === date;
-          const entries = day?.entries || [];
-          return (
-            <div key={date} className="card" style={{ padding: "10px 14px" }}>
-              <div
-                onClick={() => setOpenDate(open ? null : date)}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", gap: 8 }}
-              >
-                <div>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>
-                    {Number(date.slice(8))}日
-                  </span>
-                  <span style={{ marginLeft: 6, fontSize: 12.5, color: wd === 0 ? "#c0392b" : wd === 6 ? "#2d6a9f" : "var(--muted)" }}>
-                    ({WD[wd]})
-                  </span>
-                  {wd === 2 && (
-                    <span style={{
-                      marginLeft: 8, fontSize: 11, fontWeight: 700,
-                      background: "#efeae2", color: "#7a6a55",
-                      padding: "2px 8px", borderRadius: 99,
-                    }}>定休日</span>
-                  )}
-                  {date === today && (
-                    <span style={{ marginLeft: 6, fontSize: 11, color: "var(--accent)" }}>今日</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "right" }}>
-                  {entries.length === 0 ? (
-                    "未割当"
-                  ) : (
-                    <>
-                      {hoursText(day.totalMinutes)}
-                      {day.gaps.length > 0 && <span style={{ color: "#c0392b" }}> ／ 穴{day.gaps.length}</span>}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {entries.length > 0 && <Timeline entries={entries} />}
-
-              {open && (
-                <div style={{ marginTop: 12 }}>
-                  {/* 時間帯ごとの担当。シフト表と同じ書き方で並べる */}
-                  <div className="cat-title" style={{ fontSize: 12 }}>時間帯ごとの担当</div>
-                  <div style={{ marginBottom: 12 }}>
-                    {(day?.segments || []).map((sg) => (
-                      <div key={sg.start} className="result-row">
-                        <span className="mono" style={{ fontSize: 12.5 }}>
-                          {sg.start}〜{sg.end}
-                        </span>
-                        <span style={{ textAlign: "right", fontSize: 12.5 }}>
-                          {sg.idle ? (
-                            <span style={{ color: "var(--muted)" }}>
-                              {isIdle(toMin(sg.start) ?? 0) ? "アイドリング" : "⚠️ 無人"}
-                            </span>
-                          ) : (
-                            <>
-                              {sg.staff.map((n, i) => (
-                                <span key={n} style={{ color: COLOR[n], fontWeight: 700 }}>
-                                  {i > 0 && <span style={{ color: "var(--muted)", fontWeight: 400 }}>・</span>}
-                                  {n}
-                                </span>
-                              ))}
-                              {sg.staff.length >= 2 && (
-                                <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 5 }}>2人</span>
-                              )}
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="cat-title" style={{ fontSize: 12 }}>個別の枠</div>
-                  {entries.map((e) => (
-                    <div key={e.id} className="result-row">
-                      <span>
-                        <b style={{ color: COLOR[e.staff] }}>{e.staff}</b> {e.start}〜{e.end}
-                      </span>
-                      <button onClick={() => remove(e.id)} disabled={busy} style={{ fontSize: 11 }}>
-                        削除
-                      </button>
-                    </div>
-                  ))}
-                  {day?.gaps.length ? (
-                    <p style={{ fontSize: 12, color: "#c0392b", marginTop: 6 }}>
-                      無人: {day.gaps.join("、")}
-                    </p>
-                  ) : null}
-
-                  <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                    <select value={fStaff} onChange={(ev) => setFStaff(ev.target.value)} style={{ width: "auto", flex: "0 0 auto" }}>
-                      {staffList.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <input value={fStart} onChange={(ev) => setFStart(ev.target.value)} placeholder="9:00" style={{ width: 68, flex: "0 0 auto" }} />
-                    <span>〜</span>
-                    <input value={fEnd} onChange={(ev) => setFEnd(ev.target.value)} placeholder="14:00" style={{ width: 68, flex: "0 0 auto" }} />
-                    <button className="primary" onClick={() => add(date)} disabled={busy} style={{ flex: "0 0 auto" }}>
-                      追加
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    {(data?.patterns || []).map((p) => (
-                      <button
-                        key={p.label}
-                        onClick={() => {
-                          setFStart(p.start);
-                          setFEnd(p.end);
-                          if (p.staff) setFStaff(p.staff);
-                        }}
-                        style={{ fontSize: 11, padding: "3px 8px" }}
-                      >
-                        {p.label} {p.start}-{p.end}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
 
       <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>
         ※ <b>18:00〜19:00 はアイドリング</b>として意図的に空けているので、無人の警告は出しません（帯では斜線で表示）。<br />
