@@ -6,7 +6,7 @@ import Nav from "@/components/Nav";
 // イベントの申込管理。受付・入金確認・売上の見込みを見る。
 // どのイベントかは登録簿（lib/events.ts）から選ぶ。
 
-type Plan = { id: string; label: string; price: number; detail: string; payUrl: string };
+type Plan = { id: string; label: string; price: number; detail: string; payUrl?: string };
 type Entry = {
   id: string; name: string; lineName?: string; email?: string;
   planId: string; paid: boolean; checkedInAt?: string;
@@ -147,7 +147,7 @@ export default function EventKanri() {
         </p>
         {plans.map((p) => (
           <div key={p.id} style={{ fontSize: 12, padding: "3px 0" }}>
-            {p.label}: <a href={p.payUrl} target="_blank" rel="noreferrer">{p.payUrl}</a>
+            {p.label}: {p.payUrl ? <a href={p.payUrl} target="_blank" rel="noreferrer">{p.payUrl}</a> : <span>当日払いのみ</span>}
           </div>
         ))}
         <p className="hint" style={{ marginTop: 8 }}>

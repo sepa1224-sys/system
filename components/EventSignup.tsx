@@ -7,8 +7,11 @@ import { useState, useEffect } from "react";
 // 申し込んだあと、そのままSquareの事前決済リンクへ進める。
 // 当日払いもできるので、決済は任意。
 
-type Plan = { id: string; label: string; price: number; detail: string; payUrl: string };
-type EventInfo = { slug: string; title: string; dateLabel: string; lead: string };
+type Plan = { id: string; label: string; price: number; detail: string; payUrl?: string };
+type EventInfo = {
+  slug: string; title: string; dateLabel: string; lead: string;
+  requestLabel?: string; requestPlaceholder?: string; notes?: string[];
+};
 
 // LIFF（LINE内ブラウザ）で開かれたときに、名前とユーザーIDを自動で取る。
 // あとからLINEで個別に連絡できるようにするため。
@@ -38,7 +41,7 @@ export default function EventSignup({ slug }: { slug: string }) {
   const [viaLine, setViaLine] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<{ payUrl: string; plan: Plan } | null>(null);
+  const [done, setDone] = useState<{ payUrl?: string; plan: Plan } | null>(null);
 
   useEffect(() => {
     fetch(`/api/event?slug=${slug}`)
@@ -113,16 +116,25 @@ export default function EventSignup({ slug }: { slug: string }) {
         </div>
         <div className="card">
           <h2>お支払いについて</h2>
-          <p>
-            事前にお支払いいただけると、当日の受付がスムーズです。
-            <strong>当日のお支払いでも大丈夫です。</strong>
-          </p>
-          <a className="pay-btn" href={done.payUrl} target="_blank" rel="noreferrer">
-            事前に支払う（カード）¥{done.plan.price.toLocaleString()} ↗
-          </a>
-          <p className="small">
-            Squareの決済ページが開きます。支払い後の画面はスクリーンショットを撮っておいてください。
-          </p>
+          {done.payUrl ? (
+            <>
+              <p>
+                事前にお支払いいただけると、当日の受付がスムーズです。
+                <strong>当日のお支払いでも大丈夫です。</strong>
+              </p>
+              <a className="pay-btn" href={done.payUrl} target="_blank" rel="noreferrer">
+                事前に支払う（カード）¥{done.plan.price.toLocaleString()} ↗
+              </a>
+              <p className="small">
+                Squareの決済ページが開きます。支払い後の画面はスクリーンショットを撮っておいてください。
+              </p>
+            </>
+          ) : (
+            <p>
+              当日、店内でお支払いください。<br />
+              <strong>¥{done.plan.price.toLocaleString()} ＋ ワンドリンクのご注文</strong>
+            </p>
+          )}
         </div>
         <div className="card">
           <h2>当日のご案内</h2>
@@ -131,6 +143,11 @@ export default function EventSignup({ slug }: { slug: string }) {
             flat.（滋賀県彦根市）<br />
             {ev?.lead ?? ""}
           </p>
+          {ev?.notes?.length ? (
+            <ul className="notes">
+              {ev.notes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          ) : null}
         </div>
         <Style />
       </div>
@@ -165,9 +182,13 @@ export default function EventSignup({ slug }: { slug: string }) {
             <div className="plan-detail">{p.detail}</div>
           </div>
         ))}
-        <p className="small">
-          テキーラショット ¥200 など、単品のご注文も承ります。
-        </p>
+        {ev?.notes?.length ? (
+          <ul className="notes">
+            {ev.notes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+        ) : (
+          <p className="small">テキーラショット ¥200 など、単品のご注文も承ります。</p>
+        )}
       </div>
 
       {err && <div className="card err-box">{err}</div>}
@@ -200,8 +221,16 @@ export default function EventSignup({ slug }: { slug: string }) {
           ))}
         </div>
 
-        <label>DJへのリクエスト（任意）</label>
-        <input value={djRequest} onChange={(e) => setDjRequest(e.target.value)} placeholder="聴きたい曲・ジャンルなど" />
+        {ev?.requestLabel && (
+          <>
+            <label>{ev.requestLabel}</label>
+            <input
+              value={djRequest}
+              onChange={(e) => setDjRequest(e.target.value)}
+              placeholder={ev.requestPlaceholder || ""}
+            />
+          </>
+        )}
 
         <label>その他（任意）</label>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="アレルギー・到着が遅れるなど" />
@@ -215,7 +244,9 @@ export default function EventSignup({ slug }: { slug: string }) {
           {saving ? "送信中…" : "この内容で申し込む"}
         </button>
         <p className="small">
-          送信後にお支払いのリンクが出ます。<strong>当日払いでも大丈夫です。</strong>
+          {plans.some((p) => p.payUrl)
+            ? <>送信後にお支払いのリンクが出ます。<strong>当日払いでも大丈夫です。</strong></>
+            : <>お支払いは<strong>当日、店内で</strong>お願いします。</>}
         </p>
       </div>
       <Style />
@@ -227,6 +258,8 @@ function Style() {
   return (
     <style jsx global>{`
       body { background: #14171c; color: #f2efe9; margin: 0; }
+      .notes { margin: 10px 0 0; padding-left: 1.1em; font-size: 12.5px; color: #b7b2a8; line-height: 1.95; }
+      .notes li { margin-bottom: 2px; }
       .dj { max-width: 560px; margin: 0 auto; padding: 0 16px 48px; font-family: system-ui, sans-serif; }
       .hero { padding: 40px 0 28px; text-align: center; }
       .hero h1 { font-size: 34px; margin: 6px 0; letter-spacing: .04em; }

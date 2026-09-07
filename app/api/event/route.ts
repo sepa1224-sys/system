@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
     if (!ev) return NextResponse.json({ event: null, plans: [], people: 0, closed: true });
     const entries = await getEntries(ev.slug);
     const base = {
-      event: { slug: ev.slug, title: ev.title, dateLabel: ev.dateLabel, lead: ev.lead },
+      event: {
+        slug: ev.slug, title: ev.title, dateLabel: ev.dateLabel, lead: ev.lead,
+        requestLabel: ev.requestLabel, requestPlaceholder: ev.requestPlaceholder, notes: ev.notes,
+      },
       plans: ev.plans,
       closed: deadlinePassed(ev),
       people: entries.length,
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest) {
         await pushLine(
           ids["坂本"],
           [
-            `【${ev.title}】申込がありました🎧`,
+            `【${ev.title}】申込がありました${ev.emoji ?? "✨"}`,
             "",
             `${entry.name}さん${entry.lineName ? `（${entry.lineName}）` : ""}`,
             `${plan.label} ¥${plan.price.toLocaleString()}`,
