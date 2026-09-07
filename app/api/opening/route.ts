@@ -19,7 +19,7 @@ import {
 import { openOrders } from "@/lib/purchase";
 import { getShifts } from "@/lib/shift";
 import { getKintai } from "@/lib/kintai";
-import { dayState, saveNight, saveMade as saveHotsandMade } from "@/lib/hotsand";
+import { dayState, saveNight, saveAfternoon, saveMade as saveHotsandMade } from "@/lib/hotsand";
 import type { Slot } from "@/lib/dailycheck";
 import {
   dayState as dailyState,
@@ -65,6 +65,15 @@ export async function GET(req: NextRequest) {
       TASKS.map(async (t) => {
         if (t.pendingOrder) {
           return { ...t, done: done.includes(t.id), due: pending.length > 0 };
+        }
+        if (t.hotsandAfternoon) {
+          return { ...t, done: done.includes(t.id), due: true };
+        }
+        if (t.hotsandBread) {
+          return { ...t, done: done.includes(t.id), due: hotsand.needBreadCall };
+        }
+        if (t.hotsandTane) {
+          return { ...t, done: done.includes(t.id), due: hotsand.needTane };
         }
         if (t.hotsandPrep) {
           // 前の晩に冷凍庫が少なければ、その日に仕込む
@@ -171,6 +180,7 @@ export async function POST(req: NextRequest) {
         freezer?: Record<string, number>;
         tane?: boolean;
       };
+      hotsandAfternoon?: { freezer?: Record<string, number> };
       hotsandMade?: { freezer?: Record<string, number> };
       dailyCount?: { slot?: Slot; values?: DailyValues };
     };
@@ -204,6 +214,13 @@ export async function POST(req: NextRequest) {
         !!b.hotsandCount.tane,
       );
       await toggle(date, "hotsand-night", true);
+      return NextResponse.json({ ok: true, date, hotsand: await dayState(date) });
+    }
+
+    if (b.hotsandAfternoon) {
+      const date = b.date || todayJST();
+      await saveAfternoon(date, b.hotsandAfternoon.freezer ?? {});
+      await toggle(date, "hotsand-afternoon", true);
       return NextResponse.json({ ok: true, date, hotsand: await dayState(date) });
     }
 

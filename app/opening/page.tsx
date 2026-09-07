@@ -21,6 +21,9 @@ type Task = {
   choices?: [string, string];
   answer?: string | null;
   hotsand?: "night";
+  hotsandAfternoon?: boolean;
+  hotsandTane?: boolean;
+  hotsandBread?: boolean;
   hotsandPrep?: boolean;
   daily?: "morning" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
@@ -36,18 +39,28 @@ type Slot = "morning" | "evening";
 type Hotsand = {
   flavors: string[];
   fridgePar: number;
-  freezerLow: number;
+  freezerLowTotal: number;
   batch: number;
+  intervalDays: number;
+  afternoon: {
+    counted: boolean;
+    freezer: Record<string, number> | null;
+    total: number | null;
+  };
   night: {
     counted: boolean;
     fridge: Record<string, number> | null;
     freezer: Record<string, number> | null;
     tane: boolean | null;
-    low: { flavor: string; left: number }[];
   };
-  basisDate: string | null;
-  low: { flavor: string; left: number }[];
+  lastMade: string | null;
+  nextPrep: string | null;
+  daysSinceMade: number | null;
+  total: number | null;
+  short: boolean;
   madeToday: number;
+  needBreadCall: boolean;
+  needTane: boolean;
   needPrep: boolean;
 };
 
@@ -225,6 +238,27 @@ export default function OpeningPage() {
   // key は "fridge:クラシックメルト" のように作る
   const hsKey = (where: string, f: string) => `${where}:${f}`;
   const hsNum = (where: string, f: string) => Number(hsIn[hsKey(where, f)] || 0);
+
+  const saveHotsandAfternoon = async () => {
+    if (!hs) return;
+    setHsBusy(true);
+    setErr("");
+    try {
+      const freezer: Record<string, number> = {};
+      for (const f of hs.flavors) freezer[f] = hsNum("afternoon", f);
+      const res = await fetch("/api/opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hotsandAfternoon: { freezer } }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "保存に失敗");
+    } finally {
+      setHsBusy(false);
+    }
+  };
 
   const saveHotsand = async (tane: boolean) => {
     if (!hs) return;
@@ -582,6 +616,74 @@ export default function OpeningPage() {
               </div>
             );
           })()}
+          {t.hotsandAfternoon && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
+                冷凍庫の残り（合計が{hs.freezerLowTotal}個を切ったら、今日のうちに食パンを頼んでタネを仕込む）
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {hs.flavors.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 12.5 }}>{f}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={hsIn[hsKey("afternoon", f)] ?? (hs.afternoon.counted ? String(hs.afternoon.freezer?.[f] ?? 0) : "")}
+                      onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("afternoon", f)]: e.target.value }))}
+                      style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={saveHotsandAfternoon}
+                disabled={hsBusy}
+                style={{
+                  marginTop: 8, padding: "9px 16px", borderRadius: 8, border: "none",
+                  background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                {hsBusy ? "記録中…" : "記録する"}
+              </button>
+              {hs.afternoon.counted && (
+                <div style={{
+                  marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
+                  background: hs.short ? "#fde8e8" : "#eaf6ec",
+                  border: `1px solid ${hs.short ? "#e0b4b4" : "#b7dfc0"}`,
+                  color: hs.short ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                }}>
+                  合計{hs.afternoon.total}個。
+                  {hs.short
+                    ? `${hs.freezerLowTotal}個を切っています。今日のうちに食パンを頼んで、タネを仕込んでください（明日${hs.batch}個仕込みます）`
+                    : "まだ足りています"}
+                </div>
+              )}
+            </div>
+          )}
+          {t.hotsandBread && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{
+                padding: "10px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.75,
+                background: "#fdf6ec", border: "1px solid #e8d5b0", color: "#9c5f22",
+              }}>
+                15時の時点で冷凍庫の合計が{hs.afternoon.total}個でした。
+                今日中に平和堂へ連絡すると明日届きます。
+                <div style={{ marginTop: 4, fontWeight: 700 }}>★平和堂は手続き中。完了するまで発注しない</div>
+              </div>
+            </div>
+          )}
+          {t.hotsandTane && hs && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <div style={{
+                padding: "10px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.75,
+                background: "#fdf6ec", border: "1px solid #e8d5b0", color: "#9c5f22",
+              }}>
+                明日{hs.batch}個仕込むので、今日のうちにタネを作っておきます。
+                {hs.nextPrep && <div>次の仕込み予定日: {hs.nextPrep.slice(5).replace("-", "/")}</div>}
+              </div>
+            </div>
+          )}
           {t.hotsand && hs && (
             <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
@@ -596,24 +698,6 @@ export default function OpeningPage() {
                       min={0}
                       value={hsIn[hsKey("fridge", f)] ?? (hs.night.counted ? String(hs.night.fridge?.[f] ?? 0) : String(hs.fridgePar))}
                       onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("fridge", f)]: e.target.value }))}
-                      style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
-                    />
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "8px 0 4px" }}>
-                冷凍庫の残り（各{hs.freezerLow}個を切ったら翌日{hs.batch}個仕込む）
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {hs.flavors.map((f) => (
-                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 12.5 }}>{f}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={hsIn[hsKey("freezer", f)] ?? (hs.night.counted ? String(hs.night.freezer?.[f] ?? 0) : "")}
-                      onChange={(e) => setHsIn((p) => ({ ...p, [hsKey("freezer", f)]: e.target.value }))}
                       style={{ width: 54, fontSize: 14, padding: "6px 8px", textAlign: "center" }}
                     />
                     <span style={{ fontSize: 12, color: "var(--muted)" }}>個</span>
@@ -644,14 +728,13 @@ export default function OpeningPage() {
               {hs.night.counted && (
                 <div style={{
                   marginTop: 8, padding: "9px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.7,
-                  background: hs.night.low.length ? "#fde8e8" : "#eaf6ec",
-                  border: `1px solid ${hs.night.low.length ? "#e0b4b4" : "#b7dfc0"}`,
-                  color: hs.night.low.length ? "#c0392b" : "var(--ok)", fontWeight: 700,
+                  background: hs.night.tane === false ? "#fde8e8" : "#eaf6ec",
+                  border: `1px solid ${hs.night.tane === false ? "#e0b4b4" : "#b7dfc0"}`,
+                  color: hs.night.tane === false ? "#c0392b" : "var(--ok)", fontWeight: 700,
                 }}>
-                  {hs.night.low.length
-                    ? `冷凍庫が少なくなっています（${hs.night.low.map((x) => `${x.flavor}${x.left}個`).join("・")}）。明日${hs.batch}個仕込む作業が出ます`
-                    : "冷凍庫はまだ足りています"}
-                  {hs.night.tane === false && <div>タネがありません。タネから仕込んでください</div>}
+                  {hs.night.tane === false
+                    ? "タネがありません。翌日仕込むならタネから作ってください"
+                    : "記録しました。冷凍庫の数は15時のチェックで見ます"}
                 </div>
               )}
             </div>
@@ -663,11 +746,15 @@ export default function OpeningPage() {
                 background: "#fdf6ec", border: "1px solid #e8d5b0",
               }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-                  {hs.basisDate?.slice(5).replace("-", "/")}の夜の時点で冷凍庫が少なくなっていました
+                  {hs.nextPrep && hs.nextPrep <= (hs.lastMade ?? "")
+                    ? ""
+                    : hs.lastMade
+                      ? `前回の仕込みは${hs.lastMade.slice(5).replace("-", "/")}（${hs.daysSinceMade}日前）`
+                      : "まだ仕込みの記録がありません"}
                 </div>
                 <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
-                  {hs.low.map((x) => `${x.flavor}${x.left}個`).join("・")}
-                  {" "}→ 合わせて{hs.batch}個仕込む
+                  合わせて{hs.batch}個仕込む（各{hs.batch / 2}個ずつ）。
+                  仕込んだ日から{hs.intervalDays}日空けて次にまわります
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "8px 0 4px" }}>
                   仕込んで冷凍庫に入れた数

@@ -40,6 +40,12 @@ export type Task = {
   choices?: [string, string];
   /** 閉めるときにホットサンドを整える作業 */
   hotsand?: "night";
+  /** 15時に冷凍庫のホットサンドを数える作業 */
+  hotsandAfternoon?: boolean;
+  /** 15時に足りなければ出す、食パンを頼む作業 */
+  hotsandBread?: boolean;
+  /** 翌日仕込むことが決まったときに出す、タネを仕込む作業 */
+  hotsandTane?: boolean;
   /** ホットサンドが足りないときだけ出す仕込みの作業 */
   hotsandPrep?: boolean;
   /** 牛乳・コールドブリュー・水を数える作業。朝か夜か */
@@ -174,12 +180,35 @@ export const TASKS: Task[] = [
   },
 
   {
+    id: "hotsand-afternoon",
+    phase: "営業中",
+    name: "15時にホットサンドの冷凍庫を数える",
+    detail:
+      "2フレーバーの残りを入れる。合計が5個を切っていたら、その日のうちに" +
+      "食パンを頼む作業とタネを仕込む作業が出る",
+    hotsandAfternoon: true,
+  },
+  {
+    id: "hotsand-bread",
+    phase: "営業中",
+    name: "食パンを平和堂に連絡する",
+    detail: "今日中に連絡すれば明日届く。★平和堂は手続き中なので、完了するまでは発注しない",
+    hotsandBread: true,
+  },
+  {
+    id: "hotsand-tane",
+    phase: "営業中",
+    name: "ホットサンドのタネを仕込む",
+    detail: "明日10個仕込むので、その前日にタネを作っておく",
+    hotsandTane: true,
+  },
+  {
     id: "hotsand-night",
     phase: "締め",
     name: "ホットサンドを冷蔵庫に3つずつ補充する",
     detail:
-      "冷凍庫から移して冷蔵庫を各3個にし、そのとき冷凍庫に何個残っているかを入れる。" +
-      "冷凍庫が各2個を切っていたら、翌日に10個仕込む作業が出る",
+      "冷凍庫から移して冷蔵庫を各3個にそろえる。数を見るのは15時のチェックなので、" +
+      "ここではタネの有無だけ記録する",
     hotsand: "night",
   },
   {
@@ -187,7 +216,8 @@ export const TASKS: Task[] = [
     phase: "営業中",
     name: "ホットサンドを10個仕込む",
     detail:
-      "前の晩の時点で冷凍庫が各2個を切っていたら出る。だいたい3日に1回まわってくる",
+      "前回の仕込みから3日たった日、または前日15時に冷凍庫が5個を切っていたら出る。" +
+      "仕込んだ日を起点に、次はそこから3日後",
     hotsandPrep: true,
   },
   {

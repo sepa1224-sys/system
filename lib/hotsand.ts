@@ -3,22 +3,25 @@
 // 回し方は「冷蔵庫は常に各3個、冷凍庫が本体の在庫」。
 // 出したら冷凍庫から冷蔵庫へ移して補充する。
 //
-// 毎晩、閉めるときに冷蔵庫を各3個にそろえ、
-// そのとき冷凍庫に何個残っているかを記録する。
-// 冷凍庫が各2個を切っていたら、翌日10個仕込む。
+// 数えるのは15時。冷凍庫の合計が5個を切っていたら、その日のうちに
+//   ・食パンを平和堂に連絡する（翌日届く）
+//   ・翌日10個仕込むので、たねを仕込む
+// をやる。閉めるときは冷蔵庫を各3個にそろえるだけ。
 //
-// 数えるのは夜の1回だけにしてある。朝も数えていたが、
-// 夜にそろえてから開けるまでに減らないので意味がなかった。
+// 仕込みは前回から3日空ける。3日を待たずに仕込んだ場合は、
+// その日を起点に数え直す（次は仕込んだ日＋3日）。
 
 export const HOTSAND_FLAVORS = ["クラシックメルト", "ガーデンメルト"] as const;
 export type Flavor = (typeof HOTSAND_FLAVORS)[number];
 
 /** 閉めるときに冷蔵庫にそろえる数（フレーバーごと） */
 export const FRIDGE_PAR = 3;
-/** 冷凍庫がフレーバーごとにこれを切ったら、翌日仕込む */
-export const FREEZER_LOW = 2;
-/** 1回に仕込む数。3日に1回まわってくる想定 */
+/** 15時に数えて、冷凍庫の合計がこれを切っていたら動く（2フレーバーの合算） */
+export const FREEZER_LOW_TOTAL = 5;
+/** 1回に仕込む数 */
 export const BATCH = 10;
+/** 仕込みの間隔。前回仕込んだ日から数える */
+export const PREP_INTERVAL_DAYS = 3;
 
 const KEY = "hotsand:counts";
 
@@ -41,10 +44,13 @@ export type Entry = {
   at: string;
 };
 
+/** 15時に数えた冷凍庫の残り。発注と仕込みの判断はこれで行う */
+export type Afternoon = { freezer: Record<string, number>; at: string };
+
 /** 仕込んだ記録。何個作って冷凍庫に入れたか */
 export type Made = { freezer: Record<string, number>; at: string };
 
-type Day = { night?: Entry; made?: Made };
+type Day = { night?: Entry; afternoon?: Afternoon; made?: Made };
 type Store = Record<string, Day>;
 
 export async function getAll(): Promise<Store> {
@@ -85,6 +91,23 @@ export async function saveNight(
   return entry;
 }
 
+/** 15時に数えた冷凍庫の残り */
+export async function saveAfternoon(
+  date: string,
+  freezer: Record<string, number>,
+): Promise<Afternoon> {
+  const all = await getAll();
+  const day = all[date] ?? {};
+  const entry: Afternoon = {
+    freezer: { ...zero(), ...freezer },
+    at: new Date().toISOString(),
+  };
+  day.afternoon = entry;
+  all[date] = day;
+  await put(all);
+  return entry;
+}
+
 /** 仕込んだ数。冷凍庫に入れた分を、その日の記録に足す */
 export async function saveMade(
   date: string,
@@ -106,16 +129,28 @@ export async function saveMade(
 }
 
 export function yesterdayOf(date: string): string {
+  return shiftDate(date, -1);
+}
+
+export function shiftDate(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-/** 冷凍庫が少ないフレーバー */
-export function lowFlavors(entry: Entry | undefined): { flavor: string; left: number }[] {
+const daysApart = (a: string, b: string) =>
+  Math.round(
+    (new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86400000,
+  );
+
+const sum = (r: Record<string, number> | undefined) =>
+  r ? HOTSAND_FLAVORS.reduce((n, f) => n + (r[f] ?? 0), 0) : 0;
+
+/** 冷凍庫が少ないフレーバー（表示用） */
+export function lowFlavors(entry: { freezer: Record<string, number> } | undefined) {
   if (!entry) return [];
   return HOTSAND_FLAVORS.map((f) => ({ flavor: f, left: entry.freezer[f] ?? 0 }))
-    .filter((x) => x.left < FREEZER_LOW);
+    .filter((x) => x.left === 0);
 }
 
 export async function dayState(date: string) {
@@ -123,30 +158,56 @@ export async function dayState(date: string) {
   const today = all[date] ?? {};
   const yst = all[yesterdayOf(date)] ?? {};
 
-  // 仕込むかどうかは前夜の記録で決まる。
-  // ただし今夜もう数えているなら、そちらが最新なのでそれを見る。
-  const basis = today.night ?? yst.night;
-  const basisDate = today.night ? date : yesterdayOf(date);
-  const low = lowFlavors(basis);
-  // その日にもう仕込んでいれば、仕込みの作業は出さない
-  const madeToday = Object.values(today.made?.freezer ?? {}).reduce((a, b) => a + b, 0);
+  // 最後に仕込んだ日。ここから3日空けて次を仕込む
+  const madeDates = Object.keys(all)
+    .filter((d) => d <= date && sum(all[d].made?.freezer) > 0)
+    .sort();
+  const lastMade = madeDates.length ? madeDates[madeDates.length - 1] : null;
+  const nextPrep = lastMade ? shiftDate(lastMade, PREP_INTERVAL_DAYS) : null;
+
+  // 15時の記録。まだなら夜の記録で代用する
+  const count = today.afternoon ?? (today.night ? { freezer: today.night.freezer, at: today.night.at } : undefined);
+  const total = sum(count?.freezer);
+  const short = !!count && total < FREEZER_LOW_TOTAL;
+
+  const madeToday = sum(today.made?.freezer);
+  const yTotal = sum(yst.afternoon?.freezer);
+  const yShort = !!yst.afternoon && yTotal < FREEZER_LOW_TOTAL;
+
+  // 明日が「前回から3日目」なら、今日のうちにたねを仕込む
+  const prepTomorrow = nextPrep !== null && nextPrep === shiftDate(date, 1);
+  // 今日が予定日、または昨日15時に足りなかった → 今日10個仕込む
+  const needPrep = madeToday === 0 && ((nextPrep !== null && date >= nextPrep) || yShort);
+  // 今日のうちにたねを仕込む（明日仕込むことが決まったとき）
+  const needTane = !today.night?.tane && (short || prepTomorrow);
+  // 15時に足りなければ、その日のうちに食パンを頼む
+  const needBreadCall = short;
 
   return {
     flavors: [...HOTSAND_FLAVORS],
     fridgePar: FRIDGE_PAR,
-    freezerLow: FREEZER_LOW,
+    freezerLowTotal: FREEZER_LOW_TOTAL,
     batch: BATCH,
+    intervalDays: PREP_INTERVAL_DAYS,
+    afternoon: {
+      counted: !!today.afternoon,
+      freezer: today.afternoon?.freezer ?? null,
+      total: today.afternoon ? sum(today.afternoon.freezer) : null,
+    },
     night: {
       counted: !!today.night,
       fridge: today.night?.fridge ?? null,
       freezer: today.night?.freezer ?? null,
       tane: today.night?.tane ?? null,
-      low: lowFlavors(today.night),
     },
-    /** 仕込みの判断のもとになった記録 */
-    basisDate: basis ? basisDate : null,
-    low,
+    lastMade,
+    nextPrep,
+    daysSinceMade: lastMade ? daysApart(lastMade, date) : null,
+    total: count ? total : null,
+    short,
     madeToday,
-    needPrep: low.length > 0 && madeToday === 0,
+    needBreadCall,
+    needTane,
+    needPrep,
   };
 }
