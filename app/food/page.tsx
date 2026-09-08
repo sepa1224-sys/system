@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Nav from "@/components/Nav";
 
-// フードのレシピ。厨房で見ながら作る前提なので、
+// レシピ。フードもドリンクもここにまとめる。厨房で見ながら作る前提なので、
 // 手順は大きな文字で1ステップずつ。押すと済みになって、どこまでやったか分かる。
 
 type Step = { text: string; timing?: string; photoId?: string; videoId?: string };
@@ -17,9 +17,15 @@ type Recipe = {
   tips?: string[];
 };
 
+const FOOD_CATS = ["夜フード", "ホットサンド", "デザート"];
+const DRINK_CATS = ["ハイボール・サワー", "カクテル", "チューハイ・ワイン", "カフェ"];
+const groupOf = (c: string) =>
+  FOOD_CATS.includes(c) ? "フード" : DRINK_CATS.includes(c) ? "ドリンク" : "その他";
+
 export default function FoodPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [group, setGroup] = useState<"すべて" | "フード" | "ドリンク">("すべて");
   const [done, setDone] = useState<Record<string, Set<number>>>({});
   const [err, setErr] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
@@ -135,7 +141,7 @@ export default function FoodPage() {
   return (
     <div className="wrap">
       <header>
-        <h1>🍽️ フードレシピ</h1>
+        <h1>🍽️ レシピ</h1>
         <p>厨房で見ながら作れるように、手順を1つずつ並べています</p>
       </header>
       <Nav />
@@ -155,6 +161,28 @@ export default function FoodPage() {
         </a>
       </div>
 
+      <div className="card" style={{ padding: 10, display: "flex", gap: 6, justifyContent: "center" }}>
+        {(["すべて", "フード", "ドリンク"] as const).map((g) => {
+          const n = g === "すべて" ? recipes.length : recipes.filter((r) => groupOf(r.category) === g).length;
+          const on = group === g;
+          return (
+            <button
+              key={g}
+              onClick={() => setGroup(g)}
+              style={{
+                flex: 1, padding: "9px 4px", borderRadius: 8, cursor: "pointer",
+                fontSize: 13.5, fontWeight: 700,
+                border: on ? "2px solid var(--accent)" : "1px solid var(--line)",
+                background: on ? "var(--accent)" : "#fff",
+                color: on ? "#fff" : "var(--ink)",
+              }}
+            >
+              {g}<span style={{ fontSize: 11, opacity: .8 }}>（{n}）</span>
+            </button>
+          );
+        })}
+      </div>
+
       <input
         ref={fileRef}
         type="file"
@@ -169,7 +197,7 @@ export default function FoodPage() {
         </div>
       )}
 
-      {recipes.map((r) => {
+      {recipes.filter((r) => group === "すべて" || groupOf(r.category) === group).map((r) => {
         const isOpen = openId === r.id;
         const doneCount = (done[r.id] ?? new Set()).size;
         return (

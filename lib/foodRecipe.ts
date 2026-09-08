@@ -14,6 +14,23 @@ async function kv() {
   return createClient({ url, token });
 }
 
+/** レシピの分類。画面ではフード／ドリンクの2グループに束ねて出す */
+export const CATEGORIES = [
+  "夜フード", "ホットサンド", "デザート",
+  "ハイボール・サワー", "カクテル", "チューハイ・ワイン", "カフェ",
+  "その他",
+] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+export const GROUPS = ["フード", "ドリンク", "その他"] as const;
+export type Group = (typeof GROUPS)[number];
+
+export function groupOf(c: string): Group {
+  if (["夜フード", "ホットサンド", "デザート"].includes(c)) return "フード";
+  if (["ハイボール・サワー", "カクテル", "チューハイ・ワイン", "カフェ"].includes(c)) return "ドリンク";
+  return "その他";
+}
+
 export type Step = {
   text: string;
   /** 火加減や時間など、間違えると失敗する数値を強調して出す */
@@ -27,7 +44,7 @@ export type Step = {
 export type FoodRecipe = {
   id: string;
   name: string;
-  category: "夜フード" | "ホットサンド" | "デザート" | "その他";
+  category: Category;
   /** 提供までの目安（分） */
   minutes?: number;
   ingredients: string[];
