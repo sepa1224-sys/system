@@ -76,6 +76,7 @@ export const EVENTS: FlatEvent[] = [
     requestLabel: "DJへのリクエスト（任意）",
     requestPlaceholder: "聴きたい曲・ジャンルなど",
     emoji: "🎧",
+    ogImage: "/og-djnight.png",
   },
   {
     slug: "oboe",

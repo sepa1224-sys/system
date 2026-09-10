@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { eventCarousel, wantsEventList } from "@/lib/lineEvents";
 
 export const runtime = "nodejs";
 
@@ -30,9 +31,10 @@ type LineEvent = {
   type: string;
   replyToken?: string;
   source?: { userId?: string };
+  message?: { type: string; text?: string };
 };
 
-async function reply(replyToken: string, text: string) {
+async function replyMessages(replyToken: string, messages: unknown[]) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
   if (!token) return;
   await fetch("https://api.line.me/v2/bot/message/reply", {
@@ -41,8 +43,12 @@ async function reply(replyToken: string, text: string) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ replyToken, messages: [{ type: "text", text }] }),
+    body: JSON.stringify({ replyToken, messages }),
   });
+}
+
+async function reply(replyToken: string, text: string) {
+  await replyMessages(replyToken, [{ type: "text", text }]);
 }
 
 export async function POST(req: NextRequest) {
@@ -68,6 +74,18 @@ export async function POST(req: NextRequest) {
   for (const ev of events) {
     if (ev.type === "follow" && ev.replyToken) {
       await reply(ev.replyToken, GREETING);
+      continue;
+    }
+    // リッチメニューの「イベント申込」ボタン（message アクション）と、
+    // 「イベント」などと打ってくれた人に、受付中のイベント一覧を返す。
+    if (
+      ev.type === "message" &&
+      ev.replyToken &&
+      ev.message?.type === "text" &&
+      ev.message.text &&
+      wantsEventList(ev.message.text)
+    ) {
+      await replyMessages(ev.replyToken, [eventCarousel()]);
     }
   }
 
