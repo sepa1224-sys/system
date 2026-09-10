@@ -54,23 +54,54 @@ export default function Home() {
   const [scanning, setScanning] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // カメラが使えなかった理由。分かるように出す（黙ってファイル選択に落ちると
+  // 「起動したりしなかったり」に見えてしまう）
+  function cameraReason(e: unknown): string {
+    const name = e instanceof Error ? e.name : "";
+    // ホーム画面から開いたアプリではカメラが使えない端末がある。
+    // Safariから開いたときだけ動く＝「起動したりしなかったり」の正体になりやすい
+    const standalone =
+      typeof navigator !== "undefined" &&
+      ((navigator as unknown as { standalone?: boolean }).standalone === true ||
+        window.matchMedia?.("(display-mode: standalone)").matches === true);
+    const homeScreenNote = standalone
+      ? "ホーム画面のアイコンから開いています。カメラが使えないことがあるので、Safari・Chromeで開き直してみてください。"
+      : "";
+
+    if (name === "NotAllowedError")
+      return `カメラの使用が許可されていません。アドレスバーの🔒からカメラを「許可」にしてください。${homeScreenNote}`;
+    if (name === "NotFoundError" || name === "OverconstrainedError")
+      return "使えるカメラが見つかりませんでした。";
+    if (name === "NotReadableError")
+      return "カメラを他のアプリが使っています。カメラアプリなどを閉じてから、もう一度お試しください。";
+    return `カメラを起動できませんでした（${name || "原因不明"}）。${homeScreenNote}`;
+  }
+
   async function startScan() {
+    setError(null);
+    // 前のカメラが掴まれたままだと次が開けない端末があるので、必ず閉じてから始める
+    stopScan();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("この端末・ブラウザではカメラを使えません。下の「画像を選んでアップロード」をお使いください。");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
       });
       streamRef.current = stream;
+      // 映像の取り付けは、videoが実際に描画されてから（下のuseEffect）。
+      // requestAnimationFrameで待つとReactの描画に間に合わないことがあり、
+      // カメラは点いているのに真っ黒、という状態になる。
       setScanning(true);
-      // videoRefが描画された後にsrcObjectをセット
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
-      });
-    } catch {
-      // カメラが使えない場合はファイル選択にフォールバック
-      inputRef.current?.click();
+    } catch (e) {
+      // ここで黙ってファイル選択を開くと、カメラが出たり出なかったりに見えてしまう。
+      // 理由を出して、下のアップロードを選んでもらう。
+      setError(`${cameraReason(e)} 下の「画像を選んでアップロード」からも登録できます。`);
     }
   }
 
@@ -79,6 +110,27 @@ export default function Home() {
     streamRef.current = null;
     setScanning(false);
   }
+
+  // videoが描画されてから映像を流し込む
+  useEffect(() => {
+    if (!scanning) return;
+    const v = videoRef.current;
+    const stream = streamRef.current;
+    if (!v || !stream) return;
+    v.srcObject = stream;
+    // play()は拒否されることがある。放置すると未処理の例外になる
+    v.play().catch(() => {
+      setError("映像を再生できませんでした。画面をタップするか、もう一度スキャンを押してください。");
+    });
+  }, [scanning]);
+
+  // 画面を離れるときにカメラを必ず止める。掴んだままだと次に開けなくなる
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
 
   function captureAndProcess() {
     const video = videoRef.current;
