@@ -14,12 +14,26 @@ export async function generateMetadata({
   const ev = eventOf(slug);
   if (!ev) return { title: "flat. イベント申込" };
   const title = `${ev.title}｜${ev.dateLabel}`;
-  const description = `${ev.dateLabel} ${ev.lead} 参加申込はこちらから`;
+  const price = ev.plans
+    .map((p) => `${p.label.replace(/^\S+\s/, "")}¥${p.price.toLocaleString()}`)
+    .join("／");
+  const description = `${ev.dateLabel} ${ev.lead} ${price}　参加申込はこちらから`;
   return {
     title,
     description,
-    openGraph: { title, description, siteName: "flat.", type: "website" },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: {
+      title,
+      description,
+      siteName: "flat.",
+      type: "website",
+      ...(ev.ogImage ? { images: [{ url: ev.ogImage, width: 1200, height: 630 }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(ev.ogImage ? { images: [ev.ogImage] } : {}),
+    },
   };
 }
 

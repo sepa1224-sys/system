@@ -37,6 +37,8 @@ export type FlatEvent = {
   notes?: string[];
   /** LINE通知に付ける絵文字 */
   emoji?: string;
+  /** URLを共有したときに出るサムネイル。public/ に置いた画像のパス */
+  ogImage?: string;
   /** LINEの友だち追加を必須にする。LINEから開かないと申し込めなくなる */
   requireLine?: boolean;
 };
@@ -84,6 +86,7 @@ export const EVENTS: FlatEvent[] = [
     // 夜公演の開場まで受け付ける。過ぎても当日参加は受ける
     deadline: "2026-09-26T20:00:00+09:00",
     kvKey: "oboe:entries",
+    ogImage: "/og-oboe.png",
     plans: [
       {
         id: "day",

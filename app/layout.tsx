@@ -3,6 +3,8 @@ import "./globals.css";
 import HelpWidget from "@/components/HelpWidget";
 
 export const metadata: Metadata = {
+  // og:image を絶対URLにするために必要。無いと共有時に画像が出ない
+  metadataBase: new URL("https://flat-keihi.vercel.app"),
   title: "flat system",
   description: "flat. 業務管理システム",
   manifest: "/manifest.json",
