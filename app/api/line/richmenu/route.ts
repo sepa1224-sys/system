@@ -14,9 +14,25 @@ function hdrs() {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
-// GET → いまあるリッチメニューと、既定で表示されているもの
-export async function GET() {
+// GET            → いまあるリッチメニューと、既定で表示されているもの
+// GET ?image=ID   → そのメニューの画像そのもの（差し替え前に控えておくため）
+export async function GET(req: NextRequest) {
   try {
+    const imageId = req.nextUrl.searchParams.get("image");
+    if (imageId) {
+      const r = await fetch(`https://api-data.line.me/v2/bot/richmenu/${imageId}/content`, {
+        headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN || ""}` },
+      });
+      if (!r.ok) {
+        return NextResponse.json(
+          { error: `画像の取得に失敗(${r.status})` },
+          { status: r.status },
+        );
+      }
+      return new NextResponse(await r.arrayBuffer(), {
+        headers: { "Content-Type": r.headers.get("content-type") || "image/png" },
+      });
+    }
     if (!process.env.LINE_CHANNEL_ACCESS_TOKEN) {
       return NextResponse.json({ error: "LINE_CHANNEL_ACCESS_TOKEN が未設定" }, { status: 500 });
     }
