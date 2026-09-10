@@ -27,6 +27,9 @@ type Liff = {
 const getLiff = (): Liff | undefined =>
   (window as unknown as { liff?: Liff }).liff;
 
+// ログインを挟むあいだ、どのイベントを開いていたかを覚えておく場所
+const PENDING_KEY = "flat:pendingEvent";
+
 export default function EventSignup({ slug }: { slug: string }) {
   const [ev, setEv] = useState<EventInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -65,6 +68,22 @@ export default function EventSignup({ slug }: { slug: string }) {
   }, []);
 
   useEffect(() => {
+    // LINEログインから戻ってきたときの復帰。
+    // 戻り先はLIFFの設定しだいで固定の入口（/e）になることがあり、
+    // そこは「直近のイベント」を出すので別の案内にすり替わってしまう。
+    // ログイン前に開いていたイベントを控えておき、違っていれば戻す。
+    try {
+      const pending = sessionStorage.getItem(PENDING_KEY);
+      if (pending && pending !== slug) {
+        sessionStorage.removeItem(PENDING_KEY);
+        window.location.replace(`/e/${pending}`);
+        return;
+      }
+      if (pending) sessionStorage.removeItem(PENDING_KEY);
+    } catch {
+      /* sessionStorageが使えなくても続行 */
+    }
+
     fetch(`/api/event?slug=${slug}`)
       .then((r) => r.json())
       .then((d) => {
@@ -90,8 +109,19 @@ export default function EventSignup({ slug }: { slug: string }) {
         if (!liff) return;
         await liff.init({ liffId });
         if (!liff.isLoggedIn()) {
-          // LINE内で開かれていればログイン画面へ。外部ブラウザでは何も起きない
-          try { liff.login(); } catch { /* LINE外 */ }
+          // ログイン後は必ず「開いていたページ」に戻す。
+          // 指定しないとLIFFの固定エンドポイント（/e）へ戻ってしまい、
+          // /e は直近のイベントを出すので、別のイベントの案内にすり替わる。
+          try {
+            sessionStorage.setItem(PENDING_KEY, slug);
+          } catch {
+            /* 保存できなくてもログインは進める */
+          }
+          try {
+            liff.login({ redirectUri: window.location.href });
+          } catch {
+            /* LINE外 */
+          }
           return;
         }
         const p = await liff.getProfile();
