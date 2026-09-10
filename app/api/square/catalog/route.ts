@@ -133,3 +133,31 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// 商品をカタログから消す。Squareでは削除＝アーカイブなので、
+// 過去の注文や売上レポートからは消えない。
+// DELETE ?id=xxxx
+export async function DELETE(req: NextRequest) {
+  try {
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "id が必要です" }, { status: 400 });
+
+    const res = await fetch(`${SQUARE_API}/catalog/object/${id}`, {
+      method: "DELETE",
+      headers: hdrs(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data.errors?.[0]?.detail || `削除に失敗(${res.status})`, details: data.errors },
+        { status: res.status },
+      );
+    }
+    return NextResponse.json({ ok: true, deleted: data.deleted_object_ids ?? [] });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "削除に失敗" },
+      { status: 500 },
+    );
+  }
+}
