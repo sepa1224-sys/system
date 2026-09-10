@@ -6,6 +6,7 @@ import Nav from "@/components/Nav";
 import CopyField from "@/components/CopyField";
 import TagInput from "@/components/TagInput";
 import ItemPicker from "@/components/ItemPicker";
+import { cardOf } from "@/lib/cards";
 
 const MEMBERS = ["坂本", "町田", "櫻井", "國仲"] as const;
 
@@ -40,6 +41,8 @@ export default function Home() {
     lines: [emptyLine()],
   });
   const [over, setOver] = useState(false);
+  // 読み取ったカードが何のカードだったか。判定を目に見えるようにする
+  const [cardHint, setCardHint] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dup, setDup] = useState<
     { vendor: string; date: string; total: number; registered: boolean } | null
@@ -146,6 +149,7 @@ export default function Home() {
     // handleFileと同じ流れでAI解析に投入
     setImage(dataUrl);
     setStatus("extracting");
+    setCardHint(null);
     extractFromImage(dataUrl);
   }
 
@@ -351,9 +355,26 @@ export default function Home() {
         r.lines && r.lines.length > 0
           ? r.lines.map((l) => ({ name: l.name, amount: l.amount, category: l.category, tags: l.tags ?? [] }))
           : [emptyLine()];
-      // カード下4桁で立替区分を自動判定
-      const autoKind = r.cardLast4 === "4137" ? "card" as const : "company" as const;
-      setForm((f) => ({ ...f, date: r.date, vendor: r.vendor, confidence: r.confidence, lines, expenseKind: autoKind }));
+      // カード下4桁で、支出の区分と立替えた人を自動判定（lib/cards.ts の対応表）
+      const card = cardOf(r.cardLast4);
+      const autoKind = card ? card.kind : ("company" as const);
+      setCardHint(
+        card
+          ? `カード下4桁 ${card.last4} → ${card.label}`
+          : r.cardLast4
+            ? `カード下4桁 ${r.cardLast4} は未登録のカードです。区分と立替えた人を確認してください`
+            : null,
+      );
+      setForm((f) => ({
+        ...f,
+        date: r.date,
+        vendor: r.vendor,
+        confidence: r.confidence,
+        lines,
+        expenseKind: autoKind,
+        // 立替のときだけ、カードの持ち主を立替えた人にする
+        payer: card?.payer ?? f.payer,
+      }));
 
       // 重複チェック：同じ日付・合計金額の領収書が既に保存済みなら警告
       setDup(null);
@@ -385,6 +406,7 @@ export default function Home() {
     const dataUrl = await compressImage(rawDataUrl);
     setImage(dataUrl);
     setStatus("extracting");
+    setCardHint(null);
     extractFromImage(dataUrl);
   }
 
@@ -634,6 +656,11 @@ export default function Home() {
           />
 
           <label>この経費の区分</label>
+          {cardHint && (
+            <p className="hint" style={{ marginTop: 0 }}>
+              💳 {cardHint}
+            </p>
+          )}
           <div className="kind-toggle">
             <button
               type="button"
