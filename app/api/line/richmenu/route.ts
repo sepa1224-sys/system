@@ -61,15 +61,24 @@ export async function POST(req: NextRequest) {
     const b = (await req.json()) as {
       id?: string;
       uri?: string;
+      /** uri の代わりにこれを渡すと、押したときに言葉を送るボタンになる。
+       *  Webhookがその言葉を見てカルーセルなどを返せる */
+      messageText?: string;
       areaIndex?: number;
       name?: string;
       chatBarText?: string;
       /** 差し替える画像。無ければ今の画像をそのまま引き継ぐ */
       imageBase64?: string;
     };
-    if (!b.id || !b.uri) {
-      return NextResponse.json({ error: "id と uri が必要です" }, { status: 400 });
+    if (!b.id || (!b.uri && !b.messageText)) {
+      return NextResponse.json(
+        { error: "id と、uri か messageText のどちらかが必要です" },
+        { status: 400 },
+      );
     }
+    const nextAction = b.messageText
+      ? { type: "message", text: b.messageText }
+      : { type: "uri", uri: b.uri };
     const cur = await fetch(`${API}/richmenu/${b.id}`, { headers: hdrs() });
     const menu = await cur.json();
     if (!cur.ok) {
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
     const areas = (menu.areas || []).map((a: any, i: number) =>
       b.areaIndex === undefined || b.areaIndex === i
-        ? { ...a, action: { type: "uri", uri: b.uri } }
+        ? { ...a, action: nextAction }
         : a,
     );
     const created = await fetch(`${API}/richmenu`, {
@@ -137,7 +146,7 @@ export async function POST(req: NextRequest) {
     await fetch(`${API}/user/all/richmenu/${newId}`, { method: "POST", headers: hdrs() });
     await fetch(`${API}/richmenu/${b.id}`, { method: "DELETE", headers: hdrs() });
 
-    return NextResponse.json({ ok: true, id: newId, uri: b.uri });
+    return NextResponse.json({ ok: true, id: newId, action: nextAction });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "エラー" }, { status: 500 });
   }
