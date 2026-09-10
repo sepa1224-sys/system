@@ -7,6 +7,7 @@
 // 表記ゆれのぶんだけ品目が増えて、かえって集計できなくなるため。
 
 import { FREEE_COMPANY_ID, freeeGet, freeePost } from "@/lib/freee";
+import { normalizeItemName } from "@/lib/itemName";
 
 const OVERRIDE_KEY = "items:overrides";
 
@@ -32,12 +33,49 @@ export async function getOverrides(): Promise<Record<string, string>> {
 export async function saveOverride(keyword: string, item: string): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");
-  const k = keyword.trim();
+  // 数量表記を落としてから覚える。
+  // 「くらしモアピュア6枚 2コ×単118」のまま覚えると、
+  // 次に3個買ったときに別物になってしまう。
+  const k = normalizeItemName(keyword) || keyword.trim();
   if (!k) throw new Error("キーワードが空です");
   const cur = (await store.get<Record<string, string>>(OVERRIDE_KEY)) ?? {};
-  if (item.trim()) cur[k] = item.trim();
-  else delete cur[k]; // 品目を空で送ると解除
+  if (item.trim()) {
+    cur[k] = item.trim();
+  } else {
+    // 解除。正規化前の書き方で覚えていた分も一緒に消す
+    delete cur[k];
+    delete cur[keyword.trim()];
+  }
   await store.set(OVERRIDE_KEY, cur);
+}
+
+/**
+ * 覚えた分のキーワードを正規化し直す。
+ * 「くらしモアピュア6枚 2コ×単118」と「〜3コ×単118」のように、
+ * 数量ちがいで二重に覚えてしまったものを1つにまとめる。
+ */
+export async function normalizeOverrides(): Promise<{
+  before: number;
+  after: number;
+  merged: { from: string[]; to: string; item: string }[];
+}> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  const cur = (await store.get<Record<string, string>>(OVERRIDE_KEY)) ?? {};
+
+  const next: Record<string, string> = {};
+  const sources: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(cur)) {
+    const nk = normalizeItemName(k) || k;
+    next[nk] = v; // 同じキーに寄る場合は後勝ち（品目名は同じはず）
+    (sources[nk] ??= []).push(k);
+  }
+  await store.set(OVERRIDE_KEY, next);
+
+  const merged = Object.entries(sources)
+    .filter(([nk, from]) => from.length > 1 || from[0] !== nk)
+    .map(([nk, from]) => ({ from, to: nk, item: next[nk] }));
+  return { before: Object.keys(cur).length, after: Object.keys(next).length, merged };
 }
 
 /** 覚えさせた分を含めて品目名を決める。ルール表より覚えさせた方を優先する */
@@ -47,9 +85,15 @@ export function resolveWithOverrides(
 ): string | null {
   const s = String(productName ?? "");
   if (!s) return null;
+  // 数量を落とした形でも見る。買った個数で品名が変わっても同じ商品と分かるように。
+  // 古い覚え方（キーワードに数量が入ったもの）も拾えるよう、キーも両方で試す。
+  const n = normalizeItemName(s);
   const keys = Object.keys(overrides).sort((a, b) => b.length - a.length);
-  for (const k of keys) if (s.includes(k)) return overrides[k];
-  return resolveItemName(s);
+  for (const k of keys) {
+    const nk = normalizeItemName(k) || k;
+    if (s.includes(k) || (n && (n.includes(k) || n.includes(nk)))) return overrides[k];
+  }
+  return resolveItemName(s) ?? (n && n !== s ? resolveItemName(n) : null);
 }
 
 export type ItemRule = { re: RegExp; item: string };

@@ -19,26 +19,9 @@ export function isNoiseItem(name: string): boolean {
   return NOISE_PATTERNS.some((p) => p.test(s));
 }
 
-/** 品目名から数量・単価表記などのノイズを落として、同じ商品をまとめられる形にする */
-export function normalizeItemName(raw: string): string {
-  let s = String(raw || "").trim();
-  if (!s) return "";
-  s = s.replace(/　/g, " ");
-  // 括弧内の補足（まとめ売り値下、一括割引後 等）を先に除去
-  s = s.replace(/[（(][^）)]*[）)]/g, " ");
-  // 「@1,080×2」「@495×2」など単価×数量
-  s = s.replace(/@\s*[\d,]+\s*[×xX*✕╳]\s*\d+/g, " ");
-  // 「2コ×単100」「5コ×単148」など 数量×単価
-  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック|P|ｹ|ヶ)?\s*[×xX*✕╳]\s*単?\s*[\d,]+/g, " ");
-  // 「×3」「x2」など末尾の数量
-  s = s.replace(/[×xX*✕╳]\s*\d+\s*(コ|個|本|枚|点|袋|缶|パック)?/g, " ");
-  // 「3個」「2コ」「4点」など単独の数量
-  s = s.replace(/\d+\s*(コ|個|本|枚|点|袋|缶|パック|ヶ)(入)?(?![a-zA-Z])/g, " ");
-  // 残った金額表記
-  s = s.replace(/[¥￥][\d,]+/g, " ");
-  s = s.replace(/\s+/g, " ").trim();
-  return s;
-}
+// 正規化は品目の学習側と同じものを使う（ずれると同じ商品が別扱いになる）
+import { normalizeItemName } from "@/lib/itemName";
+export { normalizeItemName };
 
 export type PurchaseStat = {
   name: string; // 正規化後の品目名

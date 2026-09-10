@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { defaultKeyword } from "@/lib/itemName";
 
 // 仕入高の行に「品目」を付けるための小さなUI。
 // ビール（ハイネケン）/ 梅酒 のような粒度で分けたいが、品名はレシートのOCR結果で
@@ -20,9 +21,7 @@ export default function ItemPicker({
 }) {
   const [open, setOpen] = useState(false);
   // 覚えさせるキーワード。既定は品名の先頭（数量や単価を落としたもの）
-  const [keyword, setKeyword] = useState(
-    productName.replace(/[@＠].*$/, "").replace(/\s*\d+\s*(コ|個|点|本|袋|枚|kg|g|ml|L)\b.*$/i, "").trim(),
-  );
+  const [keyword, setKeyword] = useState(defaultKeyword(productName));
   const [item, setItem] = useState(current);
   const [busy, setBusy] = useState(false);
 

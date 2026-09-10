@@ -5,6 +5,7 @@ import {
   getOverrides,
   saveOverride,
   resolveWithOverrides,
+  normalizeOverrides,
 } from "@/lib/freeeItems";
 
 export const runtime = "nodejs";
@@ -48,9 +49,20 @@ export async function GET() {
 
 // POST /api/items-map { keyword, item }
 //   品名の一部（キーワード）と品目を結びつけて覚える。itemを空にすると解除。
+// POST /api/items-map { normalize: true }
+//   覚えた分のキーワードから数量表記を落として、重複をまとめる。
 export async function POST(req: NextRequest) {
   try {
-    const { keyword, item } = (await req.json()) as { keyword?: string; item?: string };
+    const body = (await req.json()) as {
+      keyword?: string;
+      item?: string;
+      normalize?: boolean;
+    };
+    if (body.normalize) {
+      const r = await normalizeOverrides();
+      return NextResponse.json({ ok: true, ...r, overrides: await getOverrides() });
+    }
+    const { keyword, item } = body;
     if (!keyword) {
       return NextResponse.json({ error: "keyword が必要です" }, { status: 400 });
     }
