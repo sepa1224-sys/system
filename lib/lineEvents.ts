@@ -8,9 +8,11 @@ import { EVENTS, type FlatEvent } from "@/lib/events";
 
 const SITE = "https://flat-keihi.vercel.app";
 
+// 名前はEventSignupと同じ順で拾う（環境ごとにどれが入っているか違うため）
 const LIFF_ID =
   process.env.NEXT_PUBLIC_LIFF_ID_EVENT ||
   process.env.NEXT_PUBLIC_LIFF_ID_DJNIGHT ||
+  process.env.NEXT_PUBLIC_LIFF_ID_NATSUMATSURI ||
   "";
 
 // LINEから開いてもらう入口。LIFFなら名前とLINE IDが自動で入る。
