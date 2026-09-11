@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isGoogleConnected, gmailSearch, type Mail } from "@/lib/google";
+import { AUTH_COOKIE, hasValidSession, isCronCall } from "@/lib/siteAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -183,9 +184,10 @@ function detectSource(from: string, subject: string): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // 自動実行からの呼び出しか、合言葉を通った画面からの手動実行だけ受ける
+  const fromCron = isCronCall(req.headers.get("authorization"));
+  const fromStaff = await hasValidSession(req.cookies.get(AUTH_COOKIE)?.value);
+  if (!fromCron && !fromStaff) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEntries } from "@/lib/natsumatsuri";
+import { AUTH_COOKIE, hasValidSession, isCronCall } from "@/lib/siteAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,8 +41,9 @@ async function push(userId: string, text: string): Promise<void> {
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  const fromCron = isCronCall(req.headers.get("authorization"));
+  const fromStaff = await hasValidSession(req.cookies.get(AUTH_COOKIE)?.value);
+  if (!fromCron && !fromStaff) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
