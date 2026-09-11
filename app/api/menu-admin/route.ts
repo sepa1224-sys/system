@@ -8,6 +8,7 @@ import {
   createItem,
   updateItem,
   updateVariationPrice,
+  updateVariations,
   deleteItem,
 } from "@/lib/squareCatalog";
 import {
@@ -71,6 +72,7 @@ type Body = {
   hidden?: boolean;
   names?: string[];
   newPin?: string;
+  variations?: { id?: string; name: string; price: number }[];
 };
 
 export async function POST(req: NextRequest) {
@@ -154,6 +156,18 @@ export async function POST(req: NextRequest) {
         if (!b.variationId || b.price == null) throw new Error("値段が必要です");
         await updateVariationPrice(b.variationId, Math.round(b.price));
         return NextResponse.json({ ok: true });
+      }
+      case "item.variations": {
+        if (!b.id || !Array.isArray(b.variations) || b.variations.length === 0) {
+          throw new Error("種類は1つ以上必要です");
+        }
+        const bad = b.variations.find((v) => !v.name?.trim() || !Number.isFinite(v.price));
+        if (bad) throw new Error("種類の名前と値段を入れてください");
+        const vs = await updateVariations(
+          b.id,
+          b.variations.map((v) => ({ id: v.id, name: v.name.trim(), price: Math.round(v.price) })),
+        );
+        return NextResponse.json({ ok: true, variations: vs });
       }
       case "item.hidden": {
         if (!b.id) throw new Error("商品が必要です");

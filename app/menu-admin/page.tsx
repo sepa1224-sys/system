@@ -310,10 +310,6 @@ function ItemRow({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(item.name);
   const [cat, setCat] = useState(item.categoryId ?? "");
-  const [prices, setPrices] = useState<Record<string, string>>(
-    Object.fromEntries(item.variations.map((v) => [v.id, String(v.price ?? "")])),
-  );
-
   const priceLabel = item.variations
     .map((v) => (v.name === "Regular" ? `¥${v.price ?? "―"}` : `${v.name} ¥${v.price ?? "―"}`))
     .join(" / ");
@@ -353,27 +349,7 @@ function ItemRow({
             名前と分類を保存
           </button>
 
-          <label style={{ marginTop: 12 }}>値段</label>
-          {item.variations.map((v) => (
-            <div key={v.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 12.5, width: 90 }}>{v.name === "Regular" ? "値段" : v.name}</span>
-              <input
-                value={prices[v.id] ?? ""}
-                inputMode="numeric"
-                onChange={(e) => setPrices({ ...prices, [v.id]: e.target.value })}
-                style={{ flex: 1 }}
-              />
-              <button className="ghost" style={{ fontSize: 12 }} disabled={busy}
-                onClick={() => {
-                  const p = Number(prices[v.id]);
-                  if (!Number.isFinite(p)) return;
-                  send({ action: "item.price", variationId: v.id, price: p },
-                    `「${item.name}」を¥${p.toLocaleString()}にしました`);
-                }}>
-                保存
-              </button>
-            </div>
-          ))}
+          <VariationEditor item={item} busy={busy} send={send} />
 
           <button className="ghost" style={{ width: "100%", marginTop: 10, color: "#c0392b" }} disabled={busy}
             onClick={() => {
@@ -486,6 +462,103 @@ function CategoryRow({
           if (!confirm(`「${name}」を削除します。よろしいですか？`)) return;
           send({ action: "category.delete", id }, `「${name}」を削除しました`);
         }}>削除</button>
+    </div>
+  );
+}
+
+// 種類（バニラ／チョコ／ベリー、Hot／Ice など）の編集。
+// 既にある行はidを持ったまま送るので、名前や値段を変えても
+// 過去の注文とのつながりは切れない。行を消すとSquareからも消える。
+function VariationEditor({
+  item,
+  busy,
+  send,
+}: {
+  item: Item;
+  busy: boolean;
+  send: (b: Record<string, unknown>, m: string) => Promise<boolean>;
+}) {
+  type Row = { id?: string; name: string; price: string };
+  const [rows, setRows] = useState<Row[]>(
+    item.variations.map((v) => ({ id: v.id, name: v.name, price: String(v.price ?? "") })),
+  );
+  const single = rows.length === 1 && rows[0].name === "Regular";
+
+  const set = (i: number, patch: Partial<Row>) =>
+    setRows(rows.map((r, j) => (i === j ? { ...r, ...patch } : r)));
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <label>{single ? "値段" : "種類と値段"}</label>
+      {!single && (
+        <p style={{ fontSize: 11.5, color: "var(--muted)", margin: "0 0 6px" }}>
+          注文画面では、この商品を押すとここの種類が選べます。
+        </p>
+      )}
+      {rows.map((r, i) => (
+        <div key={r.id ?? `new${i}`} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+          {single ? (
+            <span style={{ fontSize: 12.5, width: 76 }}>値段</span>
+          ) : (
+            <input
+              value={r.name}
+              onChange={(e) => set(i, { name: e.target.value })}
+              placeholder="種類名"
+              style={{ flex: 3, minWidth: 0 }}
+            />
+          )}
+          <input
+            value={r.price}
+            inputMode="numeric"
+            onChange={(e) => set(i, { price: e.target.value })}
+            placeholder="値段"
+            style={{ flex: 2, minWidth: 0 }}
+          />
+          {rows.length > 1 && (
+            <button
+              className="ghost"
+              style={{ fontSize: 12, color: "#c0392b", padding: "6px 10px" }}
+              disabled={busy}
+              onClick={() => {
+                if (r.id && !confirm(`「${r.name}」を消します。\nこの種類は注文できなくなります。よろしいですか？`)) return;
+                setRows(rows.filter((_, j) => j !== i));
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button
+          className="ghost"
+          style={{ flex: 1, fontSize: 12.5 }}
+          disabled={busy}
+          onClick={() => {
+            // 1種類しかない商品に種類を足すときは、まず今の1つに名前を付ける
+            const base = single ? [{ ...rows[0], name: "" }] : rows;
+            setRows([...base, { name: "", price: rows[0]?.price ?? "" }]);
+          }}
+        >
+          ＋ 種類を追加
+        </button>
+        <button
+          className="primary"
+          style={{ flex: 2 }}
+          disabled={busy}
+          onClick={() => {
+            const vs = rows.map((r) => ({ id: r.id, name: r.name.trim() || "Regular", price: Number(r.price) }));
+            if (vs.some((v) => !Number.isFinite(v.price))) return alert("値段を数字で入れてください");
+            if (vs.length > 1 && vs.some((v) => v.name === "Regular" || !v.name)) {
+              return alert("種類が2つ以上あるときは、それぞれに名前を付けてください（例: バニラ／チョコ）");
+            }
+            send({ action: "item.variations", id: item.id, variations: vs }, `「${item.name}」の種類を保存しました`);
+          }}
+        >
+          種類と値段を保存
+        </button>
+      </div>
     </div>
   );
 }

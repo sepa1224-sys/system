@@ -191,3 +191,44 @@ export async function updateVariationPrice(variationId: string, price: number): 
 export async function deleteItem(id: string): Promise<void> {
   await call(`/catalog/object/${id}`, { method: "DELETE" });
 }
+
+/**
+ * 商品の種類（バニラ／チョコ、Hot／Ice など）を作り直す。
+ *
+ * idを渡した行は今ある種類の名前と値段を変えるだけなので、過去の注文との
+ * つながりが切れない。idの無い行が新規、渡されなかった行が削除になる。
+ */
+export async function updateVariations(
+  itemId: string,
+  variations: { id?: string; name: string; price: number }[],
+): Promise<SquareVariation[]> {
+  if (!variations.length) throw new Error("種類は1つ以上必要です");
+  const cur = await getObject(itemId);
+  const existing: Record<string, any> = {};
+  for (const v of cur.item_data?.variations ?? []) existing[v.id] = v;
+
+  const next = variations.map((v, i) => {
+    const base = v.id ? existing[v.id] : null;
+    return {
+      type: "ITEM_VARIATION",
+      id: v.id ?? `#newvar_${i}_${Date.now()}`,
+      ...(base ? { version: base.version } : {}),
+      item_variation_data: {
+        item_id: itemId,
+        name: v.name,
+        pricing_type: "FIXED_PRICING",
+        price_money: { amount: v.price, currency: "JPY" },
+      },
+    };
+  });
+
+  const o = await upsert(
+    { type: "ITEM", id: cur.id, version: cur.version, item_data: { ...cur.item_data, variations: next } },
+    "vars",
+  );
+  return (o?.item_data?.variations ?? []).map((v: any) => ({
+    id: v.id,
+    name: v.item_variation_data?.name ?? "",
+    price: v.item_variation_data?.price_money?.amount ?? null,
+  }));
+}
