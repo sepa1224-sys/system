@@ -92,9 +92,9 @@ export const TASKS: Task[] = [
   {
     id: "duster",
     phase: "朝",
-    name: "ダスターを畳んで片付ける",
+    name: "ダスター・コーヒータオル・手洗いタオルを畳んで片付ける",
     detail:
-      "前の晩に干したものが乾いていたら畳む",
+      "前の晩に煮沸して干したものが乾いていたら畳む",
   },
   {
     id: "daily-morning",
@@ -282,8 +282,10 @@ export const TASKS: Task[] = [
   {
     id: "duster-boil",
     phase: "締め",
-    name: "ダスターを煮沸して干す",
-    detail: "翌朝、乾いていたら畳んで片付ける",
+    name: "ダスター・コーヒータオル・手洗いタオルを煮沸して干す",
+    detail:
+      "3種類ともまとめて煮沸する。手洗いタオルの入れ忘れが起きやすい。" +
+      "翌朝、乾いていたら畳んで片付ける",
   },
   {
     id: "kintai-fix",
@@ -347,6 +349,20 @@ export const TASKS: Task[] = [
     id: "aircon-off",
     phase: "締め",
     name: "エアコンを消す",
+  },
+  {
+    id: "gas-off",
+    phase: "締め",
+    name: "ガスが止まっているか確認する",
+    detail: "コンロのつまみと元栓の両方を見る。火が消えていても元栓が開いていることがある",
+  },
+  {
+    id: "keybox-scramble",
+    phase: "締め",
+    name: "外の鍵ケースの番号をバラバラに戻す",
+    detail:
+      "閉めたあと、ダイヤルが暗証番号のまま残っていないか必ず見る。" +
+      "揃ったままだと誰でも開けられてしまう",
   },
   {
     id: "grinder-wash",
