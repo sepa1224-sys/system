@@ -124,9 +124,11 @@ export async function deleteCategory(id: string): Promise<void> {
 /** 分類を付け替える。Squareは持ち方が3通りあるので全部そろえて書く */
 function applyCategory(itemData: any, categoryId: string | null) {
   if (categoryId) {
+    // ordinal（分類内の並び番号）は指定しない。
+    // 0を入れると2品目以降が「同じ番号がある」と弾かれる
     itemData.category_id = categoryId;
-    itemData.categories = [{ id: categoryId, ordinal: 0 }];
-    itemData.reporting_category = { id: categoryId, ordinal: 0 };
+    itemData.categories = [{ id: categoryId }];
+    itemData.reporting_category = { id: categoryId };
   } else {
     delete itemData.category_id;
     delete itemData.categories;
