@@ -23,7 +23,6 @@ type CartItem = { catalog_object_id: string; name: string; price: number; quanti
 // 注文画面に出さないメニュー。
 // ソイラテ・オーツラテはSquareのカタログに独立商品として残っているが、
 // 実際はカフェラテのミルク変更オプション(+50円)なので、ここで隠す。
-const HIDDEN_ITEMS = new Set(["ソイラテ", "オーツラテ（Ice/Hot）"]);
 
 // Hot/Ice 選択可能なメニュー
 const HOT_ICE_ITEMS = new Set([
@@ -106,6 +105,8 @@ const PARTY_SET = new Set([...PARTY_NAMES, ...PARTY_DRINK_NAMES]);
 export default function TablePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  // 大分類の並び。メニュー編集画面（/menu-admin）で決めた順がそのまま返ってくる
+  const [catOrder, setCatOrder] = useState<string[]>([]);
   const [mode, setMode] = useState<"day" | "night">(autoMode());
   const [selected, setSelected] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -164,7 +165,11 @@ export default function TablePage() {
     try {
       const res = await fetch("/api/square/menu");
       const data = await res.json();
-      if (res.ok) setMenu((data.items || []).filter((i: MenuItem) => !HIDDEN_ITEMS.has(i.name)));
+      if (res.ok) {
+        // 提供停止はサーバー側（メニュー編集画面で設定）で除いてある
+        setMenu(data.items || []);
+        setCatOrder(data.categoryOrder || []);
+      }
     } catch {}
   }, []);
 
@@ -640,24 +645,6 @@ export default function TablePage() {
             <>
               {/* メニュー選択（カテゴリ別） — 夜と同じロジック */}
               {(() => {
-                const FALLBACK: Record<string, string> = {};
-                const HOTSAND_NAMES = ["ガーデンメルト","クラシックメルト"];
-                const FOOD_NAMES = ["マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
-                const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
-                const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
-                const DESSERT_NAMES = ["アフォガート","ワッフル","スペシャルワッフルサンデー","スペシャルワッフルサンデー（チョコ/抹茶）"];
-                const APPAREL_NAMES = ["flat. Tシャツ", "ステッカー（小）", "ステッカー（大）"];
-                const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
-                HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
-                FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
-                ALCOHOL_NAMES.forEach(n => FALLBACK[n] = "🍺 アルコール");
-                CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
-                DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
-                SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
-                APPAREL_NAMES.forEach(n => FALLBACK[n] = "👕 アパレル");
-                PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
-                PARTY_DRINK_NAMES.forEach(n => FALLBACK[n] = "🥃 テキーラ");
-
                 const validItems = menu.filter(item => {
                   const v = item.variations[0];
                   if (!v || v.price == null) return false;
@@ -665,14 +652,14 @@ export default function TablePage() {
                   return party ? PARTY_SET.has(item.name) : !PARTY_SET.has(item.name);
                 });
                 const grouped: Record<string, MenuItem[]> = {};
-                const CAT_ORDER = ["🎆 パーティ参加費", "🥃 テキーラ", "🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
                 for (const item of validItems) {
-                  const cat = item.category || FALLBACK[item.name] || "その他";
-                  if (!grouped[cat]) grouped[cat] = [];
-                  grouped[cat].push(item);
+                  const cat = item.category || "その他";
+                  (grouped[cat] ??= []).push(item);
                 }
-                const cats = CAT_ORDER.filter(c => grouped[c]);
-                for (const c of Object.keys(grouped)) { if (!cats.includes(c)) cats.push(c); }
+                const cats = [
+                  ...catOrder.filter(c => grouped[c]),
+                  ...Object.keys(grouped).filter(c => !catOrder.includes(c)),
+                ];
 
                 return cats.map(cat => (
                   <div className="card" key={cat}>
@@ -1293,45 +1280,23 @@ export default function TablePage() {
 
           {/* メニュー選択（カテゴリ別） */}
           {(() => {
-            // カテゴリ名ベースのフォールバック分類
-            const FALLBACK: Record<string, string> = {};
-            const HOTSAND_NAMES = ["ガーデンメルト","クラシックメルト"];
-            const FOOD_NAMES = ["マッシュポテト","マッシュポテトの生ハム包み","ブルーチーズと生ハム盛り合わせ","Wabi-Sabi Shrimp","バジルソーセージとザワークラウト","オリーブ・ザワークラウト・マッシュポテトの3種盛り","アヒージョ 自家製パンを添えて"];
-            const ALCOHOL_NAMES = ["ハイボール","ジンジャーハイボール","コークハイ","ジントニック","ジンバック","レモンサワー","ライムサワー","グレープフルーツサワー","アペロールマルガリータ","ココナッツベリークラウド","マイアミサンセット","エスプレッソマティーニ","梅酒モヒート","サッポロラガー（中瓶）","ハイネケン","バドワイザー","コロナ","カルピスサワー","紅茶サワー","ジンハイボール","梅サワー","ワイン（グラス）","ワイン（ボトル）","緑茶ハイ","ウーロンハイ","紅茶ハイ","ジャスミンハイ","飲み放題＋ウェルカムビール1杯"];
-            const CAFE_NAMES = ["コーヒー","エスプレッソ","アメリカーノ","コールドブリュー","カフェラテ","ソイラテ","オーツラテ（Ice/Hot）","抹茶ラテ","ドリップコーヒー","チョコレートミルク","プロテインスムージー"];
-            const DESSERT_NAMES = ["アフォガート","ワッフル","スペシャルワッフルサンデー","スペシャルワッフルサンデー（チョコ/抹茶）"];
-            const SOFT_NAMES = ["オレンジジュース","アップルジュース","パイナップルジュース","グアバジュース","アイスティー","ウーロン茶","緑茶","コカ・コーラ","ジンジャーエール","梅ライムソーダ","ゆずレモネード","ソーダ","飲み放題（ソフトドリンクのみ）"];
-            HOTSAND_NAMES.forEach(n => FALLBACK[n] = "🥪 ホットサンド");
-            FOOD_NAMES.forEach(n => FALLBACK[n] = "🍽️ フード");
-            ALCOHOL_NAMES.forEach(n => FALLBACK[n] = "🍺 アルコール");
-            CAFE_NAMES.forEach(n => FALLBACK[n] = "☕ カフェドリンク");
-            DESSERT_NAMES.forEach(n => FALLBACK[n] = "🍰 デザート");
-            SOFT_NAMES.forEach(n => FALLBACK[n] = "🥤 ソフトドリンク");
-            ["flat. Tシャツ", "ステッカー（小）", "ステッカー（大）"].forEach(n => FALLBACK[n] = "👕 アパレル");
-            PARTY_NAMES.forEach(n => FALLBACK[n] = "🎆 パーティ参加費");
-            PARTY_DRINK_NAMES.forEach(n => FALLBACK[n] = "🥃 テキーラ");
-
+            // 大分類はSquareのカテゴリをそのまま使う。
+            // 並び順はメニュー編集画面で決めたもの（catOrder）。
             const validItems = menu.filter(item => {
               const v = item.variations[0];
               // 参加費はパーティモード専用なので、テーブル注文には出さない
               return v && v.price != null && !PARTY_SET.has(item.name);
             });
 
-            // カテゴリ分類
             const grouped: Record<string, MenuItem[]> = {};
-            const CAT_ORDER = ["🥪 ホットサンド", "🍽️ フード", "☕ カフェドリンク", "🥤 ソフトドリンク", "🍺 アルコール", "🍰 デザート", "👕 アパレル", "その他"];
             for (const item of validItems) {
-              const cat = item.category || FALLBACK[item.name] || "その他";
-              if (!grouped[cat]) grouped[cat] = [];
-              grouped[cat].push(item);
+              const cat = item.category || "その他";
+              (grouped[cat] ??= []).push(item);
             }
-
-            // 順序付きカテゴリリスト
-            const cats = CAT_ORDER.filter(c => grouped[c]);
-            // CAT_ORDERに無いカテゴリも追加
-            for (const c of Object.keys(grouped)) {
-              if (!cats.includes(c)) cats.push(c);
-            }
+            const cats = [
+              ...catOrder.filter(c => grouped[c]),
+              ...Object.keys(grouped).filter(c => !catOrder.includes(c)),
+            ];
 
             return cats.map(cat => (
               <div className="card" key={cat}>
