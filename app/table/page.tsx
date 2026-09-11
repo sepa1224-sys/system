@@ -25,24 +25,31 @@ type CartItem = { catalog_object_id: string; name: string; price: number; quanti
 // 実際はカフェラテのミルク変更オプション(+50円)なので、ここで隠す。
 
 // Hot/Ice 選択可能なメニュー
+/** 種類（味）を選ばせる商品。Squareに種類が2つ以上あれば自動でそうなる */
+const needsVariantPick = (item: MenuItem) =>
+  item.variations.length > 1 && !HOT_ICE_ITEMS.has(item.name);
+
 const HOT_ICE_ITEMS = new Set([
   "コーヒー", "アメリカーノ", "カフェラテ",
   "抹茶ラテ", "チョコレートミルク", "ドリップコーヒー",
 ]);
 
 // バリエーション選択が必要なメニュー
-const VARIANT_ITEMS: Record<string, { label: string; value: string; color: string; bg: string }[]> = {
-  "ワッフル": [
-    { label: "プレーン", value: "プレーン", color: "#8B6914", bg: "#FFF8E1" },
-    { label: "チョコ", value: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
-    { label: "抹茶", value: "抹茶", color: "#2E7D32", bg: "#E8F5E9" },
-  ],
-  "プロテインスムージー": [
-    { label: "チョコ", value: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
-    { label: "バニラ", value: "バニラ", color: "#8B6914", bg: "#FFF8E1" },
-    { label: "ブルーベリー", value: "ブルーベリー", color: "#4A148C", bg: "#F3E5F5" },
-  ],
-};
+// 種類ボタンの色。名前に含まれる言葉で決める。
+// 選択肢そのものはSquareの「種類」をそのまま使うので、
+// メニュー編集画面で種類を足せば、ここを直さなくても注文画面に出る。
+const VARIANT_COLORS: { key: string; color: string; bg: string }[] = [
+  { key: "チョコ", color: "#5D4037", bg: "#EFEBE9" },
+  { key: "抹茶", color: "#2E7D32", bg: "#E8F5E9" },
+  { key: "ベリー", color: "#4A148C", bg: "#F3E5F5" },
+  { key: "バニラ", color: "#8B6914", bg: "#FFF8E1" },
+  { key: "プレーン", color: "#8B6914", bg: "#FFF8E1" },
+  { key: "赤", color: "#8E2436", bg: "#FBE9EC" },
+  { key: "白", color: "#6D6A4F", bg: "#F7F6EE" },
+];
+const variantStyle = (name: string) =>
+  VARIANT_COLORS.find((v) => name.includes(v.key)) ?? { color: "#5b5750", bg: "#f2efe9" };
+
 
 // 仕込み在庫管理対象
 const STOCK_MANAGED = new Set(["ガーデンメルト", "クラシックメルト"]);
@@ -264,14 +271,14 @@ export default function TablePage() {
       (tempNote ? item.variations.find((x) => x.name && tempNote.includes(x.name)) : undefined) ||
       item.variations[0];
     if (!v) return;
-    // バリエーション選択が必要
-    if (VARIANT_ITEMS[item.name] && !tempNote) {
-      setVariantPending(item);
-      return;
-    }
     // Hot/Ice選択が必要
     if (HOT_ICE_ITEMS.has(item.name) && !tempNote) {
       setHotIcePending(item);
+      return;
+    }
+    // 種類（味）の選択が必要
+    if (needsVariantPick(item) && !tempNote) {
+      setVariantPending(item);
       return;
     }
     const note = tempNote || undefined;
@@ -669,7 +676,7 @@ export default function TablePage() {
                         const v = item.variations[0];
                         const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
                         const hasHotIce = HOT_ICE_ITEMS.has(item.name);
-                        const hasVariant = !!VARIANT_ITEMS[item.name];
+                        const hasVariant = needsVariantPick(item);
                         const isStockManaged = STOCK_MANAGED.has(item.name);
                         const stockCount = isStockManaged ? (stock[item.name] ?? 0) : -1;
                         const soldOut = isStockManaged && stockCount <= 0;
@@ -708,17 +715,23 @@ export default function TablePage() {
               })()}
 
               {/* バリエーション選択 */}
-              {variantPending && VARIANT_ITEMS[variantPending.name] && (
+              {variantPending && needsVariantPick(variantPending) && (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setVariantPending(null)}>
                   <div className="card" style={{ width: 300, margin: 0 }} onClick={e => e.stopPropagation()}>
                     <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{variantPending.name}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {VARIANT_ITEMS[variantPending.name].map((v) => (
-                        <button key={v.value} onClick={() => selectVariant(v.value)} style={{
-                          padding: "12px 0", borderRadius: 10, border: `2px solid ${v.color}`, background: v.bg,
-                          color: v.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
-                        }}>{v.label}</button>
-                      ))}
+                      {variantPending.variations.map((v) => {
+                        const st = variantStyle(v.name);
+                        return (
+                          <button key={v.id} onClick={() => selectVariant(v.name)} style={{
+                            padding: "12px 0", borderRadius: 10, border: `2px solid ${st.color}`, background: st.bg,
+                            color: st.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                          }}>
+                            {v.name}
+                            {v.price != null && <span style={{ fontSize: 12, fontWeight: 600, marginLeft: 6 }}>¥{v.price.toLocaleString()}</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1308,7 +1321,7 @@ export default function TablePage() {
                     const v = item.variations[0];
                     const totalInCart = cart.filter((c) => c.catalog_object_id === v.id).reduce((s, c) => s + c.quantity, 0);
                     const hasHotIce = HOT_ICE_ITEMS.has(item.name);
-                    const hasVariant = !!VARIANT_ITEMS[item.name];
+                    const hasVariant = needsVariantPick(item);
                     const isStockManaged = STOCK_MANAGED.has(item.name);
                     const stockCount = isStockManaged ? (stock[item.name] ?? 0) : -1;
                     const soldOut = isStockManaged && stockCount <= 0;
@@ -1363,7 +1376,7 @@ export default function TablePage() {
           })()}
 
           {/* バリエーション選択 */}
-          {variantPending && VARIANT_ITEMS[variantPending.name] && (
+          {variantPending && needsVariantPick(variantPending) && (
             <div style={{
               position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
               display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
@@ -1373,19 +1386,27 @@ export default function TablePage() {
                   {variantPending.name}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {VARIANT_ITEMS[variantPending.name].map((v) => (
-                    <button
-                      key={v.value}
-                      onClick={() => selectVariant(v.value)}
-                      style={{
-                        padding: "12px 0", borderRadius: 10,
-                        border: `2px solid ${v.color}`, background: v.bg,
-                        color: v.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
-                      }}
-                    >
-                      {v.label}
-                    </button>
-                  ))}
+                  {variantPending.variations.map((v) => {
+                    const st = variantStyle(v.name);
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => selectVariant(v.name)}
+                        style={{
+                          padding: "12px 0", borderRadius: 10,
+                          border: `2px solid ${st.color}`, background: st.bg,
+                          color: st.color, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                        }}
+                      >
+                        {v.name}
+                        {v.price != null && (
+                          <span style={{ fontSize: 12, fontWeight: 600, marginLeft: 6 }}>
+                            ¥{v.price.toLocaleString()}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
