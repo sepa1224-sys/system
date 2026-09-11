@@ -44,6 +44,7 @@ const GROUPS: Group[] = [
       { href: "/schedule", label: "🗓️ 店舗予定" },
       { href: "/shikomi", label: "📆 週間予定" },
       { href: "/menu", label: "🍽️ メニュー" },
+      { href: "/menu-admin", label: "✏️ メニュー編集" },
       { href: "/food", label: "🍳 レシピ" },
       { href: "/purchase", label: "📋 発注リスト" },
       { href: "/orders", label: "📬 購入メール" },
