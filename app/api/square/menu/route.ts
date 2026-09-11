@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listItems } from "@/lib/squareCatalog";
-import { getCategoryOrder, getHidden, sortCategories } from "@/lib/menuAdmin";
+import { getCategoryOrder, getHidden, sortCategories, getItemOrder, sortItems } from "@/lib/menuAdmin";
 
 export const runtime = "nodejs";
 
@@ -28,12 +28,13 @@ async function getLocationId(): Promise<string> {
 //   新しい商品を作るたびにコードを直す必要があった）
 export async function GET() {
   try {
-    const [items, order, hidden] = await Promise.all([
+    const [items, order, itemOrder, hidden] = await Promise.all([
       listItems(),
       getCategoryOrder(),
+      getItemOrder(),
       getHidden(),
     ]);
-    const visible = items.filter((i) => !hidden.includes(i.id));
+    const visible = sortItems(items.filter((i) => !hidden.includes(i.id)), itemOrder);
     const names = sortCategories(
       [...new Set(visible.map((i) => i.category).filter(Boolean))],
       order,

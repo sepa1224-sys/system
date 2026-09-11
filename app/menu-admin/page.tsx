@@ -152,6 +152,16 @@ export default function MenuAdmin() {
   for (const i of shown) (byCat[i.category || "（未分類）"] ??= []).push(i);
   const listOrder = [...catNames.filter((c) => byCat[c]), ...Object.keys(byCat).filter((c) => !catNames.includes(c))];
 
+  // 並び替え。表示している順のまま全体のIDリストを組み直して保存する
+  const moveItem = (cat: string, index: number, dir: -1 | 1) => {
+    const list = [...(byCat[cat] ?? [])];
+    const j = index + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[index], list[j]] = [list[j], list[index]];
+    const ids = listOrder.flatMap((c) => (c === cat ? list : byCat[c] ?? []).map((i) => i.id));
+    send({ action: "item.reorder", ids }, "並び順を変えました");
+  };
+
   return (
     <main className="wrap">
       <Nav />
@@ -191,6 +201,11 @@ export default function MenuAdmin() {
         <>
           <NewItem cats={data.categories} busy={busy} onCreate={(n, p, c) =>
             send({ action: "item.create", name: n, price: p, categoryId: c }, `「${n}」を追加しました`)} />
+          {filter && (
+            <p className="hint" style={{ marginTop: 0 }}>
+              絞り込み中は並び替えが正しく効きません。並べ替えるときは絞り込みを消してください。
+            </p>
+          )}
           <input
             placeholder="商品名で絞り込む"
             value={filter}
@@ -200,7 +215,7 @@ export default function MenuAdmin() {
           {listOrder.map((cat) => (
             <div className="card" key={cat}>
               <div className="cat-title">{cat}（{byCat[cat].length}）</div>
-              {byCat[cat].map((it) => (
+              {byCat[cat].map((it, idx) => (
                 <ItemRow
                   key={it.id}
                   item={it}
@@ -208,6 +223,9 @@ export default function MenuAdmin() {
                   hidden={data.hidden.includes(it.id)}
                   busy={busy}
                   send={send}
+                  first={idx === 0}
+                  last={idx === byCat[cat].length - 1}
+                  onMove={(d) => moveItem(cat, idx, d)}
                 />
               ))}
             </div>
@@ -300,12 +318,18 @@ function ItemRow({
   hidden,
   busy,
   send,
+  first,
+  last,
+  onMove,
 }: {
   item: Item;
   cats: Category[];
   hidden: boolean;
   busy: boolean;
   send: (b: Record<string, unknown>, m: string) => Promise<boolean>;
+  first: boolean;
+  last: boolean;
+  onMove: (d: -1 | 1) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(item.name);
@@ -317,14 +341,35 @@ function ItemRow({
   return (
     <div style={{ borderTop: "1px solid var(--line)", padding: "8px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <button className="ghost" style={{ fontSize: 10, padding: "1px 6px" }}
+            disabled={busy || first} onClick={() => onMove(-1)}>▲</button>
+          <button className="ghost" style={{ fontSize: 10, padding: "1px 6px" }}
+            disabled={busy || last} onClick={() => onMove(1)}>▼</button>
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, opacity: hidden ? 0.45 : 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: hidden ? "#9a938a" : undefined }}>
             {item.name}
-            {hidden && <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6 }}>提供停止中</span>}
+            {hidden && (
+              <span style={{
+                fontSize: 10.5, fontWeight: 700, marginLeft: 6, padding: "2px 7px",
+                borderRadius: 999, background: "#fdecea", color: "#c0392b", whiteSpace: "nowrap",
+              }}>
+                停止中
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 12, color: "var(--muted)" }}>{priceLabel}</div>
         </div>
-        <button className="ghost" style={{ fontSize: 12 }} disabled={busy}
+        <button
+          style={{
+            fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+            // 止めた商品は「出す」が目立つように色を付ける。一覧で見て気づけるように
+            border: hidden ? "2px solid #c0392b" : "1px solid var(--line)",
+            background: hidden ? "#fdecea" : "var(--card)",
+            color: hidden ? "#c0392b" : "var(--muted)",
+          }}
+          disabled={busy}
           onClick={() => send({ action: "item.hidden", id: item.id, hidden: !hidden },
             hidden ? `「${item.name}」を出しました` : `「${item.name}」を止めました`)}>
           {hidden ? "出す" : "止める"}

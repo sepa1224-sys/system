@@ -20,6 +20,9 @@ import {
   getHidden,
   setHidden,
   sortCategories,
+  getItemOrder,
+  setItemOrder,
+  sortItems,
 } from "@/lib/menuAdmin";
 
 export const runtime = "nodejs";
@@ -34,10 +37,11 @@ export const maxDuration = 60;
 // GET → 編集画面に出すもの一式
 export async function GET() {
   try {
-    const [categories, items, order, hidden, pinSet] = await Promise.all([
+    const [categories, items, order, itemOrder, hidden, pinSet] = await Promise.all([
       listCategories(),
       listItems(),
       getCategoryOrder(),
+      getItemOrder(),
       getHidden(),
       hasPin(),
     ]);
@@ -48,7 +52,8 @@ export async function GET() {
     return NextResponse.json({
       categories,
       categoryOrder: names,
-      items: items.sort((a, b) => a.name.localeCompare(b.name, "ja")),
+      items: sortItems(items, itemOrder),
+      itemOrder,
       hidden,
       pinSet,
       uncategorized: items.filter((i) => !i.categoryId).length,
@@ -71,6 +76,7 @@ type Body = {
   variationId?: string;
   hidden?: boolean;
   names?: string[];
+  ids?: string[];
   newPin?: string;
   variations?: { id?: string; name: string; price: number }[];
 };
@@ -140,6 +146,11 @@ export async function POST(req: NextRequest) {
         if (!Array.isArray(b.names)) throw new Error("並び順が必要です");
         await setCategoryOrder(b.names);
         return NextResponse.json({ ok: true, categoryOrder: b.names });
+
+      case "item.reorder":
+        if (!Array.isArray(b.ids)) throw new Error("並び順が必要です");
+        await setItemOrder(b.ids);
+        return NextResponse.json({ ok: true });
 
       case "item.create": {
         if (!b.name?.trim()) throw new Error("商品名を入れてください");

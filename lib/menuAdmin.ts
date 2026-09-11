@@ -12,6 +12,7 @@
 const PIN_KEY = "menu:pin";
 const ORDER_KEY = "menu:catOrder";
 const HIDDEN_KEY = "menu:hidden";
+const ITEM_ORDER_KEY = "menu:itemOrder";
 
 async function kv() {
   const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
@@ -61,6 +62,37 @@ export async function setCategoryOrder(names: string[]): Promise<void> {
   const store = await kv();
   if (!store) throw new Error("KV未設定");
   await store.set(ORDER_KEY, names.filter((n) => typeof n === "string"));
+}
+
+/* ── 商品の並び順 ───────────────────────────── */
+
+/** 注文画面での商品の並び。商品IDを並べたもの。ここに無い商品は後ろに回る */
+export async function getItemOrder(): Promise<string[]> {
+  const store = await kv();
+  if (!store) return [];
+  return (await store.get<string[]>(ITEM_ORDER_KEY)) ?? [];
+}
+
+export async function setItemOrder(ids: string[]): Promise<void> {
+  const store = await kv();
+  if (!store) throw new Error("KV未設定");
+  await store.set(ITEM_ORDER_KEY, ids.filter((i) => typeof i === "string"));
+}
+
+/** 決めた順に並べる。順序表に無いものは後ろへ（名前順） */
+export function sortItems<T extends { id: string; name: string }>(
+  items: T[],
+  order: string[],
+): T[] {
+  const rank = new Map(order.map((id, i) => [id, i]));
+  return [...items].sort((a, b) => {
+    const ra = rank.get(a.id);
+    const rb = rank.get(b.id);
+    if (ra != null && rb != null) return ra - rb;
+    if (ra != null) return -1;
+    if (rb != null) return 1;
+    return a.name.localeCompare(b.name, "ja");
+  });
 }
 
 /* ── 提供停止 ───────────────────────────────── */
