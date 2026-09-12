@@ -52,7 +52,12 @@ export async function GET(req: NextRequest) {
     // ただし今朝もう数えているなら、そちらが最新なので持ち越さない。
     const yEvening = (await dailyState(yesterdayOf(date))).evening;
     const carried = daily.morning.counted ? [] : yEvening.needs;
-    const dailyNeeds = [...carried, ...daily.morning.needs, ...daily.evening.needs];
+    const dailyNeeds = [
+      ...carried,
+      ...daily.morning.needs,
+      ...daily.afternoon.needs,
+      ...daily.evening.needs,
+    ];
     const morning = morningPlan(yst?.counts, yst?.bakedAt, date);
     const night = nightPlan(
       tdy?.counts ?? yst?.counts,

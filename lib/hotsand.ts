@@ -18,8 +18,14 @@ export type Flavor = (typeof HOTSAND_FLAVORS)[number];
 export const FRIDGE_PAR = 3;
 /** 15時に数えて、冷凍庫の合計がこれを切っていたら動く（2フレーバーの合算） */
 export const FREEZER_LOW_TOTAL = 5;
-/** 1回に仕込む数 */
+/** 1回に仕込む数。冷凍庫はフレーバーごとにこの数をそろえる */
 export const BATCH = 10;
+/** 仕込んだあと冷凍庫にあってほしい数（フレーバーごと） */
+export const FREEZER_TARGET = BATCH;
+/** ホットサンド1つに使う食パンの枚数 */
+export const SLICES_PER_SANDWICH = 2;
+/** 食パン1斤の枚数 */
+export const SLICES_PER_LOAF = 6;
 /** 仕込みの間隔。前回仕込んだ日から数える */
 export const PREP_INTERVAL_DAYS = 3;
 
@@ -153,6 +159,29 @@ export function lowFlavors(entry: { freezer: Record<string, number> } | undefine
     .filter((x) => x.left === 0);
 }
 
+/**
+ * 冷凍庫の残りから、次に仕込む数と必要な食パンを出す。
+ * 目標は「フレーバーごとに10個」。いつも10個ずつ作るのではなく、
+ * そこまでの不足分だけ作る。食パンは1個につき2枚、1斤6枚。
+ */
+export function planFrom(freezer: Record<string, number> | undefined) {
+  if (!freezer) return null;
+  const byFlavor = HOTSAND_FLAVORS.map((f) => {
+    const have = freezer[f] ?? 0;
+    return { flavor: f, have, make: Math.max(0, FREEZER_TARGET - have) };
+  });
+  const total = byFlavor.reduce((n, x) => n + x.make, 0);
+  const breadSlices = total * SLICES_PER_SANDWICH;
+  return {
+    target: FREEZER_TARGET,
+    byFlavor,
+    total,
+    breadSlices,
+    breadLoaves: Math.ceil(breadSlices / SLICES_PER_LOAF),
+    slicesPerLoaf: SLICES_PER_LOAF,
+  };
+}
+
 export async function dayState(date: string) {
   const all = await getAll();
   const today = all[date] ?? {};
@@ -181,14 +210,24 @@ export async function dayState(date: string) {
   // 今日のうちにたねを仕込む（明日仕込むことが決まったとき）
   const needTane = !today.night?.tane && (short || prepTomorrow);
   // 15時に足りなければ、その日のうちに食パンを頼む
-  const needBreadCall = short;
+  const needBreadCall = short || prepTomorrow;
+
+  // 翌日いくつ仕込めばよいか。今日の15時の数えから出す
+  const prepPlan = planFrom(count?.freezer);
+  // 今日が仕込む日のとき、作る数は「前日15時」に決まっている。
+  // その数で食パンを頼んでいるので、当日はそれに合わせる。
+  const plannedFromYesterday = planFrom(yst.afternoon?.freezer);
 
   return {
     flavors: [...HOTSAND_FLAVORS],
     fridgePar: FRIDGE_PAR,
     freezerLowTotal: FREEZER_LOW_TOTAL,
     batch: BATCH,
+    freezerTarget: FREEZER_TARGET,
     intervalDays: PREP_INTERVAL_DAYS,
+    prepPlan,
+    plannedFromYesterday,
+    prepTomorrow,
     afternoon: {
       counted: !!today.afternoon,
       freezer: today.afternoon?.freezer ?? null,

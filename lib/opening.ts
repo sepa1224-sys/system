@@ -55,7 +55,7 @@ export type Task = {
   /** ホットサンドが足りないときだけ出す仕込みの作業 */
   hotsandPrep?: boolean;
   /** 牛乳・コールドブリュー・水を数える作業。朝か夜か */
-  daily?: "morning" | "evening";
+  daily?: "morning" | "afternoon" | "evening";
   /** 数えた結果、足りないときだけ出す手当ての作業 */
   dailyAction?: "buy" | "prep" | "refill";
   /** 夜の残数を見て、生地を仕込む必要があるときだけ出す作業 */
@@ -96,6 +96,12 @@ export const TASKS: Task[] = [
     detail: "ワッフルの準備をしながら進める",
   },
   {
+    id: "cafe-supplies",
+    phase: "朝",
+    name: "カフェ備品が補充されているか確認",
+    detail: "マドラー・シロップ・砂糖・ウェットティッシュなど。切れていたらストックルームから足す",
+  },
+  {
     id: "duster",
     phase: "朝",
     name: "ダスター・コーヒータオル・手洗いタオルを畳んで片付ける",
@@ -105,17 +111,17 @@ export const TASKS: Task[] = [
   {
     id: "daily-morning",
     phase: "朝",
-    name: "牛乳・パン・コールドブリュー・水を数える",
-    detail: "切れると出せなくなるものだけ、朝と夜に必ず見る",
+    name: "パン・コールドブリュー・水を数える",
+    detail: "切れると出せなくなるものだけ見る。牛乳は17時に数える",
     daily: "morning",
   },
   {
     id: "daily-buy",
-    phase: "朝",
+    phase: "営業中",
     name: "牛乳・パンを手配する",
     detail:
       "平和堂に電話して持ってきてもらうか、午後のシフトの人に買い出しを頼む。" +
-      "前の晩に足りなかった場合も、翌朝ここに出る",
+      "前の晩に足りなかった場合も、ここに出る",
     dailyAction: "buy",
   },
   {
@@ -141,8 +147,8 @@ export const TASKS: Task[] = [
   {
     id: "daily-evening",
     phase: "締め",
-    name: "牛乳・パン・コールドブリュー・水を数える（夜）",
-    detail: "21時ごろに数える。足りないものは翌朝の手当てとして自動で出る",
+    name: "パン・コールドブリュー・水を数える（夜）",
+    detail: "21時ごろに数える。足りないものは翌日の手当てとして自動で出る",
     daily: "evening",
   },
   {
@@ -186,6 +192,15 @@ export const TASKS: Task[] = [
   },
 
   {
+    id: "daily-afternoon",
+    phase: "営業中",
+    name: "17時に牛乳を数える",
+    detail:
+      "3本以下なら、その場で平和堂に電話して翌日届けてもらう。" +
+      "この時間なら翌日の配達に間に合う",
+    daily: "afternoon",
+  },
+  {
     id: "hotsand-afternoon",
     phase: "営業中",
     name: "15時にホットサンドの冷凍庫を数える",
@@ -220,9 +235,10 @@ export const TASKS: Task[] = [
   {
     id: "hotsand-prep",
     phase: "営業中",
-    name: "ホットサンドを10個仕込む",
+    name: "ホットサンドを仕込む",
     detail:
       "前回の仕込みから3日たった日、または前日15時に冷凍庫が5個を切っていたら出る。" +
+      "いつも10個ずつではなく、冷凍庫を各10個にそろえる分だけ作る。" +
       "仕込んだ日を起点に、次はそこから3日後",
     hotsandPrep: true,
   },
@@ -370,6 +386,12 @@ export const TASKS: Task[] = [
     detail: "コンロのつまみと元栓の両方を見る。火が消えていても元栓が開いていることがある",
   },
   {
+    id: "lock-check",
+    phase: "締め",
+    name: "施錠を確認する",
+    detail: "表の入口・裏口・窓を一通り見る",
+  },
+  {
     id: "keybox-scramble",
     phase: "締め",
     name: "外の鍵ケースの番号をバラバラに戻す",
@@ -379,10 +401,9 @@ export const TASKS: Task[] = [
   },
   {
     id: "grinder-wash",
-    phase: "夜前",
+    phase: "締め",
     name: "グラインダーの備品を洗う",
-    detail: "毎週水曜、夜を開ける前に行う。それ以外の日は拭くだけ",
-    weekday: 3,
+    detail: "毎日洗う",
   },
 ];
 

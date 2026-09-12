@@ -25,7 +25,7 @@ type Task = {
   hotsandTane?: boolean;
   hotsandBread?: boolean;
   hotsandPrep?: boolean;
-  daily?: "morning" | "evening";
+  daily?: "morning" | "afternoon" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
   wafflePrep?: boolean;
   kintai?: boolean;
@@ -35,7 +35,7 @@ type Task = {
   due?: boolean;
 };
 
-type Slot = "morning" | "evening";
+type Slot = "morning" | "afternoon" | "evening";
 type Hotsand = {
   flavors: string[];
   fridgePar: number;
@@ -62,6 +62,24 @@ type Hotsand = {
   needBreadCall: boolean;
   needTane: boolean;
   needPrep: boolean;
+  freezerTarget: number;
+  prepTomorrow: boolean;
+  plannedFromYesterday: {
+    target: number;
+    byFlavor: { flavor: string; have: number; make: number }[];
+    total: number;
+    breadSlices: number;
+    breadLoaves: number;
+    slicesPerLoaf: number;
+  } | null;
+  prepPlan: {
+    target: number;
+    byFlavor: { flavor: string; have: number; make: number }[];
+    total: number;
+    breadSlices: number;
+    breadLoaves: number;
+    slicesPerLoaf: number;
+  } | null;
 };
 
 type DailyItem = {
@@ -70,8 +88,8 @@ type DailyItem = {
   action: "buy" | "prep" | "refill"; actionText: string;
 };
 type DailyNeed = { id: string; name: string; action: string; text: string };
-type DailySlot = { counted: boolean; values: Record<string, number | boolean> | null; needs: DailyNeed[] };
-type Daily = { items: DailyItem[]; morning: DailySlot; evening: DailySlot; carried?: DailyNeed[] };
+type DailySlot = { counted: boolean; values: Record<string, number | boolean> | null; needs: DailyNeed[]; items?: DailyItem[] };
+type Daily = { items: DailyItem[]; morning: DailySlot; afternoon: DailySlot; evening: DailySlot; carried?: DailyNeed[] };
 
 type PendingOrder = {
   id: string;
@@ -319,7 +337,7 @@ export default function OpeningPage() {
     setErr("");
     try {
       const values: Record<string, number | boolean> = {};
-      for (const it of daily.items) {
+      for (const it of (daily[slot]?.items ?? daily.items)) {
         const raw = dcIn[dcKey(slot, it.id)];
         if (it.kind === "full") values[it.id] = raw === "1";
         else values[it.id] = Number(raw || 0);
@@ -542,7 +560,7 @@ export default function OpeningPage() {
             const st = daily[slot];
             return (
               <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
-                {daily.items.map((it) => (
+                {(st.items ?? daily.items).map((it) => (
                   <div key={it.id} style={{
                     display: "flex", alignItems: "center", gap: 8,
                     flexWrap: "wrap", padding: "5px 0",
@@ -655,7 +673,7 @@ export default function OpeningPage() {
                 }}>
                   合計{hs.afternoon.total}個。
                   {hs.short
-                    ? `${hs.freezerLowTotal}個を切っています。今日のうちに食パンを頼んで、タネを仕込んでください（明日${hs.batch}個仕込みます）`
+                    ? `${hs.freezerLowTotal}個を切っています。今日のうちに食パンを頼んで、タネを仕込んでください（明日${hs.prepPlan?.total ?? hs.batch}個仕込みます）`
                     : "まだ足りています"}
                 </div>
               )}
@@ -669,6 +687,23 @@ export default function OpeningPage() {
               }}>
                 15時の時点で冷凍庫の合計が{hs.afternoon.total}個でした。
                 今日中に平和堂へ連絡すると明日届きます。
+                {hs.prepPlan && hs.prepPlan.total > 0 && (
+                  <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e8d5b0" }}>
+                    <div>
+                      明日つくるのは{" "}
+                      {hs.prepPlan.byFlavor
+                        .filter((b) => b.make > 0)
+                        .map((b) => `${b.flavor}${b.make}個`)
+                        .join("・")}
+                      {" "}＝ 合計{hs.prepPlan.total}個
+                      <span style={{ color: "#b08050" }}>（冷凍庫を各{hs.prepPlan.target}個にそろえる）</span>
+                    </div>
+                    <div style={{ marginTop: 3, fontWeight: 700, fontSize: 13.5 }}>
+                      → 食パン{hs.prepPlan.breadSlices}枚。
+                      {hs.prepPlan.slicesPerLoaf}枚入りを<span style={{ fontSize: 16 }}>{hs.prepPlan.breadLoaves}斤</span>頼む
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginTop: 4, fontWeight: 700 }}>★平和堂は手続き中。完了するまで発注しない</div>
               </div>
             </div>
@@ -679,7 +714,7 @@ export default function OpeningPage() {
                 padding: "10px 11px", borderRadius: 7, fontSize: 12.5, lineHeight: 1.75,
                 background: "#fdf6ec", border: "1px solid #e8d5b0", color: "#9c5f22",
               }}>
-                明日{hs.batch}個仕込むので、今日のうちにタネを作っておきます。
+                明日{hs.prepPlan && hs.prepPlan.total > 0 ? hs.prepPlan.total : hs.batch}個仕込むので、今日のうちにタネを作っておきます。
                 {hs.nextPrep && <div>次の仕込み予定日: {hs.nextPrep.slice(5).replace("-", "/")}</div>}
               </div>
             </div>
@@ -753,7 +788,25 @@ export default function OpeningPage() {
                       : "まだ仕込みの記録がありません"}
                 </div>
                 <div style={{ fontSize: 12.5, color: "#9c5f22", marginTop: 3, lineHeight: 1.7 }}>
-                  合わせて{hs.batch}個仕込む（各{hs.batch / 2}個ずつ）。
+                  {hs.plannedFromYesterday && hs.plannedFromYesterday.total > 0 ? (
+                    <>
+                      冷凍庫を各{hs.plannedFromYesterday.target}個にそろえます。
+                      <strong>
+                        {hs.plannedFromYesterday.byFlavor
+                          .filter((b) => b.make > 0)
+                          .map((b) => `${b.flavor}${b.make}個`)
+                          .join("・")}
+                        （合計{hs.plannedFromYesterday.total}個）
+                      </strong>
+                      <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                        昨日15時の残り（
+                        {hs.plannedFromYesterday.byFlavor.map((b) => `${b.flavor}${b.have}`).join("・")}
+                        ）から計算しています
+                      </div>
+                    </>
+                  ) : (
+                    <>冷凍庫を各{hs.freezerTarget}個にそろえる分だけ仕込みます。</>
+                  )}
                   仕込んだ日から{hs.intervalDays}日空けて次にまわります
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--muted)", margin: "8px 0 4px" }}>

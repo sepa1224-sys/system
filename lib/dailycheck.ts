@@ -6,7 +6,8 @@
 // 数えた結果、足りなければ業務チェックに手当ての作業が自動で出る。
 // 牛乳は買いに行く、コールドブリューは仕込む、と手当ての中身が違うので分けてある。
 
-export type Slot = "morning" | "evening";
+/** morning=開店前 / afternoon=17時 / evening=締め前 */
+export type Slot = "morning" | "afternoon" | "evening";
 
 /** 数えるもの。count は個数、full は満タンかどうか */
 export type CheckItem = {
@@ -21,7 +22,16 @@ export type CheckItem = {
   /** 手当てのしかた。buy=買う prep=仕込む refill=足す */
   action: "buy" | "prep" | "refill";
   actionText: string;
+  /** いつ数えるか。書かなければ朝と夜 */
+  slots?: Slot[];
 };
+
+const DEFAULT_SLOTS: Slot[] = ["morning", "evening"];
+
+/** そのタイミングで数えるもの */
+export function itemsForSlot(slot: Slot): CheckItem[] {
+  return CHECK_ITEMS.filter((i) => (i.slots ?? DEFAULT_SLOTS).includes(slot));
+}
 
 export const CHECK_ITEMS: CheckItem[] = [
   {
@@ -32,7 +42,11 @@ export const CHECK_ITEMS: CheckItem[] = [
     par: 3,
     lowAt: 3,
     action: "buy",
-    actionText: "平和堂に電話して持ってきてもらうか、午後のシフトの人に買い出しを頼む",
+    // 17時に数える。この時間なら電話して翌日に届けてもらえる
+    slots: ["afternoon"],
+    actionText:
+      "3本以下なら、その場で平和堂に電話して翌日届けてもらう。" +
+      "間に合わないときは午後のシフトの人に買い出しを頼む",
   },
   {
     id: "cold-brew",
@@ -114,10 +128,10 @@ export async function clearValues(date: string, slot: Slot): Promise<void> {
 export type Need = { id: string; name: string; action: CheckItem["action"]; text: string };
 
 /** 足りないもの。数えていなければ空 */
-export function needs(values: Values | undefined): Need[] {
+export function needs(values: Values | undefined, slot?: Slot): Need[] {
   if (!values) return [];
   const out: Need[] = [];
-  for (const it of CHECK_ITEMS) {
+  for (const it of slot ? itemsForSlot(slot) : CHECK_ITEMS) {
     const v = values[it.id];
     if (v === undefined) continue;
     if (it.kind === "full") {
@@ -145,8 +159,14 @@ export async function dayState(date: string) {
     return {
       counted: !!e,
       values: e?.values ?? null,
-      needs: needs(e?.values),
+      needs: needs(e?.values, slot),
+      items: itemsForSlot(slot),
     };
   };
-  return { items: CHECK_ITEMS, morning: build("morning"), evening: build("evening") };
+  return {
+    items: CHECK_ITEMS,
+    morning: build("morning"),
+    afternoon: build("afternoon"),
+    evening: build("evening"),
+  };
 }
