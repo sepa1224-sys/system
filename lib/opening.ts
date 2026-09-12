@@ -15,8 +15,14 @@ async function kv() {
   return createClient({ url, token });
 }
 
-/** 朝＝開店前 ／ 営業中＝手が空いたとき ／ 締め＝閉店後 ／ 週次＝曜日が決まっているもの */
-export type Phase = "朝" | "営業中" | "締め" | "週次";
+/**
+ * 朝＝開店前 ／ 営業中＝手が空いたとき ／ 夜前＝夜の営業を開ける前 ／
+ * 締め＝閉店後 ／ 週次＝曜日が決まっているもの
+ *
+ * 週一の掃除は締めに固めていたが、深夜で手が回らない。
+ * 夜を開ける前のほうが余裕があるので、そちらに寄せる。
+ */
+export type Phase = "朝" | "営業中" | "夜前" | "締め" | "週次";
 
 export type Task = {
   id: string;
@@ -267,7 +273,7 @@ export const TASKS: Task[] = [
   },
   {
     id: "drain-clean",
-    phase: "締め",
+    phase: "夜前",
     name: "排水溝を掃除する",
     weekday: 1,
   },
@@ -304,16 +310,23 @@ export const TASKS: Task[] = [
   },
   {
     id: "stove-clean",
-    phase: "締め",
+    phase: "夜前",
     name: "コンロまわりとトースターを掃除する",
     detail: "コンロを拭く → コンロ付近を掃除する → トースターを清掃する",
     weekday: 3,
   },
   {
     id: "sink-coat",
-    phase: "締め",
+    phase: "夜前",
     name: "シンク・台下冷蔵庫・製氷機の上を磨く",
     detail: "洗浄 → 研磨 → コーティング剤を散布、の順にやる",
+    weekday: 4,
+  },
+  {
+    id: "dish-rack-wash",
+    phase: "夜前",
+    name: "食器干しを洗う",
+    detail: "水受けまで外して洗う。ぬめりと水垢が溜まりやすい",
     weekday: 4,
   },
   {
@@ -366,9 +379,9 @@ export const TASKS: Task[] = [
   },
   {
     id: "grinder-wash",
-    phase: "週次",
+    phase: "夜前",
     name: "グラインダーの備品を洗う",
-    detail: "毎週水曜の締め作業で行う。それ以外の日は拭くだけ",
+    detail: "毎週水曜、夜を開ける前に行う。それ以外の日は拭くだけ",
     weekday: 3,
   },
 ];

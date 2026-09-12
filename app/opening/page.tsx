@@ -9,7 +9,7 @@ import Nav from "@/components/Nav";
 
 type Task = {
   id: string;
-  phase: "朝" | "営業中" | "締め" | "週次";
+  phase: "朝" | "営業中" | "夜前" | "締め" | "週次";
   name: string;
   detail?: string;
   everyDays?: number;
@@ -945,7 +945,7 @@ export default function OpeningPage() {
 
       {loading && <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>読み込み中…</div>}
 
-      {!loading && (["朝", "営業中", "締め", "週次"] as const).map((phase) => {
+      {!loading && (["朝", "営業中", "夜前", "締め", "週次"] as const).map((phase) => {
         const list = tasks.filter((t) => t.phase === phase);
         if (!list.length) return null;
         return (
@@ -955,9 +955,11 @@ export default function OpeningPage() {
                 ? "🌅 朝（開店前）"
                 : phase === "営業中"
                   ? "🕙 営業中（手が空いたとき）"
-                  : phase === "締め"
-                    ? "🌙 締め（閉店後）"
-                    : "📅 週次"}
+                  : phase === "夜前"
+                    ? "🌆 夜の営業前"
+                    : phase === "締め"
+                      ? "🌙 締め（閉店後）"
+                      : "📅 週次"}
             </div>
             {list.map(row)}
           </div>
