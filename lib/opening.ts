@@ -92,7 +92,7 @@ export const TASKS: Task[] = [
   {
     id: "dishes",
     phase: "朝",
-    name: "前日洗った食器類を片付ける",
+    name: "前日洗った食器類を拭いて片付ける",
     detail: "ワッフルの準備をしながら進める",
   },
   {
@@ -144,8 +144,16 @@ export const TASKS: Task[] = [
   {
     id: "dishes-put-away",
     phase: "営業中",
-    name: "16時半に洗ってある食器を全部片付ける",
+    name: "16時半に干してある食器を拭いて全部戻す",
     detail: "夜の営業前に洗い場を空にしておく",
+  },
+  {
+    id: "dishes-shift-end",
+    phase: "営業中",
+    name: "シフト上がりに、干してある食器を拭いて元の場所に戻す",
+    detail:
+      "自分のシフトが終わるときに毎回やる。次に入る人が濡れた食器を触らずに済むようにする。" +
+      "拭くのは白いタオル（皿拭き用）",
   },
   {
     id: "candle-set",
