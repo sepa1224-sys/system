@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
             : t.hotsand === "breadOrder" ? prepTomorrow
             : t.hotsand === "prep" ? yChoices["hotsand-check"] === "翌日仕込む"
             // 確認できなかった日は、タネだけ作って明日に備える
-            : /* tane */ !checked;
+            // 翌日仕込むと決めた日は、前の晩にタネまで作っておく。
+            // 確認できなかった日も、明日いつでも焼けるようにタネだけ作る
+            : /* tane */ prepTomorrow || !checked;
           return {
             ...t,
             done: done.includes(t.id),
@@ -98,8 +100,13 @@ export async function GET(req: NextRequest) {
           return { ...t, done: done.includes(t.id) || filled, due: st.length > 0 };
         }
         if (t.wafflePrep) {
-          // 夜の残数を数えたうえで、仕込みが要るときだけ出す
-          return { ...t, done: done.includes(t.id), due: night.prep };
+          // 焼いた日は、焼いた分だけ生地が減っているので必ず仕込む。
+          // 焼いていない日でも、夜に数えて足りなければ出す
+          return {
+            ...t,
+            done: done.includes(t.id),
+            due: tdy?.baked === true || night.prep,
+          };
         }
         if (t.dailyAction) {
           return {
