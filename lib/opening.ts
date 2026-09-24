@@ -48,7 +48,7 @@ export type Task = {
    * ホットサンドの一連の作業。朝の確認から枝分かれする。
    * freezer と bread の答えを見て、あとの作業を出すかどうかを決める。
    */
-  hotsand?: "fridge" | "freezer" | "bread" | "prep" | "breadOrder" | "tane";
+  hotsand?: "fridge" | "check" | "breadOrder" | "prep" | "tane";
   /** 牛乳・コールドブリュー・水を数える作業。朝か夜か */
   daily?: "morning" | "afternoon" | "evening";
   /** 数えた結果、足りないときだけ出す手当ての作業 */
@@ -213,8 +213,8 @@ export const TASKS: Task[] = [
     daily: "afternoon",
   },
   {
-    // ホットサンドは「朝に見て、その日のうちに動く」に一本化した。
-    // 前は15時に数えて記録していたが、数を残しても使い道がなかった。
+    // 仕込むと決めた日のうちに食パンを手配し、翌日に焼く。
+    // 冷凍庫を見るのは昼。夜に気づいても、食パンの手配が翌日の配達に間に合わない。
     id: "hotsand-fridge",
     phase: "朝",
     name: "ホットサンドを冷蔵庫に補充する",
@@ -224,35 +224,30 @@ export const TASKS: Task[] = [
     hotsand: "fridge",
   },
   {
-    id: "hotsand-freezer",
-    phase: "朝",
-    name: "冷凍庫のホットサンドを確認する",
-    detail: "クラシックメルトとガーデンメルトが、それぞれ5つあるか",
-    hotsand: "freezer",
-    choices: ["各5つある", "5つない"],
-  },
-  {
-    id: "hotsand-bread",
-    phase: "朝",
-    name: "食パンがあるか確認する",
-    detail: "10個ずつ仕込むには食パンが40枚（約7斤）要る",
-    hotsand: "bread",
-    choices: ["食パンはある", "食パンがない"],
-  },
-  {
     id: "hotsand-prep",
     phase: "朝",
     name: "ホットサンドを10個ずつ仕込む",
-    detail: "クラシックメルトとガーデンメルトを10個ずつ作って冷凍庫へ",
+    detail:
+      "昨日の昼に「翌日仕込む」を押した日に出る。" +
+      "クラシックメルトとガーデンメルトを10個ずつ作って冷凍庫へ",
     hotsand: "prep",
   },
   {
-    id: "hotsand-bread-order",
-    phase: "朝",
-    name: "食パンを手配する",
+    id: "hotsand-check",
+    phase: "営業中",
+    name: "冷凍庫のホットサンドを確認する",
     detail:
-      "その日に買い出しに行くか、平和堂に連絡して翌日持ってきてもらう。" +
-      "届いた翌日に10個ずつ（無理ならできるだけ多く）仕込む。" +
+      "クラシックメルトとガーデンメルトが、どちらかでも3つ以下なら翌日仕込む。" +
+      "「翌日仕込む」を押すと、今日中の食パン手配と、明日の仕込みが作業に出る",
+    hotsand: "check",
+    choices: ["翌日仕込む", "仕込まなくていい"],
+  },
+  {
+    id: "hotsand-bread-order",
+    phase: "営業中",
+    name: "食パンを平和堂に手配する",
+    detail:
+      "今日中に連絡すれば明日届く。10個ずつ仕込むなら食パンは約7斤。" +
       "★平和堂は手続き中なので、完了するまでは買い出しで対応する",
     hotsand: "breadOrder",
   },
@@ -261,8 +256,8 @@ export const TASKS: Task[] = [
     phase: "締め",
     name: "ホットサンドのタネを仕込む",
     detail:
-      "今日は冷凍庫の確認ができていないか、食パンが無くて仕込めなかった日。" +
-      "タネだけ作っておけば、翌日すぐ焼ける",
+      "今日は冷凍庫の確認ができていない日。" +
+      "タネだけ作っておけば、明日いつでも焼ける",
     hotsand: "tane",
   },
   {

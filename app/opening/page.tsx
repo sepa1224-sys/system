@@ -20,7 +20,7 @@ type Task = {
   pendingOrder?: boolean;
   choices?: [string, string];
   answer?: string | null;
-  hotsand?: "fridge" | "freezer" | "bread" | "prep" | "breadOrder" | "tane";
+  hotsand?: "fridge" | "check" | "breadOrder" | "prep" | "tane";
   daily?: "morning" | "afternoon" | "evening";
   dailyAction?: "buy" | "prep" | "refill";
   wafflePrep?: boolean;

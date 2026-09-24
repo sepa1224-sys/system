@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
     // 発注チェックは、届いていない発注があるときだけ出す
     const pending = await openOrders();
     const choices = await getChoices(date);
+    // 前日の昼に「翌日仕込む」を押していたら、今日の朝に仕込みを出す
+    const yChoices = await getChoices(yesterdayOf(date));
     const daily = await dailyState(date);
     const [shifts, kin] = await Promise.all([getShifts(), getKintai()]);
     // 夜に足りなかったものは、翌朝の手当てとして持ち越す。
@@ -70,19 +72,15 @@ export async function GET(req: NextRequest) {
           return { ...t, done: done.includes(t.id), due: pending.length > 0 };
         }
         if (t.hotsand) {
-          // 朝の2つの答えから、そのあとの作業を出すかどうかを決める。
-          // 冷凍庫が足りない → 食パンを確認 → あれば仕込む／無ければ手配
-          const freezerShort = choices["hotsand-freezer"] === "5つない";
-          const noBread = choices["hotsand-bread"] === "食パンがない";
-          const checked = !!choices["hotsand-freezer"];
+          const prepTomorrow = choices["hotsand-check"] === "翌日仕込む";
+          const checked = !!choices["hotsand-check"];
           const due =
             t.hotsand === "fridge" ? true
-            : t.hotsand === "freezer" ? true
-            : t.hotsand === "bread" ? freezerShort
-            : t.hotsand === "prep" ? freezerShort && choices["hotsand-bread"] === "食パンはある"
-            : t.hotsand === "breadOrder" ? freezerShort && noBread
-            // 確認していない日と、食パンが無くて仕込めなかった日は、タネだけ作る
-            : /* tane */ !checked || noBread;
+            : t.hotsand === "check" ? true
+            : t.hotsand === "breadOrder" ? prepTomorrow
+            : t.hotsand === "prep" ? yChoices["hotsand-check"] === "翌日仕込む"
+            // 確認できなかった日は、タネだけ作って明日に備える
+            : /* tane */ !checked;
           return {
             ...t,
             done: done.includes(t.id),
