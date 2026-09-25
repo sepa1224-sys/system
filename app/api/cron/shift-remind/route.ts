@@ -1,36 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffLineIds, pushLine } from "@/lib/staffLine";
-import { nextWeekMonday } from "@/lib/shiftRequest";
+import { remindMessage, REMIND_TARGETS } from "@/lib/shiftRequest";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // 毎週木曜の朝、シフト提出のリマインドをLINEで送る。
 // 坂本もシフトに入るので、組む側だが同じように出してもらう。
-const TARGETS = ["町田", "櫻井", "坂本"];
 
-// 「来週」は人によって指す週がずれるので、日付を書いて送る。
-// 前に週を1つ間違えて提出されたことがあるため。
-function message(): string {
-  const monday = nextWeekMonday();
-  const s = new Date(`${monday}T00:00:00Z`);
-  const e = new Date(`${monday}T00:00:00Z`);
-  e.setUTCDate(e.getUTCDate() + 6);
-  const f = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-  return `【flat.】シフト提出のリマインドです📝
-
-${f(s)}（月）〜 ${f(e)}（日）の働ける時間を、今日中に出してください。
-画面の週が「${f(s)}（月）〜 ${f(e)}（日）」になっているか確かめてから出してください。
-
-「＋時間を追加」を押したあと、必ず時間を選んでください。
-最初は空欄です。出勤できる時間をすべて入れてください。
-（例: 朝から夜まで出られる日は 9:00〜24:30）
-
-1日に何枠でも追加できます（昼と夜が飛び飛びなら2枠）。
-火曜は定休日なので入れなくて大丈夫です。
-
-https://flat-keihi.vercel.app/shift-submit`;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,10 +18,10 @@ export async function GET(req: NextRequest) {
     if (!force && jst.getUTCDay() !== 4) {
       return NextResponse.json({ skipped: true, reason: "木曜ではありません" });
     }
-    const text = message();
+    const text = remindMessage();
     const ids = await getStaffLineIds();
     const results: { name: string; ok: boolean; error?: string }[] = [];
-    for (const name of TARGETS) {
+    for (const name of REMIND_TARGETS) {
       const id = ids[name];
       if (!id) {
         results.push({ name, ok: false, error: "LINE未登録（勤怠のLINE打刻を一度開くと登録されます）" });

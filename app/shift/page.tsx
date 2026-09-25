@@ -217,6 +217,12 @@ export default function Shift() {
   const [sel, setSel] = useState<string>(today);
   // 今日から7日分。月をまたぐので月の表示とは別に取る
   const [week, setWeek] = useState<Day[] | null>(null);
+  // 来週ぶんのシフト提出状況。出していない人にだけ催促を送る
+  const [remind, setRemind] = useState<{
+    week: string;
+    staff: { name: string; submitted: boolean; sendable: boolean }[];
+  } | null>(null);
+  const [remindMsg, setRemindMsg] = useState("");
 
   // 追加フォーム
   const [fStaff, setFStaff] = useState("坂本");
@@ -280,6 +286,32 @@ export default function Shift() {
       })
       .catch(() => setWeek(null));
   }, [today, busy]);
+
+  const loadRemind = useCallback(() => {
+    fetch("/api/shift/remind")
+      .then((r) => r.json())
+      .then((d) => setRemind(d.error ? null : d))
+      .catch(() => setRemind(null));
+  }, []);
+  useEffect(() => { loadRemind(); }, [loadRemind]);
+
+  const sendRemind = async (name: string) => {
+    if (!confirm(`${name}さんにシフト提出の催促をLINEで送ります。`)) return;
+    setRemindMsg("");
+    try {
+      const res = await fetch("/api/shift/remind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: [name] }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "送信失敗");
+      const r = d.results?.[0];
+      setRemindMsg(r?.ok ? `${name}さんに送りました。` : `${name}さん: ${r?.error ?? "送信失敗"}`);
+    } catch (e) {
+      setRemindMsg(e instanceof Error ? e.message : "送信失敗");
+    }
+  };
 
   const dayMap = useMemo(() => {
     const m: Record<string, Day> = {};
@@ -744,6 +776,39 @@ export default function Shift() {
               {prepShortDays.length > 8 && <span>ほか {prepShortDays.length - 8} 日</span>}
             </div>
           </div>
+        </div>
+      )}
+
+      {remind && (
+        <div className="card" style={{ padding: "12px 14px", marginTop: 12 }}>
+          <div className="cat-title">
+            来週（{Number(remind.week.slice(5, 7))}/{Number(remind.week.slice(8))}〜）のシフト提出
+          </div>
+          {remind.staff.map((p) => (
+            <div key={p.name} style={{
+              display: "flex", alignItems: "center", gap: 8, fontSize: 13,
+              padding: "6px 0", borderTop: "1px solid var(--line-soft, #eee)",
+            }}>
+              <b style={{ flex: "0 0 52px", color: COLOR[p.name] }}>{p.name}</b>
+              <span style={{ flex: 1, color: p.submitted ? "var(--ok)" : "#c0392b" }}>
+                {p.submitted ? "提出済み" : "まだ出ていません"}
+              </span>
+              {!p.submitted && (
+                <button
+                  onClick={() => sendRemind(p.name)}
+                  disabled={!p.sendable}
+                  title={p.sendable ? "" : "LINE未登録。勤怠のLINE打刻を一度開いてもらうと送れます"}
+                  style={{ fontSize: 11, padding: "3px 10px", flex: "0 0 auto", opacity: p.sendable ? 1 : 0.4 }}
+                >
+                  LINEで催促
+                </button>
+              )}
+            </div>
+          ))}
+          {remindMsg && <p className="hint" style={{ marginTop: 8 }}>{remindMsg}</p>}
+          <p className="hint" style={{ marginTop: 8 }}>
+            毎週木曜の朝に全員へ自動で送っています。ここは、まだ出ていない人に個別で送るためのものです。
+          </p>
         </div>
       )}
 
