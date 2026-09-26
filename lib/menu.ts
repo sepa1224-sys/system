@@ -188,8 +188,12 @@ export const DEFAULT_MENU: MenuItem[] = [
       { name: "ケチャップ", unit: "g", capacity: 500, purchasePrice: 198, usage: 10, cost: 4 },
       { name: "マーガリン", unit: "g", capacity: 900, purchasePrice: 478, usage: 10, cost: 5 },
     ],
+    // 冷凍で仕込んであるので、注文ごとに中身は変えられない。
+    // Uber Eatsでマスタード抜きの依頼が来たため、説明文にも書いてある。
+    note: "仕込み済みのため、マスタード抜きなどの変更は受けられません",
   },
   {
+    // Uber Eatsでの表示名は「ガーデンツナ」。店内は「ガーデンメルト」
     id: "tuna-broccoli", name: "ガーデンメルト", category: "🥪 Hot Sandwich",
     cost: 165, price: 800,
     ingredients: [
@@ -202,6 +206,7 @@ export const DEFAULT_MENU: MenuItem[] = [
       { name: "マスタード", unit: "g", capacity: 160, purchasePrice: 308, usage: 5, cost: 10 },
       { name: "マーガリン", unit: "g", capacity: 900, purchasePrice: 478, usage: 10, cost: 5 },
     ],
+    note: "仕込み済みのため、マスタード抜きなどの変更は受けられません",
   },
 
   // 🧇 Sweets (Waffle)
