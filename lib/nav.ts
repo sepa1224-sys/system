@@ -24,6 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
     { href: "/stamp", label: "スタンプカード" },
     { href: "/schedule", label: "店舗予定" },
     { href: "/instagram", label: "インスタ" },
+    { href: "/threads", label: "Threads" },
   ]),
   one("shift", "シフト・勤怠", [
     { href: "/shift", label: "シフト" },

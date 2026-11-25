@@ -24,6 +24,7 @@ const PUBLIC_EXACT = new Set([
   // 外部サービスから戻ってくる先。ここを止めると連携が壊れる
   "/api/freee/callback",
   "/api/google/callback",
+  "/api/threads/callback",
 ]);
 
 /** 配下すべてを通すもの。管理画面が同じ下にぶら下がっていないか必ず確認する */
