@@ -8,7 +8,7 @@ import {
 const posting = (d: string) => weekday(d) !== 2; // 火曜定休
 const run = (date: string): PlanEvent => ({ id: `run-${date}`, title: "ランニングクラブ", date });
 const ev = (id: string, date: string, title = "ムービーナイト"): PlanEvent => ({ id, title, date });
-const mark = (date: string): Announce => ({ on: true, title: "公開名", line: "19時から", date });
+const mark = (date: string): Announce => ({ on: true, title: "公開名", line: "19時から", date, srcTitle: "ムービーナイト" });
 const off = { on: false, line: "" };
 const always = { on: true, line: "20時スタート" };
 
@@ -17,6 +17,13 @@ test("印が無いイベントは公開しない。日付が動いたら印は�
   assert.deepEqual(publicEvents([e], {}, always), []);
   assert.equal(publicEvents([e], { a: mark("2026-12-09") }, off)[0].title, "公開名");
   assert.deepEqual(publicEvents([e], { a: mark("2026-12-08") }, off), []);
+});
+
+test("中止と書き足されたら効かない。1回だけやめる印は毎週告知より優先", () => {
+  assert.deepEqual(publicEvents([ev("a", "2026-12-09", "【中止】ムービーナイト")], { a: mark("2026-12-09") }, off), []);
+  const e = run("2026-12-03");
+  const no: Announce = { on: false, title: "", line: "", date: e.date, srcTitle: e.title };
+  assert.deepEqual(publicEvents([e], { [e.id]: no }, always), []);
 });
 
 test("毎週告知は木曜のランだけ。土曜や貸切は入らない", () => {
@@ -78,8 +85,8 @@ test("字数は絵文字をバイトで数える", () => {
 });
 
 test("電話番号・メールを見つける。時刻や日付は通す", () => {
-  for (const s of ["080-5343-2895", "０７４９－４６－５３５５", "0749465355", "a.b@example.com"]) assert.equal(hasContact(s), true, s);
-  for (const s of ["12/10（木）20:00〜", "19:50集合 20:00スタート", "10:00〜18:00／19:00〜24:00 LO23:30", "キロ5分〜5分30秒", "彦根市京町二丁目3-1", "2026-12-10"])
+  for (const s of ["080-5343-2895", "０７４９－４６－５３５５", "0749465355", "a.b@example.com", "0749(46)5355", "090.1234.5678", "0749 46 5355"]) assert.equal(hasContact(s), true, s);
+  for (const s of ["12/10（木）20:00〜", "19:50集合 20:00スタート", "10:00〜18:00／19:00〜24:00 LO23:30", "キロ5分〜5分30秒", "彦根市京町二丁目3-1", "2026-12-10", "開場19:00 1500円", "10:00-18:00 19:00-24:00"])
     assert.equal(hasContact(s), false, s);
 });
 

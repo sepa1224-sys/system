@@ -6,7 +6,10 @@
 export type PlanEvent = { id: string; title: string; date: string };
 
 /** 「告知する」の印。date は印を付けたときの日付で、予定が動いたら効かなくなる */
-export type Announce = { on: boolean; title: string; line: string; date: string };
+export type Announce = { on: boolean; title: string; line: string; date: string; srcTitle: string };
+
+/** 印を付けたときから、予定の日付も題も変わっていないか（「【中止】」と書き足されたら効かなくする） */
+export const markFits = (m: Announce | undefined, e: PlanEvent): m is Announce => !!m && m.date === e.date && m.srcTitle === e.title;
 
 export type RunAlways = { on: boolean; line: string };
 
@@ -52,8 +55,10 @@ const norm = (s: string) => s.normalize("NFKC").replace(/[‐‑–—―−ー]
 /** 電話番号かメールアドレスらしいもの */
 export function hasContact(text: string): boolean {
   const t = norm(text);
+  // 時刻の「:00 1500円」を電話番号と取り違えないように、「:」や数字の続きからは始めない
+  const phones = [...t.matchAll(/(?<![\d:])(?:\+81[-\s.(]*|0)\d{1,4}[-\s.()]*\d{1,4}[-\s.()]*\d{3,4}(?!\d)/g)];
   return (
-    /(?:\+81|0)[-\s(]*\d{1,4}[-\s)]*\d{1,4}[-\s]*\d{3,4}/.test(t) ||
+    phones.some((m) => m[0].replace(/\D/g, "").length >= 10) ||
     /[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(t)
   );
 }
@@ -85,8 +90,9 @@ export function publicEvents(events: PlanEvent[], marks: Record<string, Announce
   for (const e of events) {
     const isRun = isThursdayRun(e);
     const m = marks[e.id];
-    if (m?.on && m.date === e.date) {
-      out.push({ id: e.id, date: e.date, title: m.title, line: m.line, isRun });
+    if (markFits(m, e)) {
+      // オフの印は「毎週告知する」より優先する（その回だけやめる）
+      if (m.on) out.push({ id: e.id, date: e.date, title: m.title, line: m.line, isRun });
     } else if (isRun && runs.on) {
       out.push({ id: e.id, date: e.date, title: "ランクラブ", line: runs.line, isRun });
     }

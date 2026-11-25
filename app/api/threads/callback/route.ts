@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectThreads } from "@/lib/threads";
+import { connectThreads, takeState } from "@/lib/threads";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const state = req.cookies.get("th_state")?.value;
-  if (!state || state !== url.searchParams.get("state")) {
+  if (!state || state !== url.searchParams.get("state") || !(await takeState(state))) {
     return new NextResponse("接続をやり直してください。", { status: 400 });
   }
   const code = url.searchParams.get("code");

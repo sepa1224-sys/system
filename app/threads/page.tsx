@@ -9,10 +9,10 @@ import { threadsLength, MAX_LENGTH } from "@/lib/threadsPlan";
 type Mark = { on: boolean; title: string; line: string; date: string };
 type Ev = { id: string; title: string; date: string; isRun: boolean; live: boolean; mark: Mark | null };
 type Settings = {
-  on: boolean; time: string; memo: string; nightLine: string; skipDates: string[];
+  on: boolean; time: string; memo: string; nightLine: string; runMemo: string;
   runAlways: { on: boolean; line: string }; aiLabel: boolean;
 };
-type Draft = { date: string; text: string; status: "ready" | "stopped"; note?: string; edited?: boolean };
+type Draft = { date: string; text: string; createdAt: string; status: "ready" | "hold"; note?: string; edited?: boolean };
 type Run = {
   date: string; time: string; at: string; status: "posted" | "skipped" | "error" | "check";
   themeLabel: string; text?: string; url?: string; detail?: string;
@@ -21,7 +21,8 @@ type View = {
   configured: boolean;
   conn: { username: string; daysLeft: number; lastError?: string } | null;
   settings: Settings;
-  next: { date: string; draft: Draft | null; themeLabel: string | null; check: { errors: string[]; warnings: string[] } | null } | null;
+  skips: string[];
+  next: { date: string; stopped: boolean; draft: Draft | null; themeLabel: string | null; check: { errors: string[]; warnings: string[] } | null } | null;
   events: Ev[];
   runs: Run[];
 };
@@ -164,16 +165,16 @@ export default function ThreadsPage() {
                 )}
                 {draft && (
                   <>
-                    {draft.status === "stopped" && <p className="err">この日は出しません</p>}
+                    {v.next.stopped && <p className="err">この日は出しません</p>}
                     {draft.note && <p className="hint">{draft.note}</p>}
-                    <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} style={{ width: "100%", marginTop: 6, fontSize: 15, lineHeight: 1.6 }} />
+                    <textarea rows={8} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} style={{ width: "100%", marginTop: 6, fontSize: 15, lineHeight: 1.6 }} />
                     <div style={{ ...small, color: len > MAX_LENGTH ? "#c0392b" : "var(--muted)" }}>
                       {len} / {MAX_LENGTH}字{dirty && "　まだ保存していません"}
                     </div>
                     {!dirty && v.next.check && [...v.next.check.errors, ...v.next.check.warnings].map((w) => <p key={w} className="err">{w}</p>)}
                     <div style={{ ...row, marginTop: 8 }}>
-                      <button className="primary" disabled={busy || !dirty} onClick={() => send({ action: "saveDraft", date: draft.date, text }, "保存しました", "draft")}>保存</button>
-                      {draft.status === "ready"
+                      <button className="primary" disabled={busy || (!dirty && draft.status === "ready")} onClick={() => send({ action: "saveDraft", date: draft.date, createdAt: draft.createdAt, text }, "保存しました", "draft")}>{draft.status === "hold" ? "確かめて保存" : "保存"}</button>
+                      {!v.next.stopped
                         ? <button disabled={busy} onClick={() => send({ action: "stop", date: draft.date }, "この日は出しません")}>この日は出さない</button>
                         : <button disabled={busy} onClick={() => send({ action: "resume", date: draft.date }, "出すように戻しました")}>出すように戻す</button>}
                       <button disabled={busy} onClick={() => (!(dirty || draft.edited) || confirm("直した本文は消えます。作り直しますか？")) && send({ action: "make" }, "作り直しました", "draft")}>
@@ -216,7 +217,9 @@ export default function ThreadsPage() {
                       <button disabled={busy} onClick={() => setEdit({ id: e.id, title: e.mark!.title, line: e.mark!.line })}>直す</button>
                       <button disabled={busy} onClick={() => send({ action: "mark", id: e.id, on: false, title: e.mark!.title, line: e.mark!.line }, "告知をやめました")}>やめる</button>
                     </div>
-                  ) : !e.live && (
+                  ) : e.live ? (
+                    <button disabled={busy} onClick={() => send({ action: "mark", id: e.id, on: false, title: "", line: "" }, "この回は告知しません")}>この回はやめる</button>
+                  ) : (
                     <button disabled={busy} onClick={() => setEdit({ id: e.id, title: e.mark?.title ?? "", line: e.mark?.line ?? "" })}>告知する</button>
                   )}
                 </div>
@@ -247,25 +250,28 @@ export default function ThreadsPage() {
             <label style={{ fontSize: 13 }}>店の紹介メモ（AIはここに書いてあることだけで書きます）
               <textarea rows={7} value={form.memo} maxLength={2000} onChange={(e) => setForm({ ...form, memo: e.target.value })} style={{ width: "100%" }} />
             </label>
+            <label style={{ fontSize: 13 }}>ランの説明（ランを書く日だけAIに渡します）
+              <textarea rows={4} value={form.runMemo} maxLength={600} onChange={(e) => setForm({ ...form, runMemo: e.target.value })} style={{ width: "100%" }} />
+            </label>
             <label style={{ ...row, fontSize: 13 }}>
               <input type="checkbox" style={{ width: "auto" }} checked={form.aiLabel} onChange={(e) => setForm({ ...form, aiLabel: e.target.checked })} />
               「AIで作成」の印を付ける
             </label>
             <button className="primary" disabled={busy}
-              onClick={() => send({ action: "settings", settings: { time: form.time, nightLine: form.nightLine, memo: form.memo, aiLabel: form.aiLabel } }, "保存しました")}>設定を保存</button>
+              onClick={() => send({ action: "settings", settings: { ...(form.time !== v.settings.time ? { time: form.time } : {}), nightLine: form.nightLine, memo: form.memo, runMemo: form.runMemo, aiLabel: form.aiLabel } }, "保存しました")}>設定を保存</button>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>出さない日（貸切など）</div>
               <div style={small}>火曜と、インスタの画面で入れた臨時休業の日は、入れなくても出ません。</div>
               <div style={{ ...row, marginTop: 6 }}>
                 <input type="date" value={skip} onChange={(e) => setSkip(e.target.value)} style={{ flex: 1 }} />
                 <button disabled={!skip || busy}
-                  onClick={async () => { if (await send({ action: "settings", settings: { skipDates: [...v.settings.skipDates, skip] } }, "足しました", "none")) { setSkip(""); } }}>足す</button>
+                  onClick={async () => { if (await send({ action: "skip", date: skip }, "足しました", "none")) { setSkip(""); } }}>足す</button>
               </div>
               <div style={{ ...row, marginTop: 8 }}>
-                {v.settings.skipDates.map((d) => (
+                {v.skips.map((d) => (
                   <span key={d} style={{ fontSize: 12, padding: "3px 8px", borderRadius: 12, background: "#f3f3f3" }}>
                     {md(d)} <button aria-label={`${md(d)}を外す`} disabled={busy} style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}
-                      onClick={() => send({ action: "settings", settings: { skipDates: v.settings.skipDates.filter((x) => x !== d) } }, "外しました")}>×</button>
+                      onClick={() => send({ action: "unskip", date: d }, "外しました")}>×</button>
                   </span>
                 ))}
               </div>

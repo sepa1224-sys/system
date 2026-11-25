@@ -18,6 +18,6 @@
 6. 下書きを2〜3日見てから、自動投稿をオンにする
 
 ## 仕組みのメモ
-- KV：`th:settings` `th:events`（告知の印）`th:draft:<日付>` `th:lock:<日付>`（1日1回の鍵）`th:runs` `th:conn`
+- KV：`th:settings` `th:events`（告知の印）`th:draft:<日付>` `th:stop:<日付>`（この日は出さない）`th:skip`（出さない日）`th:lock:<日付>`（1日1回の鍵）`th:runs` `th:conn`
 - トークンは60日。7日ごとに自動で延ばす。切れたら画面でつなぎ直す
 - 計算は `lib/threadsPlan.ts`（テストは `node --test lib/threadsPlan.test.ts`）、保存とAPIは `lib/threads.ts`

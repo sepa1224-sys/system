@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toMin } from "@/lib/instagramPlan";
 import { hasContact } from "@/lib/threadsPlan";
-import { disconnect, editDraft, loadWorld, makeDraft, nextDate, saveMark, saveSettings, view, type Settings } from "@/lib/threads";
+import { disconnect, editDraft, loadWorld, makeDraft, nextDate, saveMark, saveSettings, setSkip, setStopped, view, type Settings } from "@/lib/threads";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -31,7 +31,7 @@ function cleanSettings(b: Partial<Settings>): Partial<Settings> {
   }
   if (b.memo !== undefined) out.memo = publicText(b.memo, "店の紹介メモ", 2000, true);
   if (b.nightLine !== undefined) out.nightLine = publicText(b.nightLine, "夜の営業の言い方", 100, true);
-  if (b.skipDates !== undefined) out.skipDates = [...new Set((b.skipDates ?? []).filter(isDate))].sort().slice(-100);
+  if (b.runMemo !== undefined) out.runMemo = publicText(b.runMemo, "ランの説明", 600, true);
   if (b.runAlways !== undefined) {
     const on = b.runAlways.on === true;
     out.runAlways = { on, line: publicText(b.runAlways.line, "ランの公開用の一文", 300, on) };
@@ -49,7 +49,7 @@ export async function GET() {
 
 // POST { action, ... }
 //   settings { settings } / mark { id, on, title, line }
-//   saveDraft { date, text } / stop { date } / resume { date } / make（次の投稿日の下書きを作る・作り直す） / disconnect
+//   saveDraft { date, createdAt, text } / skip・unskip { date } / stop { date } / resume { date } / make（次の投稿日の下書きを作る・作り直す） / disconnect
 export async function POST(req: NextRequest) {
   try {
     const b = await req.json();
@@ -66,17 +66,23 @@ export async function POST(req: NextRequest) {
           title: publicText(b.title, "公開する題", 60, on),
           line: publicText(b.line, "公開用の一文", 300, on),
           date: ev.date,
+          srcTitle: ev.title,
         });
         break;
       }
       case "saveDraft":
         if (!isDate(b.date)) throw new Error("日付が正しくありません");
-        await editDraft(b.date, { text: String(b.text ?? "").trim() });
+        await editDraft(b.date, String(b.createdAt ?? ""), String(b.text ?? "").trim());
         break;
       case "stop":
       case "resume":
         if (!isDate(b.date)) throw new Error("日付が正しくありません");
-        await editDraft(b.date, { status: b.action === "stop" ? "stopped" : "ready" });
+        await setStopped(b.date, b.action === "stop");
+        break;
+      case "skip":
+      case "unskip":
+        if (!isDate(b.date)) throw new Error("日付が正しくありません");
+        await setSkip(b.date, b.action === "skip");
         break;
       case "make": {
         const w = await loadWorld();

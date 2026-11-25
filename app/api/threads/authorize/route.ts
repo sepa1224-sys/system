@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authorizeUrl } from "@/lib/threads";
+import { authorizeUrl, issueState } from "@/lib/threads";
 
 export const runtime = "nodejs";
 
@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const origin = new URL(req.url).origin;
   const nonce = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
   try {
+    await issueState(nonce);
     const res = NextResponse.redirect(authorizeUrl(origin, nonce));
     res.cookies.set("th_state", nonce, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 600, path: "/" });
     return res;
