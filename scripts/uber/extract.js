@@ -9,7 +9,7 @@
 //
 // Uber のページは外のサイトへの通信（fetch）を CSP で止めているので、flat の画面を開いて postMessage で渡す。
 // 注文者・配達員の名前や電話は取らない（クエリに入れていない）。
-// 短時間に呼びすぎると 429 が返るので、一覧は3日ずつ、詳細は1.5秒あけて1件ずつ。429 なら30秒待って取り直す。
+// 短時間に呼びすぎると 429 が返るので、一覧は3秒あけて1ページずつ、詳細は1.5秒あけて1件ずつ。429 なら30秒待って取り直す。
 (() => {
   const STORE = "437ab348-2564-4cba-85e6-9a753518bf3e";
   const FLAT = "https://flat-keihi.vercel.app";
@@ -41,23 +41,38 @@
     try {
       const list = {};
       const now = new Date();
-      for (let back = days; back > 0; back -= 3) {
-        const a = ymd(new Date(now.getTime() - back * 86400000));
-        const z = ymd(new Date(now.getTime() - Math.max(back - 3, 0) * 86400000));
+      const filters = {
+        currentTab: "", displayCurrencyCode: "",
+        locationConstraints: { cities: [], countries: [], locationUuids: [STORE] },
+        dateFilter: {
+          startDate: `${ymd(new Date(now.getTime() - days * 86400000))} 00:00:00`,
+          endDate: `${ymd(now)} 23:59:59`, lastUpdatedAt: "",
+        },
+        isEatsPassSubscriber: false, search: null, orderIssuesV2: [], issueOrderStatusFilter: [], displayByocIssues: false,
+      };
+      // 1回目は進行中の注文（liveOrders）で、終わった注文は次のページ（historyOrders）にある。
+      // 次のページは pagingInfo ではなく pagination に cursor と nextTable を入れて送る（2026-11-25 画面の通信で確認）
+      let page = null;
+      let expected = 0;
+      for (let i = 0; i < 30; i++) {
         const j = await post("/manager/api/getHistoricOrders?localeCode=ja-JP", {
-          filters: {
-            currentTab: "", displayCurrencyCode: "",
-            locationConstraints: { cities: [], countries: [], locationUuids: [STORE] },
-            dateFilter: { startDate: `${a} 00:00:00`, endDate: `${z} 23:59:59`, lastUpdatedAt: "" },
-            isEatsPassSubscriber: false, search: null, orderIssuesV2: [], issueOrderStatusFilter: [], displayByocIssues: false,
-          },
+          filters,
           sort: { sortColumn: "SORT_COLUMN_ORDER_COMPLETED_AT", sortDirection: "SORT_DIRECTION_DESC" },
           pagingInfo: { cursor: "", limit: 20, nextTable: "liveOrders" },
+          ...(page ? { pagination: page } : {}),
         });
         for (const o of j.data.orders) list[o.workflowUuid] = o.orderStatus;
-        st.log.push(`${a}〜${z}: ${j.data.orders.length}件`);
+        expected = Math.max(expected, Number(j.data.ordersCount) || 0);
+        st.log.push(`${i + 1}ページ目: ${j.data.orders.length}件`);
+        const p = j.data.paginationResult || {};
+        if (!p.nextTable || p.nextTable === "None") break;
+        if (page && !p.nextCursor && p.nextTable === page.nextTable) break;
+        page = { cursor: p.nextCursor || "", nextTable: p.nextTable, limit: 20 };
         await sleep(3000);
       }
+      // 取りこぼしたまま黙って送らない
+      const got = Object.keys(list).length;
+      if (got < expected) throw new Error(`一覧が足りない（${got}/${expected}件）`);
       st.raw = [];
       for (const [uuid, status] of Object.entries(list)) {
         const j = await post("/manager/graphql?op=OrderDetails", {
@@ -68,6 +83,7 @@
         if (j.data && j.data.orderDetails) st.raw.push({ uuid, status, details: j.data.orderDetails });
         await sleep(1500);
       }
+      if (st.raw.length < got) throw new Error(`中身が取れない注文がある（${st.raw.length}/${got}件）`);
       st.status = "collected";
     } catch (e) {
       st.status = "error: " + e.message;
